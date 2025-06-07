@@ -16,6 +16,7 @@ register_queries! {
     mod multiple_types;
     mod placeholder;
     mod unresolved_name;
+    mod unresolved_named_type;
 }
 
 macro_rules! register_queries {

@@ -3,10 +3,10 @@ group: Todo
 summary:
   node: name
   content:
-    - text: "Couldn't find a variable named"
+    - text: "Couldn't find a type named"
     - source: name
 
 details:
   - node: name
     content:
-      - text: "Check the spelling of this variable name."
+      - text: "Check the spelling of this type name."
