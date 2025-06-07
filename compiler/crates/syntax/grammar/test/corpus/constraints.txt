@@ -1,0 +1,51 @@
+==================
+bound constraint
+==================
+
+x :: value where (Foo value)
+
+------------------
+
+(source_file
+  statement: (constant_definition_statement
+    name: (variable_name)
+    type: (parameter_type
+      name: (type_parameter_name))
+    constraint: (bound_constraint
+      trait: (type_name)
+      parameter: (parameter_type
+        name: (type_parameter_name)))))
+
+==================
+infer constraint
+==================
+
+x :: value where (infer value)
+
+------------------
+
+(source_file
+  statement: (constant_definition_statement
+    name: (variable_name)
+    type: (parameter_type
+      name: (type_parameter_name))
+    constraint: (infer_constraint
+      parameter: (type_parameter_name))))
+
+==================
+default constraint
+==================
+
+x :: value where (value : Number)
+
+------------------
+
+(source_file
+  statement: (constant_definition_statement
+    name: (variable_name)
+    type: (parameter_type
+      name: (type_parameter_name))
+    constraint: (default_constraint
+      parameter: (type_parameter_name)
+      value: (named_type
+        name: (type_name)))))

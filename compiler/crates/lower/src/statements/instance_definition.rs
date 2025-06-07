@@ -1,0 +1,13 @@
+use crate::{Visit, Visitor};
+use wipple_compiler_syntax::InstanceDefinitionStatement;
+use wipple_compiler_trace::{rule, NodeId, Rule};
+
+rule! {
+    // TODO
+}
+
+impl Visit for InstanceDefinitionStatement {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+        todo!()
+    }
+}

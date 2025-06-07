@@ -1,0 +1,8 @@
+{
+    "name": "tree-sitter-wipple",
+    "private": true,
+    "scripts": {
+        "build": "tree-sitter generate",
+        "test": "npm run build && tree-sitter test"
+    }
+}

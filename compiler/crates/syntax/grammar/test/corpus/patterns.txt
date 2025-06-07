@@ -1,0 +1,128 @@
+==================
+wildcard pattern
+==================
+
+_ : ()
+
+------------------
+
+(source_file
+  statement: (assignment_statement
+    pattern: (wildcard_pattern)
+    value: (unit_expression)))
+
+==================
+variable pattern
+==================
+
+x : ()
+
+------------------
+
+(source_file
+  statement: (assignment_statement
+    pattern: (variable_pattern
+      variable: (variable_name))
+    value: (unit_expression)))
+
+==================
+destructure pattern
+==================
+
+{x : y} : ()
+
+------------------
+
+(source_file
+  statement: (assignment_statement
+    pattern: (destructure_pattern
+      field: (destructure_pattern_field
+        name: (variable_name)
+        value: (variable_pattern
+          variable: (variable_name))))
+    value: (unit_expression)))
+
+==================
+set pattern
+==================
+
+set x : ()
+
+------------------
+
+(source_file
+  statement: (assignment_statement
+    pattern: (set_pattern
+      variable: (variable_name))
+    value: (unit_expression)))
+
+==================
+simple variant pattern
+==================
+
+None : ()
+
+------------------
+
+(source_file
+  statement: (assignment_statement
+    pattern: (variant_pattern
+      variant: (variant_name))
+    value: (unit_expression)))
+
+==================
+complex variant pattern
+==================
+
+Some x y z : ()
+
+------------------
+
+(source_file
+  statement: (assignment_statement
+    pattern: (variant_pattern
+      variant: (variant_name)
+      element: (variable_pattern
+        variable: (variable_name))
+      element: (variable_pattern
+        variable: (variable_name))
+      element: (variable_pattern
+        variable: (variable_name)))
+    value: (unit_expression)))
+
+==================
+simple or pattern
+==================
+
+x or y : ()
+
+------------------
+
+(source_file
+  statement: (assignment_statement
+    pattern: (or_pattern
+      left: (variable_pattern
+        variable: (variable_name))
+      right: (variable_pattern
+        variable: (variable_name)))
+    value: (unit_expression)))
+
+==================
+complex or pattern
+==================
+
+x or y or z : ()
+
+------------------
+
+(source_file
+  statement: (assignment_statement
+    pattern: (or_pattern
+      left: (or_pattern
+        left: (variable_pattern
+          variable: (variable_name))
+        right: (variable_pattern
+          variable: (variable_name)))
+      right: (variable_pattern
+        variable: (variable_name)))
+    value: (unit_expression)))

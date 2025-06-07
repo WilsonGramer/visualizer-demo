@@ -1,0 +1,8 @@
+[package]
+name = "wipple-compiler-syntax"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+derive-tree-sitter = { git = "https://github.com/WilsonGramer/derive-tree-sitter" }
+tree-sitter-wipple = { path = "grammar" }

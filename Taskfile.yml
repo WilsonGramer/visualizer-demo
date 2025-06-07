@@ -1,0 +1,28 @@
+version: "3"
+
+tasks:
+  demo:
+    cmds:
+      - task: build:compiler
+      - task: demo:app
+
+  demo:app:
+    dir: demo
+    cmds:
+      - npm run dev
+
+  build:
+    cmds:
+      - task: build:compiler
+      - task: build:app
+
+  build:compiler:
+    dir: compiler
+    cmds:
+      - wasm-pack build --target bundler
+
+  build:app:
+    dir: demo
+    cmds:
+      - npm install
+      - npm run build

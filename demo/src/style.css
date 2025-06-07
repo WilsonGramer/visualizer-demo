@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/fira-code/wght.css";
+
+@layer base {
+    :root {
+        --font-sans: "Inter Variable", sans-serif;
+        --font-mono: "Fira Code Variable", monospace;
+    }
+}

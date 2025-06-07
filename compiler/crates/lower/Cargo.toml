@@ -1,0 +1,12 @@
+[package]
+name = "wipple-compiler-lower"
+version = "0.0.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+wipple-compiler-syntax = { path = "../syntax" }
+wipple-compiler-trace = { path = "../trace" }
+wipple-compiler-typecheck = { path = "../typecheck" }

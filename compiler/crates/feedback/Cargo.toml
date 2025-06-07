@@ -1,0 +1,12 @@
+[package]
+name = "wipple-compiler-feedback"
+version = "0.0.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+wipple-compiler-lower = { path = "../lower" }
+wipple-compiler-trace = { path = "../trace" }
+wipple-compiler-typecheck = { path = "../typecheck" }

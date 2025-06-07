@@ -1,0 +1,14 @@
+[package]
+name = "wipple-compiler-typecheck"
+version = "0.0.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+colourado = "0.2"
+itertools = "0.14"
+petgraph = "0.8"
+tabbycat = "0.1"
+wipple-compiler-trace = { path = "../trace" }
