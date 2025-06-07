@@ -157,6 +157,7 @@ module.exports = grammar({
 
         _subexpression: ($) =>
             choice(
+                $.placeholder_expression,
                 $.name_expression,
                 $.number_expression,
                 $.text_expression,
@@ -172,6 +173,8 @@ module.exports = grammar({
                 alias($._multiline_tuple_expression, $.tuple_expression),
                 alias($._multiline_collection_expression, $.collection_expression)
             ),
+
+        placeholder_expression: ($) => "_",
 
         name_expression: ($) => field("variable", $.variable_name),
 
@@ -302,7 +305,7 @@ module.exports = grammar({
         destructure_pattern_field: ($) =>
             seq(field("name", $.variable_name), $._colon_operator, field("value", $._pattern)),
 
-        unit_pattern : ($) => seq("(", ")"),
+        unit_pattern: ($) => seq("(", ")"),
 
         tuple_pattern: ($) => variadic($, $._semicolon_operator, $._pattern_element),
 
@@ -501,6 +504,7 @@ module.exports = grammar({
         [$.tuple_expression, $._multiline_tuple_expression],
         [$.collection_expression, $._multiline_collection_expression],
         [$._multiline_tuple_expression, $._multiline_tuple_pattern],
+        [$.placeholder_expression, $.wildcard_pattern],
         [$.name_expression, $.variable_pattern],
         [$.number_expression, $.number_pattern],
         [$.text_expression, $.text_pattern],
