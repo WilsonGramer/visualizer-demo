@@ -1,13 +1,25 @@
 version: "3"
 
-tasks:
-  demo:
-    cmds:
-      - task: build:compiler
-      - task: demo:app
+interval: "500ms"
 
-  demo:app:
+tasks:
+  dev:
+    watch: true
+    cmds:
+      - task: dev:compiler
+      - task: dev:app
+
+  dev:compiler:
+    dir: compiler
+    sources:
+      - "**/*.rs"
+    method: timestamp
+    cmds:
+      - wasm-pack build --target bundler --no-opt
+
+  dev:app:
     dir: demo
+    run: once
     cmds:
       - npm run dev
 
