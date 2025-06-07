@@ -34,7 +34,7 @@ use wipple_compiler_typecheck::{
 pub struct Result {
     pub nodes: BTreeMap<NodeId, (Box<dyn Node>, AnyRule)>,
     pub spans: BTreeMap<NodeId, Span>,
-    pub relations: BTreeMap<NodeId, (NodeId, AnyRule)>,
+    pub relations: BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
 }
 
 pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Result {
@@ -71,7 +71,7 @@ struct Visitor<'a> {
     make_span: Box<dyn Fn(Range<usize>) -> Span + 'a>,
     nodes: BTreeMap<NodeId, Option<(Box<dyn Node>, AnyRule)>>,
     spans: BTreeMap<NodeId, Span>,
-    relations: BTreeMap<NodeId, (NodeId, AnyRule)>,
+    relations: BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
     stack: Vec<NodeId>, // used by patterns
     scopes: Vec<Scope>, // used by blocks
 }
@@ -98,7 +98,11 @@ impl<'a> Visitor<'a> {
         self.nodes.insert(id, None);
 
         if let Some((parent, rule)) = parent {
-            self.relations.insert(id, (parent, rule.erased()));
+            self.relations
+                .entry(id)
+                .or_default()
+                .push((parent, rule.erased()));
+
             self.stack.push(parent);
         }
 
@@ -203,7 +207,9 @@ impl Visitor<'_> {
 
         if let Some(definition) = definition {
             self.relations
-                .insert(node, (definition.source(), rule.erased()));
+                .entry(node)
+                .or_default()
+                .push((definition.source(), rule.erased()));
         }
 
         definition

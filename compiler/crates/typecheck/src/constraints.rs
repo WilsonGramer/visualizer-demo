@@ -228,10 +228,10 @@ impl Ty {
         match self {
             Ty::Var(var) => format!("({var})"),
             Ty::Any => String::from("_"),
-            Ty::Of(node, _) => format!("({})", debug.node(*node, DebugOptions::default()).1),
+            Ty::Of(node, _) => format!("({})", debug.node_source(*node, DebugOptions::default()).1),
             Ty::Named { name, parameters } => format!(
                 "{}{}",
-                debug.node(*name, DebugOptions::default()).1,
+                debug.node_source(*name, DebugOptions::default()).1,
                 parameters
                     .iter()
                     .map(|parameter| format!(" {}", parameter.to_debug_string(debug)))

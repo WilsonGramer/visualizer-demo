@@ -10,10 +10,10 @@ use petgraph::{
     visit::{DfsEvent, depth_first_search},
 };
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet},
     mem,
 };
-use wipple_compiler_trace::{AnyRule, NodeId, Span, rule};
+use wipple_compiler_trace::{AnyRule, NodeId, rule};
 
 rule! {
     /// The type was unified with another type.
@@ -142,7 +142,7 @@ impl Session {
             .collect()
     }
 
-    pub fn iterate(&mut self, debug: &DebugProvider<'_>) -> BTreeMap<NodeId, Vec<Ty>> {
+    pub fn iterate(&mut self) -> BTreeMap<NodeId, Vec<Ty>> {
         let groups = self.groups(None);
 
         let mut keys = groups
@@ -193,14 +193,9 @@ impl Session {
                                     result = snapshot;
                                     vars = vars_snapshot;
                                 } else {
-                                    // TODO: Diagnostic here?
-                                    ty.apply(&vars_snapshot);
-                                    eprintln!(
-                                        "failed to unify {} with {}",
-                                        ty.to_debug_string(debug),
-                                        snapshot.to_debug_string(debug),
-                                    );
-
+                                    // No need to generate a diagnostic here;
+                                    // feedback is generated whenever an
+                                    // expression has multiple types
                                     others.push(ty);
                                 }
                             }
@@ -432,7 +427,7 @@ impl Session {
         &self,
         start: Option<NodeId>,
         tys: &BTreeMap<NodeId, Vec<Ty>>,
-        relations: &BTreeMap<NodeId, (NodeId, AnyRule)>,
+        relations: &BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
         debug: &DebugProvider<'_>,
     ) -> String {
         // Group types that should unify with each other
@@ -528,7 +523,7 @@ impl Session {
             let from_tys = display_tys(from);
             let to_tys = display_tys(to);
 
-            let (from_span, from_debug) = debug.node(
+            let (from_span, from_debug) = debug.node_source(
                 from,
                 DebugOptions {
                     rule: true,
@@ -536,7 +531,7 @@ impl Session {
                 },
             );
 
-            let (to_span, to_debug) = debug.node(
+            let (to_span, to_debug) = debug.node_source(
                 to,
                 DebugOptions {
                     rule: true,
@@ -586,16 +581,18 @@ impl Session {
                 );
 
             for child in [from, to] {
-                if let Some((parent, rule)) = relations.get(&child) {
-                    stmts = stmts.add_edge(
-                        tabbycat::Edge::head_node(node_id(child), None)
-                            .arrow_to_node(node_id(*parent), None)
-                            .add_attrpair(tabbycat::attributes::label(format!("{rule:?}")))
-                            .add_attrpair(tabbycat::attributes::fontname(font))
-                            .add_attrpair(tabbycat::attributes::style(
-                                tabbycat::attributes::Style::Solid,
-                            )),
-                    );
+                if let Some(relations) = relations.get(&child) {
+                    for (parent, rule) in relations {
+                        stmts = stmts.add_edge(
+                            tabbycat::Edge::head_node(node_id(child), None)
+                                .arrow_to_node(node_id(*parent), None)
+                                .add_attrpair(tabbycat::attributes::label(format!("{rule:?}")))
+                                .add_attrpair(tabbycat::attributes::fontname(font))
+                                .add_attrpair(tabbycat::attributes::style(
+                                    tabbycat::attributes::Style::Solid,
+                                )),
+                        );
+                    }
                 }
             }
         }

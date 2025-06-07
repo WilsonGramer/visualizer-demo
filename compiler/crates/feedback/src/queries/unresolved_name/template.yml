@@ -1,0 +1,12 @@
+group: Todo
+
+summary:
+  node: name
+  content:
+    - text: "Couldn't find"
+    - source: name
+
+details:
+  - node: name
+    content:
+      - text: "Check the spelling of this name."

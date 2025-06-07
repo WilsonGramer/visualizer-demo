@@ -30,7 +30,7 @@ const update = async () => {
     url.searchParams.set("code", code.value);
     window.history.replaceState({}, "", url.toString());
 
-    const [syntaxError, graph, tys] = compile(code.value);
+    const [syntaxError, graph, tys, feedback] = compile(code.value);
 
     try {
         graphviz.renderDot(graph);
@@ -38,7 +38,7 @@ const update = async () => {
         console.error(e);
     }
 
-    log.innerText = syntaxError + tys;
+    log.innerText = syntaxError + feedback + tys;
 };
 
 update();

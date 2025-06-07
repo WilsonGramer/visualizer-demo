@@ -1,3 +1,5 @@
+#![allow(unused_crate_dependencies, reason = "used in lib.rs")]
+
 use std::{
     env, fs,
     io::{self, Write},
@@ -48,11 +50,14 @@ fn run(path: &str, source: &str) {
 
     let display_tys = |tys| println!("{tys}");
 
+    let display_feedback = |feedback| println!("\n{feedback}");
+
     wipple_compiler::compile(
         path,
         source,
         display_syntax_error,
         display_graph,
         display_tys,
+        display_feedback,
     );
 }

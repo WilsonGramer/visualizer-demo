@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::{
     any::{Any, TypeId},
     fmt::Debug,
@@ -5,7 +6,8 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct NodeId(pub usize);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -90,8 +92,7 @@ impl AnyRule {
     }
 
     pub fn is<R: Rule>(&self) -> bool {
-        let type_id = TypeId::of::<R>();
-        type_id == TypeId::of::<AnyRule>() || type_id == self.type_id
+        TypeId::of::<R>() == self.type_id
     }
 }
 

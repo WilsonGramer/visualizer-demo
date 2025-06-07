@@ -1,4 +1,7 @@
-use crate::{constraints::Constraint, nodes::Node};
+use crate::{
+    constraints::{Constraint, Ty},
+    nodes::Node,
+};
 use std::{collections::BTreeMap, rc::Rc};
 use wipple_compiler_trace::{NodeId, Span};
 
@@ -39,6 +42,7 @@ pub struct Trait {
 
 #[derive(Clone)]
 pub struct DebugProvider<'a> {
+    pub tys: &'a BTreeMap<NodeId, Vec<Ty>>,
     pub debug: Rc<dyn Fn(NodeId, DebugOptions) -> (Span, String) + 'a>,
 }
 
@@ -49,13 +53,25 @@ pub struct DebugOptions {
 }
 
 impl<'a> DebugProvider<'a> {
-    pub fn new(debug: impl Fn(NodeId, DebugOptions) -> (Span, String) + 'a) -> Self {
+    pub fn new(
+        tys: &'a BTreeMap<NodeId, Vec<Ty>>,
+        debug: impl Fn(NodeId, DebugOptions) -> (Span, String) + 'a,
+    ) -> Self {
         DebugProvider {
+            tys,
             debug: Rc::new(debug),
         }
     }
 
-    pub fn node(&self, node: NodeId, options: DebugOptions) -> (Span, String) {
+    pub fn node_source(&self, node: NodeId, options: DebugOptions) -> (Span, String) {
         (self.debug)(node, options)
+    }
+
+    pub fn node_tys(&self, node: NodeId) -> impl Iterator<Item = String> {
+        self.tys
+            .get(&node)
+            .into_iter()
+            .flatten()
+            .map(|ty| ty.to_debug_string(self))
     }
 }

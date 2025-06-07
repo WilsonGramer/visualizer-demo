@@ -24,18 +24,16 @@ rule! {
 }
 
 impl Visit for CallExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let unit = match self.inputs.as_slice() {
                 [Expression::Name(input)] => Some((&input.range, input.variable.source.as_str())),
                 _ => None,
             };
-
-            let inputs = self
-                .inputs
-                .iter()
-                .map(|input| input.visit(visitor, Some((id, rule::input_in_function_call))))
-                .collect::<Vec<_>>();
 
             // If `inputs` has a single element with the `[unit]` attribute,
             // flip the order
@@ -85,7 +83,11 @@ impl Visit for CallExpression {
                     function: self
                         .function
                         .visit(visitor, Some((id, rule::function_in_function_call))),
-                    inputs,
+                    inputs: self
+                        .inputs
+                        .iter()
+                        .map(|input| input.visit(visitor, Some((id, rule::input_in_function_call))))
+                        .collect::<Vec<_>>(),
                 },
                 rule::function_call.erased(),
             )

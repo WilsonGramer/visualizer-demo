@@ -13,6 +13,7 @@ tasks:
     dir: compiler
     sources:
       - "**/*.rs"
+      - "**/*.yml"
     method: timestamp
     cmds:
       - wasm-pack build --target bundler --no-opt

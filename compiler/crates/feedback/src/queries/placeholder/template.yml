@@ -1,0 +1,17 @@
+group: Todo
+
+summary:
+  node: placeholder
+  content:
+    - text: "Found placeholder for"
+    - type: ty
+
+details:
+  - node: placeholder
+    content:
+      - text: "Replace this placeholder with a"
+      - type: ty
+      - text: "value before running your program."
+  - type: ty
+    content:
+      - text: "This is the type of the placeholder."

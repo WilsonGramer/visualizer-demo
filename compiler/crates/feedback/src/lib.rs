@@ -1,65 +1,60 @@
+mod feedback;
 mod queries;
 mod selectors;
 
-use crate::queries::Query;
+use crate::{feedback::FeedbackTemplate, queries::Query, selectors::Select};
 use std::{cell::RefCell, collections::BTreeMap};
 use wipple_compiler_trace::{AnyRule, NodeId, Span};
 use wipple_compiler_typecheck::constraints::Ty;
 
-#[derive(Debug, Clone, Default)]
-struct Context {
+#[derive(Debug, Clone)]
+pub struct Context<'a> {
     state: RefCell<State>,
-    pub nodes: BTreeMap<NodeId, AnyRule>,
-    pub spans: BTreeMap<NodeId, Span>,
-    pub relations: BTreeMap<NodeId, (NodeId, AnyRule)>,
-    pub tys: BTreeMap<NodeId, Vec<(Ty, AnyRule)>>,
+    pub nodes: &'a BTreeMap<NodeId, AnyRule>,
+    pub spans: &'a BTreeMap<NodeId, Span>,
+    pub relations: &'a BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>, // child -> parents
+    pub tys: &'a BTreeMap<NodeId, Vec<Ty>>,
+}
+
+impl<'a> Context<'a> {
+    pub fn new(
+        nodes: &'a BTreeMap<NodeId, AnyRule>,
+        spans: &'a BTreeMap<NodeId, Span>,
+        relations: &'a BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
+        tys: &'a BTreeMap<NodeId, Vec<Ty>>,
+    ) -> Self {
+        Context {
+            state: Default::default(),
+            nodes,
+            spans,
+            relations,
+            tys,
+        }
+    }
+
+    pub fn collect_feedback(self) -> Vec<FeedbackTemplate> {
+        queries::run(&self);
+        self.state.into_inner().items
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 struct State {
-    items: Vec<FeedbackItem>,
-    no_results: bool,
+    items: Vec<FeedbackTemplate>,
 }
 
-impl Context {
-    fn add(&self, item: FeedbackItem) {
+impl Context<'_> {
+    fn feedback(&self, item: FeedbackTemplate) {
         self.state.borrow_mut().items.push(item);
     }
 
-    fn run<'a, S>(&'a mut self, query: impl Query<'a, S>) {
+    fn run<'a, S>(&'a self, query: impl Query<'a, S>) {
+        query.run(self);
+    }
+
+    fn select_all<'a, S: Select>(&'a self, f: impl Fn(&'a Context<'_>, NodeId, S) + Copy) {
         for node in self.nodes.keys().copied() {
-            query.run(self, node);
+            S::select(self, node, f);
         }
     }
-
-    fn no_results(&self) {
-        self.state.borrow_mut().no_results = true;
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct FeedbackItem {
-    pub summary: Message,
-    pub details: Vec<Message>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Message {
-    pub node: NodeId,
-    pub content: Content,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum Content {
-    /// Inherit the node's documentation comment
-    Documentation,
-
-    /// Provide a custom message
-    Literal { segments: Vec<ContentSegment> },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum ContentSegment {
-    Text(String),
-    Link(NodeId),
 }
