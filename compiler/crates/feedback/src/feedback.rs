@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_trace::{AnyRule, NodeId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FeedbackItem {
@@ -44,6 +44,7 @@ pub enum ContentSegment {
     Text(String),
     Source(String),
     Type(String),
+    Rule(String),
 }
 
 macro_rules! include_template {
@@ -63,6 +64,7 @@ pub struct FeedbackTemplate {
     yml: String,
     nodes: HashMap<String, NodeId>,
     tys: HashMap<String, Ty>,
+    rules: HashMap<String, AnyRule>,
 }
 
 impl FeedbackTemplate {
@@ -71,6 +73,7 @@ impl FeedbackTemplate {
             yml: yml.to_string(),
             nodes: Default::default(),
             tys: Default::default(),
+            rules: Default::default(),
         }
     }
 
@@ -81,6 +84,11 @@ impl FeedbackTemplate {
 
     pub fn ty(mut self, name: &str, ty: Ty) -> Self {
         self.tys.insert(name.to_string(), ty);
+        self
+    }
+
+    pub fn rule(mut self, name: &str, rule: AnyRule) -> Self {
+        self.rules.insert(name.to_string(), rule);
         self
     }
 
@@ -153,6 +161,15 @@ impl Message {
                             }
 
                             write!(md, "`{}`", ty.to_debug_string(debug)).unwrap()
+                        }
+                        ContentSegment::Rule(rule) => {
+                            let rule = template.rules.get(rule).unwrap();
+
+                            if !md.ends_with(' ') {
+                                write!(md, " ").unwrap();
+                            }
+
+                            write!(md, "the {rule:?} rule").unwrap()
                         }
                     }
                 }

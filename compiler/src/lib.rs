@@ -66,7 +66,8 @@ pub fn compile(
 
     let mut typecheck_session = typecheck_ctx.session();
 
-    let tys = typecheck_session.iterate();
+    let groups = typecheck_session.groups(None);
+    let tys = typecheck_session.iterate(groups);
 
     let debug = wipple_compiler_typecheck::context::DebugProvider::new(&tys, |node, options| {
         let Some(span) = lowered.spans.get(&node) else {
@@ -129,8 +130,19 @@ pub fn compile(
 
     let mut rows = Vec::new();
 
-    for (&node, tys) in displayed_tys {
+    for (&node, (tys, influences)) in displayed_tys {
         let (node_span, node_debug) = debug.node_source(node, DebugOptions::default());
+
+        let influence_rules = influences
+            .iter()
+            .map(|(&node, &rule)| {
+                format!(
+                    "\n  via {:?}: {}",
+                    rule,
+                    debug.node_source(node, Default::default()).1,
+                )
+            })
+            .collect::<String>();
 
         rows.push([
             format!("{node_span:?}").dimmed().to_string(),
@@ -138,7 +150,8 @@ pub fn compile(
             tys.iter()
                 .map(|ty| ty.to_debug_string(&debug).blue().to_string())
                 .collect::<Vec<_>>()
-                .join(&" or ".bright_red().to_string()),
+                .join(&" or ".bright_red().to_string())
+                + &influence_rules,
             format!("{:?}", lowered.nodes.get(&node).unwrap().1),
         ]);
     }

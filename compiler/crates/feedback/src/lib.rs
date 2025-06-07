@@ -13,7 +13,7 @@ pub struct Context<'a> {
     pub nodes: &'a BTreeMap<NodeId, AnyRule>,
     pub spans: &'a BTreeMap<NodeId, Span>,
     pub relations: &'a BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>, // child -> parents
-    pub tys: &'a BTreeMap<NodeId, Vec<Ty>>,
+    pub tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
 }
 
 impl<'a> Context<'a> {
@@ -21,7 +21,7 @@ impl<'a> Context<'a> {
         nodes: &'a BTreeMap<NodeId, AnyRule>,
         spans: &'a BTreeMap<NodeId, Span>,
         relations: &'a BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
-        tys: &'a BTreeMap<NodeId, Vec<Ty>>,
+        tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
     ) -> Self {
         Context {
             state: Default::default(),

@@ -7,7 +7,7 @@ pub struct Ty<T: ty::Select>(pub T);
 
 impl<T: ty::Select> Select for Ty<T> {
     fn select<'a>(ctx: &'a Context<'_>, node: NodeId, f: impl Fn(&'a Context<'_>, NodeId, Self)) {
-        let Some(tys) = ctx.tys.get(&node) else {
+        let Some((tys, _)) = ctx.tys.get(&node) else {
             return;
         };
 

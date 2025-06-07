@@ -7,7 +7,6 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-colourado = "0.2"
 itertools = "0.14"
 petgraph = "0.8"
 tabbycat = "0.1"

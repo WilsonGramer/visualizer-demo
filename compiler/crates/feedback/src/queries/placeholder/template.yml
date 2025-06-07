@@ -15,3 +15,10 @@ details:
   - type: ty
     content:
       - text: "This is the type of the placeholder."
+  - node: influence
+    content:
+      - text: "This"
+      - type: ty
+      - text: "influences the placeholder's type due to"
+      - rule: rule
+      - text: "."

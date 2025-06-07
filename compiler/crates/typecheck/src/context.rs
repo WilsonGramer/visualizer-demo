@@ -3,7 +3,7 @@ use crate::{
     nodes::Node,
 };
 use std::{collections::BTreeMap, rc::Rc};
-use wipple_compiler_trace::{NodeId, Span};
+use wipple_compiler_trace::{AnyRule, NodeId, Span};
 
 #[derive(Default)]
 pub struct Context<'a> {
@@ -42,7 +42,7 @@ pub struct Trait {
 
 #[derive(Clone)]
 pub struct DebugProvider<'a> {
-    pub tys: &'a BTreeMap<NodeId, Vec<Ty>>,
+    pub tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
     pub debug: Rc<dyn Fn(NodeId, DebugOptions) -> (Span, String) + 'a>,
 }
 
@@ -54,7 +54,7 @@ pub struct DebugOptions {
 
 impl<'a> DebugProvider<'a> {
     pub fn new(
-        tys: &'a BTreeMap<NodeId, Vec<Ty>>,
+        tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
         debug: impl Fn(NodeId, DebugOptions) -> (Span, String) + 'a,
     ) -> Self {
         DebugProvider {
@@ -71,7 +71,7 @@ impl<'a> DebugProvider<'a> {
         self.tys
             .get(&node)
             .into_iter()
-            .flatten()
+            .flat_map(|(tys, _)| tys)
             .map(|ty| ty.to_debug_string(self))
     }
 }

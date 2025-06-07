@@ -120,7 +120,7 @@ impl Session {
 
         // Merge keys that unify
         let mut union_find = UnionFind::new(keys.len());
-        for (left, right, _) in self.unify_nodes.all_edges() {
+        for (left, right, ()) in self.unify_nodes.all_edges() {
             if mask.is_none_or(|mask| mask.contains(&left) && mask.contains(&right)) {
                 union_find.union(*keys.get(&left).unwrap(), *keys.get(&right).unwrap());
             }
@@ -142,9 +142,10 @@ impl Session {
             .collect()
     }
 
-    pub fn iterate(&mut self) -> BTreeMap<NodeId, Vec<Ty>> {
-        let groups = self.groups(None);
-
+    pub fn iterate(
+        &mut self,
+        groups: Vec<Vec<NodeId>>,
+    ) -> BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)> {
         let mut keys = groups
             .iter()
             .enumerate()
@@ -171,7 +172,7 @@ impl Session {
             });
         };
 
-        let mut tys = BTreeMap::<_, Vec<_>>::new();
+        let mut tys = BTreeMap::<_, (Vec<_>, BTreeMap<_, _>)>::new();
         let mut other_constraints = BTreeMap::<_, Vec<_>>::new();
         for (index, group) in groups.into_iter().enumerate() {
             // Fold each type in the group into a single type
@@ -179,6 +180,7 @@ impl Session {
             let mut others = Vec::new();
             for &node in &group {
                 if let Some(constraints) = self.node_constraints.remove(&node) {
+                    // Apply each constraint
                     for constraint in constraints {
                         match constraint {
                             Constraint::Ty(mut ty) => {
@@ -218,7 +220,17 @@ impl Session {
                 .collect::<Vec<_>>();
 
             for &node in &group {
-                tys.entry(node).or_default().extend(result.clone());
+                // Record the type
+                tys.entry(node).or_default().0.extend(result.clone());
+
+                // Record the nodes that influenced the result
+                for other in self
+                    .influencing_nodes
+                    .neighbors_directed(node, Direction::Incoming)
+                {
+                    let rule = *self.influencing_nodes.edge_weight(other, node).unwrap();
+                    tys.entry(node).or_default().1.insert(other, rule);
+                }
             }
         }
 
@@ -228,7 +240,7 @@ impl Session {
                 match constraint {
                     Constraint::Ty(mut ty) => {
                         instantiate(&mut ty, &mut vars);
-                        tys.entry(node).or_default().push(ty);
+                        tys.entry(node).or_default().0.push(ty);
                     }
                     Constraint::Bound(_) => {
                         other_constraints
@@ -247,12 +259,12 @@ impl Session {
                 ty.apply(&vars);
 
                 // The type is essentially a placeholder; no rules here
-                vec![ty]
+                (vec![ty], Default::default())
             });
         }
 
         // Apply all types
-        for tys in tys.values_mut() {
+        for (tys, _) in tys.values_mut() {
             for ty in tys {
                 ty.apply(&vars);
             }
@@ -260,12 +272,13 @@ impl Session {
 
         // Merge the new types back into the constraints
 
-        self.node_constraints.extend(tys.iter().map(|(&node, tys)| {
-            // Keep only the primary `result` in the constraints...
-            let ty = tys.iter().next().unwrap().clone();
+        self.node_constraints
+            .extend(tys.iter().filter_map(|(&node, (tys, _))| {
+                // Keep only the primary `result` in the constraints...
+                let ty = tys.iter().next()?.clone();
 
-            (node, vec![Constraint::Ty(ty)])
-        }));
+                Some((node, vec![Constraint::Ty(ty)]))
+            }));
 
         self.node_constraints.extend(other_constraints);
 
@@ -426,7 +439,7 @@ impl Session {
     pub fn to_debug_graph(
         &self,
         start: Option<NodeId>,
-        tys: &BTreeMap<NodeId, Vec<Ty>>,
+        tys: &BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
         relations: &BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
         debug: &DebugProvider<'_>,
     ) -> String {
@@ -479,7 +492,7 @@ impl Session {
         let mut stmts = tabbycat::StmtList::new();
 
         for (index, group) in groups.iter().enumerate() {
-            let tys = tys.get(&group[0]).unwrap();
+            let (tys, _) = tys.get(&group[0]).unwrap();
             let error = tys.len() > 1;
 
             let mut attrs = tabbycat::AttrList::new().add_pair(tabbycat::attributes::style(
@@ -513,7 +526,7 @@ impl Session {
             let display_tys = |node: NodeId| {
                 tys.get(&node)
                     .into_iter()
-                    .flatten()
+                    .flat_map(|(tys, _)| tys)
                     .cloned()
                     .map(|ty| format!("\n{}", ty.to_debug_string(debug)))
                     .unique()

@@ -1,20 +1,13 @@
 version: "3"
 
-interval: "500ms"
-
 tasks:
   dev:
-    watch: true
     cmds:
       - task: dev:compiler
       - task: dev:app
 
   dev:compiler:
     dir: compiler
-    sources:
-      - "**/*.rs"
-      - "**/*.yml"
-    method: timestamp
     cmds:
       - wasm-pack build --target bundler --no-opt
 
