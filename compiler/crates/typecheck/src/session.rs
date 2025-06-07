@@ -290,7 +290,9 @@ impl Ty {
     ) {
         match (self, other) {
             (&Ty::Of(node, _), &Ty::Of(other, _)) => {
-                unify_nodes.add_edge(node, other, ());
+                if node != other {
+                    unify_nodes.add_edge(node, other, ());
+                }
             }
             (Ty::Var(_), _) | (_, Ty::Var(_)) => {
                 unreachable!("this runs before creating type variables")
@@ -341,12 +343,13 @@ impl Ty {
                 let mut other = other.clone();
                 other.apply(vars);
 
-                if other != Ty::Var(key) {
-                    match vars[key].clone() {
-                        Some(other) => {
-                            ty.unify_in_group(&other, vars, success);
-                        }
-                        None => {
+                match vars[key].clone() {
+                    Some(mut ty) => {
+                        ty.unify_in_group(&other, vars, success);
+                    }
+                    None => {
+                        // TODO: Check recursively here if necessary
+                        if other != Ty::Var(key) {
                             vars[key] = Some(other.clone());
                             *ty = other.clone();
                         }
@@ -356,12 +359,13 @@ impl Ty {
                 ty.apply(vars);
             }
             (ty, &Ty::Var(key)) => {
-                if *ty != Ty::Var(key) {
-                    match vars[key].clone() {
-                        Some(other) => {
-                            ty.unify_in_group(&other, vars, success);
-                        }
-                        None => {
+                match vars[key].clone() {
+                    Some(other) => {
+                        ty.unify_in_group(&other, vars, success);
+                    }
+                    None => {
+                        // TODO: Check recursively here if necessary
+                        if *ty != Ty::Var(key) {
                             vars[key] = Some(ty.clone());
                             ty.apply(vars);
                         }
@@ -416,6 +420,7 @@ impl Ty {
             if let Ty::Var(key) = *ty {
                 if let Some(other) = vars[key].clone() {
                     *ty = other;
+                    ty.apply(vars);
                 }
             }
         });

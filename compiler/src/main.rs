@@ -1,11 +1,7 @@
-use colored::Colorize;
 use std::{
     env, fs,
     io::{self, Write},
-    sync::Arc,
 };
-use wipple_compiler_trace::Span;
-use wipple_compiler_typecheck::context::DebugOptions;
 
 fn main() {
     match env::args().nth(1) {
