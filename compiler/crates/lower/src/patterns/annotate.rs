@@ -32,7 +32,7 @@ impl Visit for AnnotatePattern {
             (
                 ConstraintNode {
                     value: pattern,
-                    constraints: vec![Constraint::Ty(Ty::influenced_by(ty))],
+                    constraints: vec![Constraint::Ty(Ty::Of(ty))],
                 },
                 rule::annotated_pattern,
             )

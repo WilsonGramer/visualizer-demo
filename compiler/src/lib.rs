@@ -74,7 +74,15 @@ pub fn compile(
     let mut typecheck_session = typecheck_ctx.session();
 
     let groups = typecheck_session.groups(None);
-    let tys = typecheck_session.iterate(groups);
+    let mut tys = typecheck_session.iterate(groups);
+
+    // Also include the relations gathered during lowering
+    for (&node, related) in &lowered.relations {
+        tys.entry(node)
+            .or_default()
+            .1
+            .extend(related.iter().copied());
+    }
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
     let mut extras = BTreeMap::<NodeId, Vec<AnyRule>>::new();
@@ -160,10 +168,10 @@ pub fn compile(
 
     let mut rows = Vec::new();
 
-    for (&node, (tys, influences)) in displayed_tys {
+    for (&node, (tys, related)) in displayed_tys {
         let (node_span, node_debug) = provider.node_span_source(node);
 
-        let influence_rules = influences
+        let related_rules = related
             .iter()
             .map(|(&node, &rule)| {
                 format!("\n  via {:?}: {}", rule, provider.node_span_source(node).1)
@@ -172,13 +180,13 @@ pub fn compile(
 
         rows.push([
             format!("{node_span:?}").dimmed().to_string(),
+            format!("{:?}", lowered.nodes.get(&node).unwrap().1),
             node_debug.to_string(),
             tys.iter()
                 .map(|ty| ty.to_debug_string(&provider).blue().to_string())
                 .collect::<Vec<_>>()
                 .join(&" or ".bright_red().to_string())
-                + &influence_rules,
-            format!("{:?}", lowered.nodes.get(&node).unwrap().1),
+                + &related_rules,
         ]);
     }
 
@@ -186,7 +194,7 @@ pub fn compile(
 
     if !rows.is_empty() {
         let mut table = tabled::builder::Builder::new();
-        table.push_record(["Span", "Node", "Type", "Rule"]);
+        table.push_record(["Span", "Rule", "Node", "Type"]);
         for row in rows {
             table.push_record(row);
         }

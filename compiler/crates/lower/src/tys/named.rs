@@ -21,7 +21,11 @@ rule! {
 }
 
 impl Visit for NamedType {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let Some((type_node, type_parameters)) = visitor
                 .resolve_name(&self.name.source, id, rule::name_in_named_type)
@@ -43,9 +47,7 @@ impl Visit for NamedType {
             let parameters = self
                 .parameters
                 .iter()
-                .map(|ty| {
-                    Ty::influenced_by(ty.visit(visitor, Some((id, rule::parameter_in_named_type))))
-                })
+                .map(|ty| Ty::Of(ty.visit(visitor, Some((id, rule::parameter_in_named_type)))))
                 .collect();
 
             (

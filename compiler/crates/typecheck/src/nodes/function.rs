@@ -22,8 +22,8 @@ impl ToConstraints for FunctionNode {
         ctx.constraints().insert_ty(
             node,
             Ty::Function {
-                inputs: self.inputs.iter().copied().map(Ty::influenced_by).collect(),
-                output: Box::new(Ty::influenced_by(self.output)),
+                inputs: self.inputs.iter().copied().map(Ty::Of).collect(),
+                output: Box::new(Ty::Of(self.output)),
             },
             rule::function,
         );

@@ -69,7 +69,7 @@ impl<'a> Context<'a> {
                         if term_counts.nodes <= 1 { 1 } else { 0 },
                     ));
 
-                let (tys, influences) = self.tys.get(&node).cloned().unwrap_or_default();
+                let (tys, related) = self.tys.get(&node).cloned().unwrap_or_default();
 
                 let ty_combinations = || {
                     tys.iter()
@@ -78,7 +78,7 @@ impl<'a> Context<'a> {
                             tys.into_iter()
                                 .map(|ty| TyTerm {
                                     ty: ty.clone(),
-                                    influences: influences
+                                    related: related
                                         .iter()
                                         .map(move |(&node, &rule)| NodeTerm { node, rule })
                                         .collect(),
@@ -90,7 +90,7 @@ impl<'a> Context<'a> {
                         .chain(std::iter::repeat_n(
                             vec![TyTerm {
                                 ty: Ty::Any,
-                                influences: Vec::new(),
+                                related: Vec::new(),
                             }],
                             if tys.is_empty() && term_counts.tys <= 1 {
                                 1

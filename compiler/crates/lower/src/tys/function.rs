@@ -18,17 +18,19 @@ rule! {
 }
 
 impl Visit for FunctionType {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let inputs = self
                 .inputs
                 .iter()
-                .map(|input| {
-                    Ty::influenced_by(input.visit(visitor, Some((id, rule::function_type_input))))
-                })
+                .map(|input| Ty::Of(input.visit(visitor, Some((id, rule::function_type_input)))))
                 .collect::<Vec<_>>();
 
-            let output = Ty::influenced_by(
+            let output = Ty::Of(
                 self.output
                     .visit(visitor, Some((id, rule::function_type_output))),
             );

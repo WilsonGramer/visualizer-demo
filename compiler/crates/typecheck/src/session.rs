@@ -5,7 +5,7 @@ use crate::{
 use itertools::Itertools;
 use petgraph::{
     Direction,
-    prelude::{DiGraphMap, UnGraphMap},
+    prelude::UnGraphMap,
     unionfind::UnionFind,
     visit::{DfsEvent, depth_first_search},
 };
@@ -24,9 +24,9 @@ rule! {
 pub struct Session {
     node_constraints: BTreeMap<NodeId, Vec<Constraint>>,
 
-    /// The type of node _a_ is influenced by the type of node _b_, but these
+    /// The type of node _a_ is related to the type of node _b_, but these
     /// types do NOT necessarily unify. Used for tracing.
-    influencing_nodes: DiGraphMap<NodeId, AnyRule>,
+    related_nodes: UnGraphMap<NodeId, AnyRule>,
 
     /// The type of node _a_ unifies with the type of node _b_.
     // TODO: Factor out into `Iteration`
@@ -37,7 +37,7 @@ impl Session {
     pub fn new(constraints: &Constraints) -> Self {
         let mut node_constraints = BTreeMap::<NodeId, Vec<_>>::new();
 
-        let mut influencing_nodes = DiGraphMap::new();
+        let mut related_nodes = UnGraphMap::new();
         for (&node, node_tys) in &constraints.tys {
             for (ty, rule) in node_tys {
                 // Add the overall type...
@@ -46,19 +46,10 @@ impl Session {
                     .or_default()
                     .push(Constraint::Ty(ty.clone()));
 
-                // ...and record parts that are influenced by other nodes
+                // ...and record parts that are related to other nodes
                 ty.traverse(&mut |ty| {
-                    if let Ty::Of(other, direction) = *ty {
-                        // The direction is inverted so we can search for all
-                        // influencing nodes using DFS
-                        match direction {
-                            Direction::Incoming => {
-                                influencing_nodes.add_edge(node, other, *rule);
-                            }
-                            Direction::Outgoing => {
-                                influencing_nodes.add_edge(other, node, *rule);
-                            }
-                        }
+                    if let Ty::Of(other) = *ty {
+                        related_nodes.add_edge(node, other, *rule);
                     }
                 });
             }
@@ -71,7 +62,7 @@ impl Session {
                     .or_default()
                     .push(Constraint::Bound(bound.clone()));
 
-                influencing_nodes.add_edge(node, bound.source, *rule);
+                related_nodes.add_edge(node, bound.source, *rule);
             }
         }
 
@@ -86,7 +77,7 @@ impl Session {
             // right, to create the largest potential number of groups. Include
             // the node type itself in the list of combinations in case there's
             // only one additional type
-            for (left, right) in [&Ty::Of(node, Direction::Incoming)]
+            for (left, right) in [&Ty::Of(node)]
                 .into_iter()
                 .chain(node_tys.iter().map(|(ty, _)| ty))
                 .tuple_combinations()
@@ -103,7 +94,7 @@ impl Session {
 
         Session {
             node_constraints,
-            influencing_nodes,
+            related_nodes,
             unify_nodes,
         }
     }
@@ -166,7 +157,7 @@ impl Session {
 
         let mut instantiate = |ty: &mut Ty, vars: &mut Vec<_>| {
             ty.traverse_mut(&mut |ty| {
-                if let Ty::Of(node, _) = ty {
+                if let Ty::Of(node) = ty {
                     *ty = Ty::Var(key(*node, vars));
                 }
             });
@@ -222,15 +213,6 @@ impl Session {
             for &node in &group {
                 // Record the type
                 tys.entry(node).or_default().0.extend(result.clone());
-
-                // Record the nodes that influenced the result
-                for other in self
-                    .influencing_nodes
-                    .neighbors_directed(node, Direction::Incoming)
-                {
-                    let rule = *self.influencing_nodes.edge_weight(other, node).unwrap();
-                    tys.entry(node).or_default().1.insert(other, rule);
-                }
             }
         }
 
@@ -252,8 +234,8 @@ impl Session {
             }
         }
 
-        // Add at least the node's own type
-        for node in self.influencing_nodes.nodes() {
+        for node in self.related_nodes.nodes() {
+            // Add at least the node's own type
             tys.entry(node).or_insert_with(|| {
                 let mut ty = Ty::Var(key(node, &mut vars));
                 ty.apply(&vars);
@@ -261,6 +243,15 @@ impl Session {
                 // The type is essentially a placeholder; no rules here
                 (vec![ty], Default::default())
             });
+
+            // Record the nodes that relate to the result
+            for other in self
+                .related_nodes
+                .neighbors_directed(node, Direction::Incoming)
+            {
+                let rule = *self.related_nodes.edge_weight(other, node).unwrap();
+                tys.entry(node).or_default().1.insert(other, rule);
+            }
         }
 
         // Apply all types
@@ -297,7 +288,7 @@ impl Ty {
         success: &mut bool,
     ) {
         match (self, other) {
-            (&Ty::Of(node, _), &Ty::Of(other, _)) => {
+            (&Ty::Of(node), &Ty::Of(other)) => {
                 if node != other {
                     unify_nodes.add_edge(node, other, ());
                 }
@@ -448,11 +439,11 @@ impl Session {
         let edges = match start {
             Some(start) => {
                 let mut edges = BTreeMap::new();
-                depth_first_search(&self.influencing_nodes, [start], |event| {
+                depth_first_search(&self.related_nodes, [start], |event| {
                     if let DfsEvent::TreeEdge(to, from) = event {
                         edges.insert(
                             (to, from),
-                            Some(*self.influencing_nodes.edge_weight(to, from).unwrap()),
+                            Some(*self.related_nodes.edge_weight(to, from).unwrap()),
                         );
 
                         depth_first_search(&self.unify_nodes, [to, from], |event| {
@@ -466,7 +457,7 @@ impl Session {
                 edges
             }
             None => self
-                .influencing_nodes
+                .related_nodes
                 .all_edges()
                 .map(|(to, from, rule)| ((to, from), Some(*rule)))
                 .collect(),

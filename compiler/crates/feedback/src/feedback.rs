@@ -83,7 +83,7 @@ pub struct NodeTerm {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TyTerm {
     pub ty: Ty,
-    pub influences: Vec<NodeTerm>,
+    pub related: Vec<NodeTerm>,
 }
 
 impl TermsIter {
@@ -251,8 +251,16 @@ impl Message {
 
                 let term = state.tys.get(name)?;
 
-                for influence in &term.influences {
-                    let (_, influence_source) = provider.node_span_source(influence.node);
+                let mut related = term.related.clone();
+                for term in &term.related {
+                    // TODO: Currently disabled
+                    const LEVEL: usize = 0;
+
+                    collect_related(provider, term.node, &mut related, LEVEL);
+                }
+
+                for related in related {
+                    let (_, related_source) = provider.node_span_source(related.node);
 
                     write!(
                         md,
@@ -265,16 +273,16 @@ impl Message {
                     match self.options.trace {
                         TraceStyle::Related => writeln!(
                             md,
-                            "See the related {} `{}`.",
-                            influence.rule.name(),
-                            influence_source,
+                            "See the related {} in `{}`.",
+                            related.rule.name(),
+                            related_source,
                         )
                         .unwrap(),
                         TraceStyle::Because => writeln!(
                             md,
-                            "...because of `{}` in this {}.",
-                            influence_source,
-                            influence.rule.name(),
+                            "...because of {} in `{}`.",
+                            related.rule.name(),
+                            related_source,
                         )
                         .unwrap(),
                     }
@@ -283,5 +291,25 @@ impl Message {
         }
 
         Some(md)
+    }
+}
+
+fn collect_related(
+    provider: &FeedbackProvider<'_>,
+    node: NodeId,
+    influences: &mut Vec<NodeTerm>,
+    level: usize,
+) {
+    if level == 0 {
+        return;
+    }
+
+    for (node, rule) in provider.related_nodes(node) {
+        let term = NodeTerm { node, rule };
+
+        if !influences.contains(&term) {
+            influences.push(term.clone());
+            collect_related(provider, term.node, influences, level - 1);
+        }
     }
 }

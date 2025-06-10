@@ -33,7 +33,7 @@ impl ToConstraints for BlockNode {
 
             ctx.constraints().insert_ty(
                 node,
-                Ty::influenced_by(*last_statement),
+                Ty::Of(*last_statement),
                 rule::block_last_statement,
             );
         } else {

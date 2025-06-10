@@ -30,7 +30,7 @@ impl Visit for AnnotateExpression {
             (
                 ConstraintNode {
                     value,
-                    constraints: vec![Constraint::Ty(Ty::influenced_by(ty))],
+                    constraints: vec![Constraint::Ty(Ty::Of(ty))],
                 },
                 rule::annotated_value,
             )

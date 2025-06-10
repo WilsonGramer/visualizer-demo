@@ -24,7 +24,7 @@ impl ToConstraints for ConstraintNode {
 
         ctx.constraints().extend(
             node,
-            vec![Constraint::Ty(Ty::influences(self.value))],
+            vec![Constraint::Ty(Ty::Of(self.value))],
             rule::annotated,
         );
     }

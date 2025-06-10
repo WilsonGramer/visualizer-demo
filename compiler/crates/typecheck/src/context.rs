@@ -69,4 +69,11 @@ impl<'a> FeedbackProvider<'a> {
             .flat_map(|(tys, _)| tys)
             .map(|ty| ty.to_debug_string(self))
     }
+
+    pub fn related_nodes(&self, node: NodeId) -> impl Iterator<Item = (NodeId, AnyRule)> {
+        self.tys
+            .get(&node)
+            .into_iter()
+            .flat_map(|(_, related)| related.iter().map(|(&id, &rule)| (id, rule)))
+    }
 }

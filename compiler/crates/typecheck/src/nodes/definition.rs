@@ -20,7 +20,7 @@ rule! {
 impl ToConstraints for DefinitionNode {
     fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>) {
         ctx.constraints()
-            .insert_ty(node, Ty::influenced_by(self.definition), rule::definition);
+            .insert_ty(node, Ty::Of(self.definition), rule::definition);
 
         ctx.constraints()
             .extend(node, self.constraints.clone(), rule::definition);

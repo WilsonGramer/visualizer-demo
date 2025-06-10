@@ -21,7 +21,7 @@ rule! {
 impl ToConstraints for TupleElementNode {
     fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>) {
         let mut elements = vec![Ty::Any; self.count];
-        elements[self.index] = Ty::influences(node);
+        elements[self.index] = Ty::Of(node);
 
         ctx.constraints()
             .insert_ty(self.target, Ty::Tuple { elements }, rule::tuple_element);

@@ -2,7 +2,6 @@ use crate::{
     context::{Context, FeedbackProvider},
     nodes::Node,
 };
-use petgraph::Direction;
 use std::{
     any::TypeId,
     cell::{RefCell, RefMut},
@@ -151,7 +150,7 @@ impl<'a> ToConstraintsContext<'a> {
 pub enum Ty {
     Var(usize),
     Any,
-    Of(NodeId, Direction),
+    Of(NodeId),
     Named { name: NodeId, parameters: Vec<Ty> },
     Function { inputs: Vec<Ty>, output: Box<Ty> },
     Tuple { elements: Vec<Ty> },
@@ -162,14 +161,6 @@ impl Ty {
         Ty::Tuple {
             elements: Vec::new(),
         }
-    }
-
-    pub fn influences(node: NodeId) -> Self {
-        Ty::Of(node, Direction::Outgoing)
-    }
-
-    pub fn influenced_by(node: NodeId) -> Self {
-        Ty::Of(node, Direction::Incoming)
     }
 
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
@@ -232,7 +223,7 @@ impl Ty {
         match self {
             Ty::Var(var) => format!("({var})"),
             Ty::Any => String::from("_"),
-            Ty::Of(node, _) => format!("({})", provider.node_span_source(*node).1),
+            Ty::Of(node) => format!("({})", provider.node_span_source(*node).1),
             Ty::Named { name, parameters } => format!(
                 "{}{}",
                 provider.node_span_source(*name).1,
