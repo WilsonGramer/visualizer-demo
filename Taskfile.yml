@@ -41,11 +41,10 @@ tasks:
 
     build:feedback:
         dir: compiler/crates/feedback
-        cmds:
-            - cargo test generate_json_schemas
-            - |
-                rm -rf queries/json && mkdir queries/json
-                for f in queries/*.yml; do
-                  f=$(basename $f)
-                  cat queries/$f | yq -o json > queries/json/${f%.yml}.json
-                done
+        cmd: |
+            rm -rf queries/json && mkdir queries/json
+            cargo test generate_json_schemas
+            for f in queries/*.yml; do
+                f=$(basename $f)
+                cat queries/$f | yq -o json > queries/json/${f%.yml}.json
+            done
