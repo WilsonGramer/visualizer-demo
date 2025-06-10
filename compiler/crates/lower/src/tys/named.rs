@@ -8,16 +8,16 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// A resolved named type.
-    resolved_named_type;
+    resolved_named_type: Typed;
 
     /// An unresolved named type.
-    unresolved_named_type;
+    unresolved_named_type: Typed;
 
     /// The name in a named type.
-    name_in_named_type;
+    name_in_named_type: Typed;
 
     /// A parameter in a named type.
-    parameter_in_named_type;
+    parameter_in_named_type: Typed;
 }
 
 impl Visit for NamedType {

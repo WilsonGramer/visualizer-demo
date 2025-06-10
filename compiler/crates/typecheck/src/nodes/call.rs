@@ -14,7 +14,7 @@ impl Node for CallNode {}
 
 rule! {
     /// A function call.
-    call;
+    call: Extra;
 }
 
 impl ToConstraints for CallNode {

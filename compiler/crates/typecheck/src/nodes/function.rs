@@ -14,7 +14,7 @@ impl Node for FunctionNode {}
 
 rule! {
     /// A function expression.
-    function;
+    function: Extra;
 }
 
 impl ToConstraints for FunctionNode {

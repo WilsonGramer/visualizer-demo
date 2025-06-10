@@ -9,14 +9,18 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// A text literal.
-    text;
+    text: Typed;
 
     /// The `Text` type isn't defined.
-    missing_text_type;
+    missing_text_type: Typed;
 }
 
 impl Visit for TextExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let text_ty = visitor
                 .resolve_name("Text", id, rule::text)

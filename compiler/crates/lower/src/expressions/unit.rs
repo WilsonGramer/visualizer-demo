@@ -8,11 +8,15 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// A unit expression.
-    unit;
+    unit: Typed;
 }
 
 impl Visit for UnitExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |_visitor, id| {
             (
                 ConstraintNode {

@@ -5,7 +5,7 @@ use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
 rule! {
     /// A placeholder expression.
-    placeholder;
+    placeholder: Typed;
 }
 
 impl Visit for PlaceholderExpression {

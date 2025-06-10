@@ -8,11 +8,15 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// The unit type.
-    unit_type;
+    unit_type: Extra;
 }
 
 impl Visit for UnitType {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |_visitor, id| {
             (
                 ConstraintNode {

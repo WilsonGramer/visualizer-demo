@@ -14,13 +14,13 @@ impl Node for BlockNode {}
 rule! {
     /// A statement whose value is discarded because it's not the last in the
     /// block.
-    block_statement;
+    block_statement: Extra;
 
     /// The last statement in a block.
-    block_last_statement;
+    block_last_statement: Extra;
 
     /// An empty block.
-    empty_block;
+    empty_block: Extra;
 }
 
 impl ToConstraints for BlockNode {

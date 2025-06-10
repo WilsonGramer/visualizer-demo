@@ -2,7 +2,7 @@ use itertools::Itertools;
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::{fmt::Write, sync::LazyLock};
 use wipple_compiler_trace::{AnyRule, NodeId, Rule};
 use wipple_compiler_typecheck::{constraints::Ty, context::FeedbackProvider};
@@ -58,13 +58,13 @@ pub struct TermsIter {
     visited_tys: HashMap<String, TyTerm>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NodeTerm {
     pub node: NodeId,
     pub rule: AnyRule,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TyTerm {
     pub ty: Ty,
     pub influences: Vec<NodeTerm>,
@@ -95,19 +95,19 @@ impl TermsIter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct State {
     pub node: NodeTerm,
-    pub nodes: HashMap<String, NodeTerm>,
-    pub tys: HashMap<String, TyTerm>,
+    pub nodes: BTreeMap<String, NodeTerm>,
+    pub tys: BTreeMap<String, TyTerm>,
 }
 
 impl State {
     pub fn new(node: NodeTerm) -> Self {
         State {
             node,
-            nodes: HashMap::new(),
-            tys: HashMap::new(),
+            nodes: Default::default(),
+            tys: Default::default(),
         }
     }
 }
@@ -155,7 +155,18 @@ fn render_template(
         })
     });
 
-    valid.then(|| replacement.to_string())
+    if !valid {
+        return None;
+    }
+
+    // Collapse line breaks
+    let replacement = replacement
+        .lines()
+        .map(|line| line.trim())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    Some(replacement)
 }
 
 impl Feedback {
@@ -196,7 +207,7 @@ impl Message {
                     todo!("(and only use the first paragraph of the documentation comment)");
                 }
                 Content::Template(template) => {
-                    write!(md, "{}", render_template(template, state, provider)?).unwrap();
+                    writeln!(md, "{}", render_template(template, state, provider)?).unwrap();
                 }
             }
 

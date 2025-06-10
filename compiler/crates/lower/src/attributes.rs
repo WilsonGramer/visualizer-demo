@@ -50,19 +50,19 @@ impl InstanceAttributes {
 
 rule! {
     /// An unknown attribute.
-    unknown_attribute;
+    unknown_attribute: Extra;
 
     /// A duplicate attribute.
-    duplicate_attribute;
+    duplicate_attribute: Extra;
 
     /// The attribute is missing a value.
-    missing_attribute_value;
+    missing_attribute_value: Extra;
 
     /// The attribute shouldn't have a value.
-    extra_attribute_value;
+    extra_attribute_value: Extra;
 
     /// The attribute value is a different type than required.
-    mismatched_attribute_value;
+    mismatched_attribute_value: Extra;
 }
 
 pub struct AttributeParser<'a, 'v> {

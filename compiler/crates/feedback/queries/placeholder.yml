@@ -12,7 +12,7 @@ messages:
       Found a placeholder for {{ty:type}}.
   - node: placeholder
     template: |
-      Replace this placeholder with a {{ty:type}} value before running your program.
+      Replace this placeholder with a {{ty:type}} value before running your code.
   - type: ty
     template: |
       The placeholder is a {{ty:type}}...

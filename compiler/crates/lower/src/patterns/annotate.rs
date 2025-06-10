@@ -8,14 +8,18 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// A pattern annotated with a type.
-    annotated_pattern;
+    annotated_pattern: Typed;
 
     /// A type annotating a pattern.
-    type_in_annotated_pattern;
+    type_in_annotated_pattern: Extra;
 }
 
 impl Visit for AnnotatePattern {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let pattern = self
                 .left

@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=_schema.json
+where:
+  - node:
+      as: node
+      rule: unknown_type
+group: todo
+messages:
+  - node: node
+    template: |
+      Could not determine the type of `{{node:source}}`.
+  - node: node
+    template: |
+      Wipple needs to know the type of this code before running it. Try using a
+      function or assigning it to a variable.

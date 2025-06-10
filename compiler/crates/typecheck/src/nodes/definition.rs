@@ -14,7 +14,7 @@ impl Node for DefinitionNode {}
 
 rule! {
     /// Constraints are inherited from the definition.
-    definition;
+    definition: Extra;
 }
 
 impl ToConstraints for DefinitionNode {

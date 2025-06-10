@@ -221,6 +221,10 @@ impl Ty {
             }
         }
     }
+
+    pub fn is_unknown_shallow(&self) -> bool {
+        matches!(self, Ty::Var(_) | Ty::Any | Ty::Of(..))
+    }
 }
 
 impl Ty {

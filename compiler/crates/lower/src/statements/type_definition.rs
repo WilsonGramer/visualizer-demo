@@ -8,7 +8,7 @@ use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
 rule! {
     /// A type definition.
-    type_definition;
+    type_definition: Extra;
 }
 
 impl Visit for TypeDefinitionStatement {

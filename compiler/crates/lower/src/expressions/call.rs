@@ -5,22 +5,22 @@ use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode};
 
 rule! {
     /// A function call.
-    function_call;
+    function_call: Typed;
 
     /// The function in a function call.
-    function_in_function_call;
+    function_in_function_call: Typed;
 
     /// An input in a function call.
-    input_in_function_call;
+    input_in_function_call: Typed;
 
     /// A number with a unit.
-    unit_call;
+    unit_call: Typed;
 
     /// The number component.
-    number_in_unit_call;
+    number_in_unit_call: Typed;
 
     /// The unit component.
-    unit_in_unit_call;
+    unit_in_unit_call: Typed;
 }
 
 impl Visit for CallExpression {

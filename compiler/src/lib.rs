@@ -1,7 +1,7 @@
 use colored::Colorize;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 use wasm_bindgen::prelude::*;
-use wipple_compiler_trace::Span;
+use wipple_compiler_trace::{AnyRule, NodeId, Rule, RuleKind, Span, rule};
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {
@@ -27,6 +27,14 @@ pub fn compile_wasm(source: String) -> Vec<String> {
         output_tys,
         output_feedback,
     ]
+}
+
+rule! {
+    /// A node's type is unknown.
+    unknown_type: Extra;
+
+    /// A node's type is incomplete.
+    incomplete_type: Extra;
 }
 
 pub fn compile(
@@ -68,6 +76,37 @@ pub fn compile(
     let groups = typecheck_session.groups(None);
     let tys = typecheck_session.iterate(groups);
 
+    // Ensure all expressions are typed (TODO: Put this in its own function)
+    let mut extras = BTreeMap::<NodeId, Vec<AnyRule>>::new();
+    for (&node, &(_, rule)) in &lowered.nodes {
+        if rule.kind() != RuleKind::Typed {
+            continue;
+        }
+
+        if let Some((tys, _)) = tys.get(&node) {
+            for ty in tys {
+                let mut incomplete = false;
+                ty.traverse(&mut |ty| {
+                    if ty.is_unknown_shallow() {
+                        incomplete = true;
+                    }
+                });
+
+                if incomplete {
+                    extras
+                        .entry(node)
+                        .or_default()
+                        .push(rule::incomplete_type.erased());
+                }
+            }
+        } else {
+            extras
+                .entry(node)
+                .or_default()
+                .push(rule::unknown_type.erased());
+        }
+    }
+
     let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(&tys, |node| {
         let Some(span) = lowered.spans.get(&node) else {
             return (Span::root(path.clone()), String::from("<unknown>"));
@@ -83,7 +122,10 @@ pub fn compile(
     let feedback_nodes = lowered
         .nodes
         .iter()
-        .map(|(&id, &(_, rule))| (id, rule))
+        .map(|(&id, &(_, rule))| {
+            let extra = extras.get(&id).cloned().unwrap_or_default();
+            (id, extra.into_iter().chain([rule]).collect())
+        })
         .collect();
 
     let feedback_ctx = wipple_compiler_feedback::Context::new(

@@ -8,10 +8,10 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// A value annotated with a type.
-    annotated_value;
+    annotated_value: Typed;
 
     /// A type annotating a value.
-    type_in_annotated_value;
+    type_in_annotated_value: Extra;
 }
 
 impl Visit for AnnotateExpression {

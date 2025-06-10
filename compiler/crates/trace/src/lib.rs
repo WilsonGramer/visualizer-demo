@@ -48,14 +48,22 @@ pub trait Rule: Copy + Any + 'static {
 
     fn name(&self) -> &'static str;
 
+    fn kind(&self) -> RuleKind;
+
     fn erased(self) -> AnyRule {
         AnyRule::new(self)
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RuleKind {
+    Typed,
+    Extra,
+}
+
 #[macro_export]
 macro_rules! rule {
-    ($($(#[$meta:meta])+ $name:ident;)*) => {
+    ($($(#[$meta:meta])+ $name:ident: $kind:ident;)*) => {
         pub mod rule {
             $(
                 $(#[$meta])+
@@ -71,6 +79,10 @@ macro_rules! rule {
                     fn name(&self) -> &'static str {
                         stringify!($name)
                     }
+
+                    fn kind(&self) -> $crate::RuleKind {
+                        $crate::RuleKind::$kind
+                    }
                 }
             )*
         }
@@ -81,6 +93,7 @@ macro_rules! rule {
 pub struct AnyRule {
     type_id: TypeId,
     name: &'static str,
+    kind: RuleKind,
 }
 
 impl AnyRule {
@@ -88,6 +101,7 @@ impl AnyRule {
         AnyRule {
             type_id: Rule::type_id(&rule),
             name: Rule::name(&rule),
+            kind: Rule::kind(&rule),
         }
     }
 
@@ -107,6 +121,10 @@ impl Rule for AnyRule {
 
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn kind(&self) -> RuleKind {
+        self.kind
     }
 
     fn erased(self) -> AnyRule {

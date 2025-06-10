@@ -17,7 +17,7 @@ use wipple_compiler_trace::{AnyRule, NodeId, rule};
 
 rule! {
     /// The type was unified with another type.
-    unified;
+    unified: Extra;
 }
 
 #[derive(Clone)]

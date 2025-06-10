@@ -1,24 +1,25 @@
 use crate::{Visit, Visitor};
 use wipple_compiler_syntax::TuplePattern;
 use wipple_compiler_trace::{NodeId, Rule, rule};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    nodes::{ConstraintNode, PlaceholderNode, TupleElementNode},
-};
+use wipple_compiler_typecheck::nodes::{PlaceholderNode, TupleElementNode};
 
 rule! {
     /// A tuple pattern.
-    tuple_pattern;
+    tuple_pattern: Typed;
 
     /// The target of a tuple pattern.
-    tuple_pattern_target;
+    tuple_pattern_target: Typed;
 
     /// An element in a tuple pattern.
-    tuple_pattern_element;
+    tuple_pattern_element: Typed;
 }
 
 impl Visit for TuplePattern {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             for (index, element) in self.elements.iter().enumerate() {
                 let target = visitor.node(

@@ -8,7 +8,7 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// A unit pattern.
-    unit_pattern;
+    unit_pattern: Typed;
 }
 
 impl Visit for UnitPattern {

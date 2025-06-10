@@ -5,17 +5,21 @@ use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
 rule! {
     /// The value is assigned to a pattern.
-    assignment_value;
+    assignment_value: Extra;
 
     /// The pattern in an assignment.
-    assignment_pattern;
+    assignment_pattern: Typed;
 
     /// An assignment.
-    assignment;
+    assignment: Extra;
 }
 
 impl Visit for AssignmentStatement {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let value = self
                 .value

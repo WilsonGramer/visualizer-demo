@@ -31,7 +31,7 @@ impl Selector {
                 }
             }
             Selector::Node { .. } => {
-                term_counts.nodes += 1;
+                // Do nothing; the node is included in the state directly
             }
             Selector::Child { .. } => {
                 term_counts.nodes += 2;

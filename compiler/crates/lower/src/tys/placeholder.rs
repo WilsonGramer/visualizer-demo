@@ -5,7 +5,7 @@ use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
 rule! {
     /// A placeholder type.
-    placeholder_type;
+    placeholder_type: Extra;
 }
 
 impl Visit for PlaceholderType {

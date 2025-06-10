@@ -5,17 +5,21 @@ use wipple_compiler_typecheck::nodes::CallNode;
 
 rule! {
     /// A function application (using `.`).
-    apply;
+    apply: Typed;
 
     /// The function in a function application.
-    function_in_apply;
+    function_in_apply: Typed;
 
     /// The input in a function application.
-    input_in_apply;
+    input_in_apply: Typed;
 }
 
 impl Visit for ApplyExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let input = self.left.visit(visitor, Some((id, rule::input_in_apply)));
 

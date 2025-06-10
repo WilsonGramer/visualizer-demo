@@ -1,24 +1,25 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::NameExpression;
 use wipple_compiler_trace::{NodeId, Rule, rule};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    nodes::{DefinitionNode, Node, PlaceholderNode},
-};
+use wipple_compiler_typecheck::nodes::{DefinitionNode, Node, PlaceholderNode};
 
 rule! {
     /// A name expression.
-    name;
+    name: Typed;
 
     /// A name that resolved to a value.
-    resolved_name;
+    resolved_name: Typed;
 
     /// A name that was not resolved to a value.
-    unresolved_name;
+    unresolved_name: Typed;
 }
 
 impl Visit for NameExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let definition = match visitor.resolve_name(&self.variable.source, id, rule::name) {
                 Some(Definition::Variable { node, .. }) => Some((*node, Vec::new())),

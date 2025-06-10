@@ -15,7 +15,7 @@ impl Node for TupleElementNode {}
 
 rule! {
     /// A tuple element pattern.
-    tuple_element;
+    tuple_element: Extra;
 }
 
 impl ToConstraints for TupleElementNode {

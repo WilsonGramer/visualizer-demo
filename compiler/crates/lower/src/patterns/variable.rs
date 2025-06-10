@@ -5,14 +5,18 @@ use wipple_compiler_typecheck::nodes::DefinitionNode;
 
 rule! {
     /// A tuple pattern.
-    variable_pattern;
+    variable_pattern: Typed;
 
     /// The target of a tuple pattern.
-    variable_pattern_target;
+    variable_pattern_target: Typed;
 }
 
 impl Visit for VariablePattern {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, _id| {
             visitor.define_name(
                 &self.variable.source,

@@ -8,14 +8,18 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// A number literal.
-    number;
+    number: Typed;
 
     /// The `Number` type isn't defined.
-    missing_number_type;
+    missing_number_type: Typed;
 }
 
 impl Visit for NumberExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let number_ty =
                 visitor

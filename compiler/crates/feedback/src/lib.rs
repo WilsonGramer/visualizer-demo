@@ -13,7 +13,7 @@ use wipple_compiler_typecheck::constraints::Ty;
 
 #[derive(Clone)]
 pub struct Context<'a> {
-    pub nodes: &'a BTreeMap<NodeId, AnyRule>,
+    pub nodes: &'a BTreeMap<NodeId, Vec<AnyRule>>,
     pub spans: &'a BTreeMap<NodeId, Span>,
     pub names: &'a HashMap<String, NodeId>,
     pub relations: &'a BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>, // child -> parents
@@ -22,7 +22,7 @@ pub struct Context<'a> {
 
 impl<'a> Context<'a> {
     pub fn new(
-        nodes: &'a BTreeMap<NodeId, AnyRule>,
+        nodes: &'a BTreeMap<NodeId, Vec<AnyRule>>,
         spans: &'a BTreeMap<NodeId, Span>,
         names: &'a HashMap<String, NodeId>,
         relations: &'a BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
@@ -40,10 +40,15 @@ impl<'a> Context<'a> {
     pub fn collect_feedback(&self) -> Vec<(&'static str, &'static Feedback, State)> {
         let mut result = Vec::new();
         for (name, query) in QUERIES.iter() {
+            let nodes = self
+                .nodes
+                .iter()
+                .flat_map(|(&node, rules)| rules.iter().map(move |&rule| (node, rule)));
+
             // Generate combinations of terms by counting the number of terms
             // requested in the selector (`count_terms`), and then calling
             // `Itertools::combinations` with this number.
-            for (&node, &rule) in self.nodes {
+            for (node, rule) in nodes {
                 let mut term_counts = TermCounts::default();
                 for selector in &query.selectors {
                     selector.count_terms(&mut term_counts);
@@ -56,8 +61,13 @@ impl<'a> Context<'a> {
                     .unwrap_or_default()
                     .into_iter()
                     .map(|(parent, rule)| NodeTerm { node: parent, rule })
-                    .chain([NodeTerm { node, rule }]) // include the node itself
-                    .combinations(term_counts.nodes);
+                    .combinations(term_counts.nodes)
+                    // If the query doesn't need combinations, also give it the
+                    // current node directly.
+                    .chain(std::iter::repeat_n(
+                        Vec::new(),
+                        if term_counts.nodes <= 1 { 1 } else { 0 },
+                    ));
 
                 let (tys, influences) = self.tys.get(&node).cloned().unwrap_or_default();
 
@@ -97,6 +107,6 @@ impl<'a> Context<'a> {
             }
         }
 
-        result
+        result.into_iter().unique().collect()
     }
 }

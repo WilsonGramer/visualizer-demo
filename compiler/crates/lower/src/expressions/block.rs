@@ -5,14 +5,18 @@ use wipple_compiler_typecheck::nodes::BlockNode;
 
 rule! {
     /// A block expression.
-    block;
+    block: Typed;
 
     /// A statement in a block.
-    block_statement;
+    block_statement: Typed;
 }
 
 impl Visit for BlockExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             visitor.push_scope();
 

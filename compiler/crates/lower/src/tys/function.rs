@@ -8,13 +8,13 @@ use wipple_compiler_typecheck::{
 
 rule! {
     /// A function type.
-    function_type;
+    function_type: Typed;
 
     /// An input to a function type.
-    function_type_input;
+    function_type_input: Typed;
 
     /// The output of a function type.
-    function_type_output;
+    function_type_output: Typed;
 }
 
 impl Visit for FunctionType {

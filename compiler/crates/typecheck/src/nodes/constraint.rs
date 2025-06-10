@@ -14,7 +14,7 @@ impl Node for ConstraintNode {}
 
 rule! {
     /// Constraints are inherited from explicit annotations.
-    annotated;
+    annotated: Extra;
 }
 
 impl ToConstraints for ConstraintNode {

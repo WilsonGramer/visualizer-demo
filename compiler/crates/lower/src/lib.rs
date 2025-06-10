@@ -121,22 +121,15 @@ impl<'a> Visitor<'a> {
             self.stack.pop();
         }
 
-        // Use `boxed` instead of `Box::new` in case `node` is already a `Box`
-        let existing = self
-            .nodes
-            .get_mut(&id)
-            .unwrap()
-            .replace((node.boxed(), rule.erased()));
-
-        assert!(existing.is_none());
+        self.nodes.insert(
+            id,
+            // Use `boxed` instead of `Box::new` in case `node` is already a `Box`
+            Some((node.boxed(), rule.erased())),
+        );
 
         self.spans.insert(id, (self.make_span)(range.clone()));
 
         id
-    }
-
-    fn parent(&self) -> NodeId {
-        *self.stack.last().expect("no parent")
     }
 
     fn root_node<N: Node, R: Rule>(
@@ -149,6 +142,10 @@ impl<'a> Visitor<'a> {
 
     fn root_placeholder_node<R: Rule>(&mut self, range: &Range<usize>, rule: R) -> NodeId {
         self.root_node(range, |_, _| (PlaceholderNode, rule))
+    }
+
+    fn parent(&self) -> NodeId {
+        *self.stack.last().expect("no parent")
     }
 }
 
