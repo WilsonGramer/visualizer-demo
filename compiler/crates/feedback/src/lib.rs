@@ -92,7 +92,11 @@ impl<'a> Context<'a> {
                                 ty: Ty::Any,
                                 influences: Vec::new(),
                             }],
-                            if term_counts.tys <= 1 { 1 } else { 0 },
+                            if tys.is_empty() && term_counts.tys <= 1 {
+                                1
+                            } else {
+                                0
+                            },
                         ))
                 };
 
