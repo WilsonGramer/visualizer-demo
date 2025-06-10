@@ -1,5 +1,5 @@
 use crate::{
-    context::{Context, DebugOptions, DebugProvider},
+    context::{Context, FeedbackProvider},
     nodes::Node,
 };
 use petgraph::Direction;
@@ -78,10 +78,10 @@ impl Constraints {
 }
 
 impl Constraint {
-    pub fn to_debug_string(&self, debug: &DebugProvider<'_>) -> String {
+    pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
-            Constraint::Ty(ty) => ty.to_debug_string(debug),
-            Constraint::Bound(bound) => bound.to_debug_string(debug),
+            Constraint::Ty(ty) => ty.to_debug_string(provider),
+            Constraint::Bound(bound) => bound.to_debug_string(provider),
         }
     }
 }
@@ -224,32 +224,32 @@ impl Ty {
 }
 
 impl Ty {
-    pub fn to_debug_string(&self, debug: &DebugProvider<'_>) -> String {
+    pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
             Ty::Var(var) => format!("({var})"),
             Ty::Any => String::from("_"),
-            Ty::Of(node, _) => format!("({})", debug.node_source(*node, DebugOptions::default()).1),
+            Ty::Of(node, _) => format!("({})", provider.node_span_source(*node).1),
             Ty::Named { name, parameters } => format!(
                 "{}{}",
-                debug.node_source(*name, DebugOptions::default()).1,
+                provider.node_span_source(*name).1,
                 parameters
                     .iter()
-                    .map(|parameter| format!(" {}", parameter.to_debug_string(debug)))
+                    .map(|parameter| format!(" {}", parameter.to_debug_string(provider)))
                     .collect::<String>()
             ),
             Ty::Function { inputs, output } => format!(
                 "{}-> {}",
                 inputs
                     .iter()
-                    .map(|input| format!("{} ", input.to_debug_string(debug)))
+                    .map(|input| format!("{} ", input.to_debug_string(provider)))
                     .collect::<String>(),
-                output.to_debug_string(debug)
+                output.to_debug_string(provider)
             ),
             Ty::Tuple { elements } => format!(
                 "({})",
                 elements
                     .iter()
-                    .map(|element| element.to_debug_string(debug))
+                    .map(|element| element.to_debug_string(provider))
                     .collect::<Vec<_>>()
                     .join(" ; ")
             ),
@@ -268,7 +268,7 @@ pub struct Bound {
 }
 
 impl Bound {
-    fn to_debug_string(&self, _debug: &DebugProvider<'_>) -> String {
+    fn to_debug_string(&self, _provider: &FeedbackProvider<'_>) -> String {
         String::from("(bound)")
     }
 }

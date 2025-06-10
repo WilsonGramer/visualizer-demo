@@ -1,181 +1,245 @@
+use itertools::Itertools;
+use regex::Regex;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use wipple_compiler_trace::{AnyRule, NodeId};
+use std::{fmt::Write, sync::LazyLock};
+use wipple_compiler_trace::{AnyRule, NodeId, Rule};
+use wipple_compiler_typecheck::{constraints::Ty, context::FeedbackProvider};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct FeedbackItem {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct Feedback {
     pub group: FeedbackGroup,
-    pub summary: Message,
-    pub details: Vec<Message>,
+    pub messages: Vec<Message>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum FeedbackGroup {
     Todo,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct Message {
     #[serde(flatten)]
     pub kind: MessageKind,
+    #[serde(flatten)]
     pub content: Content,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum MessageKind {
     Node(String),
     Type(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum Content {
-    /// Inherit the node's documentation comment
-    Documentation,
+    /// Inherit a node's documentation comment
+    Documentation(String),
 
-    /// Provide a custom message
-    Literal(Vec<ContentSegment>),
+    /// Provide a message from a template
+    Template(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ContentSegment {
-    Text(String),
-    Source(String),
-    Type(String),
-    Rule(String),
+#[derive(Debug, Default)]
+pub struct TermCounts {
+    pub nodes: usize,
+    pub tys: usize,
 }
 
-macro_rules! include_template {
-    ($path:literal) => {
-        static TEMPLATE: std::sync::LazyLock<$crate::feedback::FeedbackTemplate> =
-            std::sync::LazyLock::new(|| {
-                $crate::feedback::FeedbackTemplate::new(include_str!($path))
-            });
-    };
+#[derive(Debug)]
+pub struct TermsIter {
+    relations: std::vec::IntoIter<NodeTerm>,
+    visited_relations: HashMap<String, NodeTerm>,
+    tys: std::vec::IntoIter<TyTerm>,
+    visited_tys: HashMap<String, TyTerm>,
 }
-
-pub(crate) use include_template;
-use wipple_compiler_typecheck::{constraints::Ty, context::DebugProvider};
 
 #[derive(Debug, Clone)]
-pub struct FeedbackTemplate {
-    yml: String,
-    nodes: HashMap<String, NodeId>,
-    tys: HashMap<String, Ty>,
-    rules: HashMap<String, AnyRule>,
+pub struct NodeTerm {
+    pub node: NodeId,
+    pub rule: AnyRule,
 }
 
-impl FeedbackTemplate {
-    pub fn new(yml: &str) -> Self {
-        FeedbackTemplate {
-            yml: yml.to_string(),
-            nodes: Default::default(),
-            tys: Default::default(),
-            rules: Default::default(),
+#[derive(Debug, Clone)]
+pub struct TyTerm {
+    pub ty: Ty,
+    pub influences: Vec<NodeTerm>,
+}
+
+impl TermsIter {
+    pub fn new(relations: Vec<NodeTerm>, tys: Vec<TyTerm>) -> Self {
+        TermsIter {
+            relations: relations.into_iter(),
+            visited_relations: Default::default(),
+            tys: tys.into_iter(),
+            visited_tys: Default::default(),
         }
     }
 
-    pub fn node(mut self, name: &str, node: NodeId) -> Self {
-        self.nodes.insert(name.to_string(), node);
-        self
+    pub fn relation(&mut self, name: &str) -> NodeTerm {
+        self.visited_relations
+            .entry(name.to_string())
+            .or_insert_with(|| self.relations.next().unwrap())
+            .clone()
     }
 
-    pub fn ty(mut self, name: &str, ty: Ty) -> Self {
-        self.tys.insert(name.to_string(), ty);
-        self
+    pub fn ty(&mut self, name: &str) -> TyTerm {
+        self.visited_tys
+            .entry(name.to_string())
+            .or_insert_with(|| self.tys.next().unwrap())
+            .clone()
     }
+}
 
-    pub fn rule(mut self, name: &str, rule: AnyRule) -> Self {
-        self.rules.insert(name.to_string(), rule);
-        self
+#[derive(Debug)]
+pub struct State {
+    pub node: NodeTerm,
+    pub nodes: HashMap<String, NodeTerm>,
+    pub tys: HashMap<String, TyTerm>,
+}
+
+impl State {
+    pub fn new(node: NodeTerm) -> Self {
+        State {
+            node,
+            nodes: HashMap::new(),
+            tys: HashMap::new(),
+        }
     }
+}
 
-    pub fn to_markdown(&self, debug: &DebugProvider<'_>) -> String {
-        use std::fmt::Write;
+fn render_template(
+    template: &str,
+    state: &State,
+    provider: &FeedbackProvider<'_>,
+) -> Option<String> {
+    static TEMPLATE_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\{\{([^\}]+)\}\}").unwrap());
 
-        let item: FeedbackItem = serde_yml::from_str(&self.yml).unwrap();
+    let mut valid = true;
+    let replacement = TEMPLATE_REGEX.replace_all(template, |captures: &regex::Captures<'_>| {
+        let capture = captures.get(1).unwrap();
+        let (name, display): (&str, &str) = capture
+            .as_str()
+            .split(':')
+            .collect_tuple()
+            .unwrap_or_else(|| panic!("invalid interpolation `{}`", capture.as_str()));
 
+        let replacement = (|| {
+            match display {
+                "source" => {
+                    let term = state.nodes.get(name)?;
+
+                    let (span, source) = provider.node_span_source(term.node);
+
+                    // TODO: Generate link using the span
+                    let _ = span;
+
+                    Some(source)
+                }
+                "type" => {
+                    let term = state.tys.get(name)?;
+                    Some(format!("`{}`", term.ty.to_debug_string(provider)))
+                }
+                _ => panic!("invalid display type: `{display}`"),
+            }
+        })();
+
+        replacement.unwrap_or_else(|| {
+            valid = false;
+            String::new()
+        })
+    });
+
+    valid.then(|| replacement.to_string())
+}
+
+impl Feedback {
+    pub fn render(&self, state: &State, provider: &FeedbackProvider<'_>) -> Option<String> {
         let mut md = String::new();
 
-        writeln!(md, "{}", item.summary.to_markdown(self, debug)).unwrap();
+        for (index, message) in self.messages.iter().enumerate() {
+            let indent = if index == 0 { 0 } else { 1 };
 
-        for message in &item.details {
-            writeln!(md, "  {}", message.to_markdown(self, debug)).unwrap();
+            write!(md, "{}", message.render(state, provider, indent)?).unwrap();
+
+            if index + 1 == self.messages.len() {
+                writeln!(md).unwrap();
+            }
         }
 
-        writeln!(md).unwrap();
-
-        md
+        Some(md)
     }
 }
 
 impl Message {
-    pub fn to_markdown(&self, template: &FeedbackTemplate, debug: &DebugProvider<'_>) -> String {
-        use std::fmt::Write;
+    pub fn render(
+        &self,
+        state: &State,
+        provider: &FeedbackProvider<'_>,
+        indent: usize,
+    ) -> Option<String> {
+        const INDENT: &str = "  ";
+        let indent_string = |indent| INDENT.repeat(indent);
+        let bullet_string = |indent| if indent == 0 { "" } else { "- " };
 
         let mut md = String::new();
 
+        let render_content = |md: &mut String| {
+            match &self.content {
+                Content::Documentation(node) => {
+                    let _term = state.nodes.get(node)?;
+                    todo!("(and only use the first paragraph of the documentation comment)");
+                }
+                Content::Template(template) => {
+                    write!(md, "{}", render_template(template, state, provider)?).unwrap();
+                }
+            }
+
+            Some(())
+        };
+
         match &self.kind {
-            MessageKind::Node(node) => {
-                let node = template.nodes.get(node).unwrap();
-                let (node_span, node_source) = debug.node_source(*node, Default::default());
-                write!(md, "{node_span:?}: `{node_source}`: ").unwrap();
+            MessageKind::Node(name) => {
+                let term = state.nodes.get(name)?;
+
+                let (node_span, node_source) = provider.node_span_source(term.node);
+                write!(
+                    md,
+                    "{}{}{node_span:?}: `{node_source}`: ",
+                    indent_string(indent),
+                    bullet_string(indent)
+                )
+                .unwrap();
+                render_content(&mut md);
             }
-            MessageKind::Type(ty) => {
-                let ty = template.tys.get(ty).unwrap();
-                write!(md, "for `{}`: ", ty.to_debug_string(debug)).unwrap()
-            }
-        }
+            MessageKind::Type(name) => {
+                write!(md, "{}{}", indent_string(indent), bullet_string(indent)).unwrap();
 
-        match &self.content {
-            Content::Documentation => todo!(),
-            Content::Literal(segments) => {
-                for segment in segments {
-                    match segment {
-                        ContentSegment::Text(s) => {
-                            if !md.ends_with(' ')
-                                && !s.chars().next().unwrap().is_ascii_punctuation()
-                            {
-                                write!(md, " ").unwrap();
-                            }
+                render_content(&mut md);
 
-                            write!(md, "{s}").unwrap()
-                        }
-                        ContentSegment::Source(node) => {
-                            let node = template.nodes.get(node).unwrap();
+                let term = state.tys.get(name)?;
 
-                            if !md.ends_with(' ') {
-                                write!(md, " ").unwrap();
-                            }
+                for influence in &term.influences {
+                    let (_, influence_source) = provider.node_span_source(influence.node);
 
-                            let (_, source) = debug.node_source(*node, Default::default());
-                            write!(md, "`{source}`").unwrap();
-                        }
-                        ContentSegment::Type(ty) => {
-                            let ty = template.tys.get(ty).unwrap();
-
-                            if !md.ends_with(' ') {
-                                write!(md, " ").unwrap();
-                            }
-
-                            write!(md, "`{}`", ty.to_debug_string(debug)).unwrap()
-                        }
-                        ContentSegment::Rule(rule) => {
-                            let rule = template.rules.get(rule).unwrap();
-
-                            if !md.ends_with(' ') {
-                                write!(md, " ").unwrap();
-                            }
-
-                            write!(md, "the {rule:?} rule").unwrap()
-                        }
-                    }
+                    writeln!(
+                        md,
+                        "{}{}...because of `{}` via {}.",
+                        indent_string(indent + 1),
+                        bullet_string(indent + 1),
+                        influence_source,
+                        influence.rule.name(),
+                    )
+                    .unwrap();
                 }
             }
         }
 
-        md
+        Some(md)
     }
 }

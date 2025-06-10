@@ -1,6 +1,8 @@
 import * as d3graphviz from "d3-graphviz";
 import "./style.css";
 import { compile } from "wipple-compiler";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 
 const debounce = (timeout: number, f: () => void) => {
     let timeoutId: number | undefined;
@@ -32,13 +34,21 @@ const update = async () => {
 
     const [syntaxError, graph, tys, feedback] = compile(code.value);
 
-    try {
-        graphviz.renderDot(graph);
-    } catch (e) {
-        console.error(e);
-    }
+    if (syntaxError) {
+        log.innerText = `Syntax error: ${syntaxError}`;
+    } else {
+        try {
+            graphviz.renderDot(graph);
+        } catch (e) {
+            console.error(e);
+        }
 
-    log.innerText = syntaxError + feedback + tys;
+        const markdown = DOMPurify.sanitize(marked.parse(feedback, { async: false }));
+        log.innerHTML = `
+            <div class="markdown-body">${markdown}</div>
+            <pre>${tys}</pre>
+        `;
+    }
 };
 
 update();

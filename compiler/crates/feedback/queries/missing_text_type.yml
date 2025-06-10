@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=_schema.json
+where:
+  - node:
+      as: literal
+      rule: missing_text_type
+group: todo
+messages:
+  - node: literal
+    template: |
+      Can't create `{{literal:source}}` because the `Text` type is missing.
+  - node: literal
+    template: |
+      Make sure to add `Text : type` at the top of your program.

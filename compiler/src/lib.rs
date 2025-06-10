@@ -2,7 +2,6 @@ use colored::Colorize;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 use wipple_compiler_trace::Span;
-use wipple_compiler_typecheck::context::DebugOptions;
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {
@@ -69,26 +68,14 @@ pub fn compile(
     let groups = typecheck_session.groups(None);
     let tys = typecheck_session.iterate(groups);
 
-    let debug = wipple_compiler_typecheck::context::DebugProvider::new(&tys, |node, options| {
+    let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(&tys, |node| {
         let Some(span) = lowered.spans.get(&node) else {
             return (Span::root(path.clone()), String::from("<unknown>"));
         };
 
         let source = &source[span.range.clone()];
 
-        let result = if options.rule {
-            let rule = lowered
-                .nodes
-                .get(&node)
-                .map(|(_, rule)| format!("{rule:?}"))
-                .unwrap_or_else(|| String::from("<unknown>"));
-
-            format!("{source}\n{rule}")
-        } else {
-            source.to_string()
-        };
-
-        (span.clone(), result)
+        (span.clone(), source.to_string())
     });
 
     // Display feedback
@@ -102,6 +89,7 @@ pub fn compile(
     let feedback_ctx = wipple_compiler_feedback::Context::new(
         &feedback_nodes,
         &lowered.spans,
+        &lowered.names,
         &lowered.relations,
         &tys,
     );
@@ -111,13 +99,13 @@ pub fn compile(
     display_feedback(
         feedback
             .into_iter()
-            .map(|feedback| feedback.to_markdown(&debug))
+            .filter_map(|(_, item, context)| item.render(&context, &provider))
             .collect::<String>(),
     );
 
     // Display type graph
 
-    let graph = typecheck_session.to_debug_graph(None, &tys, &lowered.relations, &debug);
+    let graph = typecheck_session.to_debug_graph(None, &tys, &lowered.relations, &provider);
     display_graph(graph);
 
     // Display type table
@@ -131,16 +119,12 @@ pub fn compile(
     let mut rows = Vec::new();
 
     for (&node, (tys, influences)) in displayed_tys {
-        let (node_span, node_debug) = debug.node_source(node, DebugOptions::default());
+        let (node_span, node_debug) = provider.node_span_source(node);
 
         let influence_rules = influences
             .iter()
             .map(|(&node, &rule)| {
-                format!(
-                    "\n  via {:?}: {}",
-                    rule,
-                    debug.node_source(node, Default::default()).1,
-                )
+                format!("\n  via {:?}: {}", rule, provider.node_span_source(node).1)
             })
             .collect::<String>();
 
@@ -148,7 +132,7 @@ pub fn compile(
             format!("{node_span:?}").dimmed().to_string(),
             node_debug.to_string(),
             tys.iter()
-                .map(|ty| ty.to_debug_string(&debug).blue().to_string())
+                .map(|ty| ty.to_debug_string(&provider).blue().to_string())
                 .collect::<Vec<_>>()
                 .join(&" or ".bright_red().to_string())
                 + &influence_rules,
@@ -158,18 +142,22 @@ pub fn compile(
 
     rows.dedup();
 
-    let mut table = tabled::builder::Builder::new();
-    table.push_record(["Span", "Node", "Type", "Rule"]);
-    for row in rows {
-        table.push_record(row);
-    }
+    if !rows.is_empty() {
+        let mut table = tabled::builder::Builder::new();
+        table.push_record(["Span", "Node", "Type", "Rule"]);
+        for row in rows {
+            table.push_record(row);
+        }
 
-    display_tys(format!(
-        "{}",
-        table
-            .build()
-            .with(tabled::settings::Style::sharp().line_horizontal(
-                tabled::settings::style::HorizontalLine::inherit(tabled::settings::Style::modern())
-            ))
-    ));
+        display_tys(format!(
+            "{}",
+            table
+                .build()
+                .with(tabled::settings::Style::sharp().line_horizontal(
+                    tabled::settings::style::HorizontalLine::inherit(
+                        tabled::settings::Style::modern()
+                    )
+                ))
+        ));
+    }
 }

@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=_schema.json
+where:
+  - child:
+      as: number
+      parent: call
+      rule: function_in_function_call
+  - child:
+      as: function
+      parent: call
+      rule: input_in_function_call
+group: todo
+messages:
+  - node: number
+    template: |
+      `{{function:source}}` is not a number unit, so `{{number:source}}` cannot be
+      placed here.
+  - node: call
+    template: |
+      Try switching the order of this call so the number comes after the
+      function.
+  - node: function
+    template: |
+      When a number is written before a function, the function must have the
+      `[unit]` attribute.

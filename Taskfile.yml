@@ -1,34 +1,51 @@
 version: "3"
 
 tasks:
-  dev:
-    cmds:
-      - task: dev:compiler
-      - task: dev:app
+    dev:
+        cmds:
+            - task: dev:compiler
+            - task: dev:app
 
-  dev:compiler:
-    dir: compiler
-    cmds:
-      - wasm-pack build --target bundler --no-opt
+    dev:compiler:
+        dir: compiler
+        deps:
+            - build:feedback
+        cmds:
+            - task: build:compiler
+              vars:
+                  CLI_ARGS: "--dev"
 
-  dev:app:
-    dir: demo
-    run: once
-    cmds:
-      - npm run dev
+    dev:app:
+        dir: demo
+        run: once
+        cmds:
+            - npm run dev -- --open
 
-  build:
-    cmds:
-      - task: build:compiler
-      - task: build:app
+    build:
+        cmds:
+            - task: build:compiler
+            - task: build:app
 
-  build:compiler:
-    dir: compiler
-    cmds:
-      - wasm-pack build --target bundler
+    build:compiler:
+        dir: compiler
+        deps:
+            - build:feedback
+        cmds:
+            - wasm-pack build --target bundler {{.CLI_ARGS}}
 
-  build:app:
-    dir: demo
-    cmds:
-      - npm install
-      - npm run build
+    build:app:
+        dir: demo
+        cmds:
+            - npm install
+            - npm run build
+
+    build:feedback:
+        dir: compiler/crates/feedback
+        cmds:
+            - cargo test generate_json_schemas
+            - |
+                rm -rf queries/json && mkdir queries/json
+                for f in queries/*.yml; do
+                  f=$(basename $f)
+                  cat queries/$f | yq -o json > queries/json/${f%.yml}.json
+                done

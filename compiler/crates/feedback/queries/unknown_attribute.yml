@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=_schema.json
+where:
+  - node:
+      as: attribute
+      rule: unknown_attribute
+group: todo
+messages:
+  - node: attribute
+    template: |
+      TODO

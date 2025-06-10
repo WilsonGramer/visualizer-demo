@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=_schema.json
+where:
+  - node:
+      as: name
+      rule: unresolved_name
+group: todo
+messages:
+  - node: name
+    template: |
+      Couldn't find a variable named `{{name:source}}`.
+  - node: name
+    template: |
+      Check the spelling of this variable name.

@@ -34,6 +34,7 @@ use wipple_compiler_typecheck::{
 pub struct Result {
     pub nodes: BTreeMap<NodeId, (Box<dyn Node>, AnyRule)>,
     pub spans: BTreeMap<NodeId, Span>,
+    pub names: HashMap<String, NodeId>,
     pub relations: BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
 }
 
@@ -51,6 +52,14 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Res
             .map(|(id, node)| (id, node.unwrap()))
             .collect(),
         spans: visitor.spans,
+        names: visitor
+            .scopes
+            .pop()
+            .unwrap()
+            .0
+            .into_iter()
+            .map(|(name, definition)| (name, definition.source()))
+            .collect(),
         relations: visitor.relations,
     }
 }

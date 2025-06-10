@@ -1,10 +1,20 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter/wght.css";
 @import "@fontsource-variable/fira-code/wght.css";
+@import "github-markdown-css/github-markdown.css";
 
 @layer base {
     :root {
         --font-sans: "Inter Variable", sans-serif;
         --font-mono: "Fira Code Variable", monospace;
+    }
+
+    li {
+        list-style-type: disc;
+    }
+
+    pre,
+    code {
+        font-family: var(--font-mono) !important;
     }
 }

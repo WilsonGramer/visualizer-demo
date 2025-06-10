@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=_schema.json
+where:
+  - node:
+      as: literal
+      rule: missing_number_type
+group: todo
+messages:
+  - node: literal
+    template: |
+      Can't create `{{literal:source}}` because the `Number` type is missing.
+  - node: literal
+    template: |
+      Make sure to add `Number : type` at the top of your program.

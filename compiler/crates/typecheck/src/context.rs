@@ -2,6 +2,7 @@ use crate::{
     constraints::{Constraint, Ty},
     nodes::Node,
 };
+
 use std::{collections::BTreeMap, rc::Rc};
 use wipple_compiler_trace::{AnyRule, NodeId, Span};
 
@@ -41,30 +42,24 @@ pub struct Trait {
 }
 
 #[derive(Clone)]
-pub struct DebugProvider<'a> {
-    pub tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
-    pub debug: Rc<dyn Fn(NodeId, DebugOptions) -> (Span, String) + 'a>,
+pub struct FeedbackProvider<'a> {
+    tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
+    get_span_source: Rc<dyn Fn(NodeId) -> (Span, String) + 'a>,
 }
 
-#[derive(Default)]
-#[non_exhaustive]
-pub struct DebugOptions {
-    pub rule: bool,
-}
-
-impl<'a> DebugProvider<'a> {
+impl<'a> FeedbackProvider<'a> {
     pub fn new(
         tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
-        debug: impl Fn(NodeId, DebugOptions) -> (Span, String) + 'a,
+        get_span_source: impl Fn(NodeId) -> (Span, String) + 'a,
     ) -> Self {
-        DebugProvider {
+        FeedbackProvider {
             tys,
-            debug: Rc::new(debug),
+            get_span_source: Rc::new(get_span_source),
         }
     }
 
-    pub fn node_source(&self, node: NodeId, options: DebugOptions) -> (Span, String) {
-        (self.debug)(node, options)
+    pub fn node_span_source(&self, node: NodeId) -> (Span, String) {
+        (self.get_span_source)(node)
     }
 
     pub fn node_tys(&self, node: NodeId) -> impl Iterator<Item = String> {

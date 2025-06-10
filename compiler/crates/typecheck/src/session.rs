@@ -1,6 +1,6 @@
 use crate::{
     constraints::{Constraint, Constraints, Ty},
-    context::{DebugOptions, DebugProvider},
+    context::FeedbackProvider,
 };
 use itertools::Itertools;
 use petgraph::{
@@ -441,7 +441,7 @@ impl Session {
         start: Option<NodeId>,
         tys: &BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
         relations: &BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
-        debug: &DebugProvider<'_>,
+        provider: &FeedbackProvider<'_>,
     ) -> String {
         // Group types that should unify with each other
 
@@ -528,7 +528,7 @@ impl Session {
                     .into_iter()
                     .flat_map(|(tys, _)| tys)
                     .cloned()
-                    .map(|ty| format!("\n{}", ty.to_debug_string(debug)))
+                    .map(|ty| format!("\n{}", ty.to_debug_string(provider)))
                     .unique()
                     .collect::<String>()
             };
@@ -536,21 +536,9 @@ impl Session {
             let from_tys = display_tys(from);
             let to_tys = display_tys(to);
 
-            let (from_span, from_debug) = debug.node_source(
-                from,
-                DebugOptions {
-                    rule: true,
-                    ..Default::default()
-                },
-            );
+            let (from_span, from_debug) = provider.node_span_source(from);
 
-            let (to_span, to_debug) = debug.node_source(
-                to,
-                DebugOptions {
-                    rule: true,
-                    ..Default::default()
-                },
-            );
+            let (to_span, to_debug) = provider.node_span_source(to);
 
             stmts = mem::take(&mut stmts)
                 .add_node(

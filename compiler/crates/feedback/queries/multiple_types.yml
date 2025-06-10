@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=_schema.json
+where:
+  - node:
+      as: node
+  - type:
+      as: left
+  - type:
+      as: right
+group: todo
+messages:
+  - node: node
+    template: |
+      `{{node:source}}` was found to be either {{left:type}} or {{right:type}}, but it can
+      only be one of these.
+  - type: left
+    template: |
+      `{{node:source}}` could be a {{left:type}}...
+  - type: right
+    template: |
+      `{{node:source}}` could also be a {{right:type}}...
