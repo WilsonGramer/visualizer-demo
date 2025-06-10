@@ -72,17 +72,28 @@ impl<'a> Context<'a> {
                 let (tys, influences) = self.tys.get(&node).cloned().unwrap_or_default();
 
                 let ty_combinations = || {
-                    tys.iter().combinations(term_counts.tys).map(|tys| {
-                        tys.into_iter()
-                            .map(|ty| TyTerm {
-                                ty: ty.clone(),
-                                influences: influences
-                                    .iter()
-                                    .map(move |(&node, &rule)| NodeTerm { node, rule })
-                                    .collect(),
-                            })
-                            .collect()
-                    })
+                    tys.iter()
+                        .combinations(term_counts.tys)
+                        .map(|tys| {
+                            tys.into_iter()
+                                .map(|ty| TyTerm {
+                                    ty: ty.clone(),
+                                    influences: influences
+                                        .iter()
+                                        .map(move |(&node, &rule)| NodeTerm { node, rule })
+                                        .collect(),
+                                })
+                                .collect()
+                        })
+                        // If the query doesn't need combinations, also give it
+                        // a placeholder type directly.
+                        .chain(std::iter::repeat_n(
+                            vec![TyTerm {
+                                ty: Ty::Any,
+                                influences: Vec::new(),
+                            }],
+                            if term_counts.tys <= 1 { 1 } else { 0 },
+                        ))
                 };
 
                 for relations in relation_combinations {

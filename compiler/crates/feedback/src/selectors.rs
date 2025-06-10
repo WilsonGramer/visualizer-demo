@@ -72,10 +72,12 @@ impl Selector {
             Selector::Type { r#as: name, rule } => {
                 let term = terms.ty(name);
 
-                if term.influences.iter().any(|influence| {
-                    rule.as_ref()
-                        .is_none_or(|rule| influence.rule.name() == rule)
-                }) {
+                if term.influences.is_empty()
+                    || term.influences.iter().any(|influence| {
+                        rule.as_ref()
+                            .is_none_or(|rule| influence.rule.name() == rule)
+                    })
+                {
                     state.tys.insert(name.clone(), term.clone());
                 }
             }
