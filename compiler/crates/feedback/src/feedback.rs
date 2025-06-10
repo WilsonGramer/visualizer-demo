@@ -24,7 +24,23 @@ pub struct Message {
     #[serde(flatten)]
     pub kind: MessageKind,
     #[serde(flatten)]
+    pub options: MessageOptions,
+    #[serde(flatten)]
     pub content: Content,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct MessageOptions {
+    #[serde(default)]
+    pub trace: TraceStyle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TraceStyle {
+    Related,
+    #[default]
+    Because,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -238,15 +254,30 @@ impl Message {
                 for influence in &term.influences {
                     let (_, influence_source) = provider.node_span_source(influence.node);
 
-                    writeln!(
+                    write!(
                         md,
-                        "{}{}...because of `{}` via {}.",
+                        "{}{}",
                         indent_string(indent + 1),
                         bullet_string(indent + 1),
-                        influence_source,
-                        influence.rule.name(),
                     )
                     .unwrap();
+
+                    match self.options.trace {
+                        TraceStyle::Related => writeln!(
+                            md,
+                            "See the related {} `{}`.",
+                            influence.rule.name(),
+                            influence_source,
+                        )
+                        .unwrap(),
+                        TraceStyle::Because => writeln!(
+                            md,
+                            "...because of `{}` in this {}.",
+                            influence_source,
+                            influence.rule.name(),
+                        )
+                        .unwrap(),
+                    }
                 }
             }
         }
