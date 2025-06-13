@@ -310,8 +310,9 @@ impl Session {
         provider: &FeedbackProvider<'_>,
     ) -> String {
         let font = "Fira Code";
-        let error_color =
-            |opacity: f32| tabbycat::attributes::Color::Rgba(255, 0, 0, (opacity * 255.) as u8);
+
+        let success_color = |base: u8| tabbycat::attributes::Color::Rgb(base, base, 255);
+        let error_color = |base: u8| tabbycat::attributes::Color::Rgb(255, base, base);
 
         let node_id = |node: NodeId| tabbycat::Identity::raw(format!("node{}", node.0));
 
@@ -371,24 +372,25 @@ impl Session {
             let group_tys = tys.get(group.keys().next().unwrap()).unwrap();
             let error = group_tys.len() > 1; // mutiple possible types
 
+            let color = if error { error_color } else { success_color };
+
             let group_tys = group_tys
                 .iter()
                 .map(|(ty, _)| ty.to_debug_string(provider))
-                .unique()
-                .collect::<String>();
+                .collect::<Vec<_>>()
+                .join("\n");
 
             let mut attrs = tabbycat::AttrList::new()
                 .add_pair(tabbycat::attributes::style(
                     tabbycat::attributes::Style::Dashed,
                 ))
                 .add_pair(tabbycat::attributes::label(group_tys))
-                .add_pair(tabbycat::attributes::fontname(font));
+                .add_pair(tabbycat::attributes::fontname(format!("{font} Semibold")))
+                .add_pair(tabbycat::attributes::fontcolor(color(0)));
 
-            if error {
-                attrs = attrs
-                    .add_pair(tabbycat::attributes::bgcolor(error_color(0.1)))
-                    .add_pair(tabbycat::attributes::color(error_color(1.)));
-            }
+            attrs = attrs
+                .add_pair(tabbycat::attributes::bgcolor(color(240)))
+                .add_pair(tabbycat::attributes::color(color(0)));
 
             stmts = stmts.add_subgraph(tabbycat::SubGraph::subgraph(
                 Some(tabbycat::Identity::raw(format!("cluster{id}"))),

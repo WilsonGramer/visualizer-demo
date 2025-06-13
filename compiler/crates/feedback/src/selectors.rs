@@ -160,13 +160,15 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                     return Err(());
                 }
 
-                let related = group_id
+                let mut related = group_id
                     .map(|id| self.ctx.groups.get(&id).unwrap().clone())
                     .unwrap_or_default();
 
                 if !matches_rules(&related) {
                     return Err(());
                 }
+
+                related.remove(&term.node);
 
                 let term = TyTerm {
                     node: term.node,
