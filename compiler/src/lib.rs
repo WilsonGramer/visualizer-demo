@@ -1,5 +1,6 @@
 use colored::Colorize;
-use std::{collections::BTreeMap, sync::Arc};
+use petgraph::Direction;
+use std::collections::{BTreeMap, HashSet};
 use wasm_bindgen::prelude::*;
 use wipple_compiler_trace::{AnyRule, NodeId, Rule, RuleKind, Span, rule};
 
@@ -53,11 +54,10 @@ pub fn compile(
         }
     };
 
-    let path = Arc::<str>::from(path);
     let line_col = line_col::LineColLookup::new(source);
 
     let lowered = wipple_compiler_lower::visit(&source_file, |range| Span {
-        path: path.clone(),
+        path: path.to_string(),
         range: range.clone(),
         start_line_col: line_col.get(range.start),
         end_line_col: line_col.get(range.end),
@@ -73,74 +73,66 @@ pub fn compile(
 
     let mut typecheck_session = typecheck_ctx.session();
 
-    let groups = typecheck_session.groups(None);
-    let mut tys = typecheck_session.iterate(groups);
-
-    // Also include the relations gathered during lowering
-    for (&node, related) in &lowered.relations {
-        tys.entry(node)
-            .or_default()
-            .1
-            .extend(related.iter().copied());
-    }
+    let mut groups = typecheck_session.groups();
+    let tys = typecheck_session.iterate(&mut groups);
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
-    let mut extras = BTreeMap::<NodeId, Vec<AnyRule>>::new();
+    let mut extras = BTreeMap::<NodeId, HashSet<AnyRule>>::new();
     for (&node, &(_, rule)) in &lowered.nodes {
         if rule.kind() != RuleKind::Typed {
             continue;
         }
 
-        if let Some((tys, _)) = tys.get(&node) {
-            for ty in tys {
-                let mut incomplete = false;
-                ty.traverse(&mut |ty| {
-                    if ty.is_unknown_shallow() {
-                        incomplete = true;
-                    }
-                });
-
-                if incomplete {
+        if let Some(tys) = tys.get(&node) {
+            for (ty, _) in tys {
+                if ty.is_incomplete() {
                     extras
                         .entry(node)
                         .or_default()
-                        .push(rule::incomplete_type.erased());
+                        .insert(rule::incomplete_type.erased());
                 }
             }
         } else {
             extras
                 .entry(node)
                 .or_default()
-                .push(rule::unknown_type.erased());
+                .insert(rule::unknown_type.erased());
         }
     }
-
-    let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(&tys, |node| {
-        let Some(span) = lowered.spans.get(&node) else {
-            return (Span::root(path.clone()), String::from("<unknown>"));
-        };
-
-        let source = &source[span.range.clone()];
-
-        (span.clone(), source.to_string())
-    });
-
-    // Display feedback
 
     let feedback_nodes = lowered
         .nodes
         .iter()
         .map(|(&id, &(_, rule))| {
-            let extra = extras.get(&id).cloned().unwrap_or_default();
-            (id, extra.into_iter().chain([rule]).collect())
+            let extras = extras.get(&id).cloned().unwrap_or_default();
+            (id, extras.into_iter().chain([rule]).collect())
         })
         .collect();
 
+    let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
+        &feedback_nodes,
+        &lowered.relations,
+        &tys,
+        |node| {
+            let Some(span) = lowered.spans.get(&node) else {
+                return (Span::root(path), String::from("<unknown>"));
+            };
+
+            let source = &source[span.range.clone()];
+
+            (span.clone(), source.to_string())
+        },
+    );
+
+    // Display feedback
+
     let feedback_ctx = wipple_compiler_feedback::Context::new(
+        &provider,
         &feedback_nodes,
         &lowered.spans,
         &lowered.names,
         &lowered.relations,
+        &groups,
         &tys,
     );
 
@@ -149,13 +141,13 @@ pub fn compile(
     display_feedback(
         feedback
             .into_iter()
-            .filter_map(|(_, item, context)| item.render(&context, &provider))
+            .filter_map(|(_, _, item, context)| item.render(&context, &provider))
             .collect::<String>(),
     );
 
     // Display type graph
 
-    let graph = typecheck_session.to_debug_graph(None, &tys, &lowered.relations, &provider);
+    let graph = typecheck_session.to_debug_graph(&groups, &tys, &lowered.relations, &provider);
     display_graph(graph);
 
     // Display type table
@@ -168,25 +160,42 @@ pub fn compile(
 
     let mut rows = Vec::new();
 
-    for (&node, (tys, related)) in displayed_tys {
+    for (&node, tys) in displayed_tys {
         let (node_span, node_debug) = provider.node_span_source(node);
 
-        let related_rules = related
-            .iter()
-            .map(|(&node, &rule)| {
-                format!("\n  via {:?}: {}", rule, provider.node_span_source(node).1)
+        let node_related_rules = lowered
+            .relations
+            .neighbors_directed(node, Direction::Incoming)
+            .map(|related| {
+                let rule = lowered.relations.edge_weight(related, node).unwrap();
+                format!(
+                    "\n  via {:?}: {}",
+                    rule,
+                    provider.node_span_source(related).1
+                )
             })
             .collect::<String>();
 
+        let ty_related_rules = tys
+            .iter()
+            .flat_map(|(_, group_id)| group_id)
+            .flat_map(|id| groups.get(id).unwrap().get(&node).unwrap())
+            .map(|rule| format!("\n  as {rule:?}"))
+            .collect::<String>();
+
         rows.push([
-            format!("{node_span:?}").dimmed().to_string(),
-            format!("{:?}", lowered.nodes.get(&node).unwrap().1),
+            format!("{node:?}\n{node_span:?}").to_string(),
+            format!(
+                "{:?}{}",
+                lowered.nodes.get(&node).unwrap().1,
+                node_related_rules
+            ),
             node_debug.to_string(),
             tys.iter()
-                .map(|ty| ty.to_debug_string(&provider).blue().to_string())
+                .map(|(ty, _)| ty.to_debug_string(&provider).blue().to_string())
                 .collect::<Vec<_>>()
                 .join(&" or ".bright_red().to_string())
-                + &related_rules,
+                + &ty_related_rules,
         ]);
     }
 

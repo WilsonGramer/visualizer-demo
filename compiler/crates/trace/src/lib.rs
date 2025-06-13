@@ -3,25 +3,24 @@ use std::{
     any::{Any, TypeId},
     fmt::Debug,
     ops::Range,
-    sync::Arc,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct NodeId(pub usize);
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Span {
-    pub path: Arc<str>,
+    pub path: String,
     pub range: Range<usize>,
     pub start_line_col: (usize, usize),
     pub end_line_col: (usize, usize),
 }
 
 impl Span {
-    pub fn root(path: Arc<str>) -> Self {
+    pub fn root(path: impl AsRef<str>) -> Self {
         Span {
-            path,
+            path: path.as_ref().to_string(),
             range: 0..0,
             start_line_col: (0, 0),
             end_line_col: (0, 0),

@@ -1,8 +1,6 @@
 # yaml-language-server: $schema=_schema.json
-where:
-  - node:
-      as: name
-      rule: unresolved_named_type
+as: name
+rule: unresolved_named_type
 group: todo
 messages:
   - node: name

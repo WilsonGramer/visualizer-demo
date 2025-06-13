@@ -1,8 +1,7 @@
 # yaml-language-server: $schema=_schema.json
+as: placeholder
+rule: placeholder
 where:
-  - node:
-      as: placeholder
-      rule: placeholder
   - type:
       as: ty
 group: todo

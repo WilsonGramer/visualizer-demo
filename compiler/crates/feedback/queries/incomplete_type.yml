@@ -1,8 +1,7 @@
 # yaml-language-server: $schema=_schema.json
+as: node
+rule: incomplete_type
 where:
-  - node:
-      as: node
-      rule: incomplete_type
   - type:
       as: ty
 group: todo

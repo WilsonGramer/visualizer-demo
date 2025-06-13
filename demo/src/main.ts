@@ -1,8 +1,11 @@
-import * as d3graphviz from "d3-graphviz";
+import { instance as vizInstance } from "@viz-js/viz";
 import "./style.css";
 import { compile } from "wipple-compiler";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+
+const viz = await vizInstance();
+console.log(viz);
 
 const debounce = (timeout: number, f: () => void) => {
     let timeoutId: number | undefined;
@@ -21,24 +24,19 @@ if (query.has("code")) {
     code.value = query.get("code")!;
 }
 
-const graphviz = d3graphviz.graphviz(graph, {
-    width: graph.clientWidth,
-    height: graph.clientHeight,
-    fit: true,
-});
-
 const update = async () => {
     const url = new URL(window.location.href);
     url.searchParams.set("code", code.value);
     window.history.replaceState({}, "", url.toString());
 
-    const [syntaxError, graph, tys, feedback] = compile(code.value);
+    const [syntaxError, graphString, tys, feedback] = compile(code.value);
 
     if (syntaxError) {
         log.innerText = `Syntax error: ${syntaxError}`;
     } else {
         try {
-            graphviz.renderDot(graph);
+            graph.children[0]?.remove();
+            graph.appendChild(viz.renderSVGElement(graphString));
         } catch (e) {
             console.error(e);
         }

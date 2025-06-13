@@ -7,8 +7,13 @@ use std::sync::LazyLock;
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Query {
-    #[serde(rename = "where")]
+    pub r#as: Option<String>,
+
+    pub rule: Option<String>,
+
+    #[serde(rename = "where", default)]
     pub selectors: Vec<Selector>,
+
     #[serde(flatten)]
     pub item: Feedback,
 }

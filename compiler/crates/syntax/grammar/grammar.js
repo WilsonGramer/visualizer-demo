@@ -71,7 +71,7 @@ module.exports = grammar({
                     field("comment", repeat($.comment)),
                     field("attribute", repeat($._attribute)),
                     field("name", $.type_name),
-                    $._colon_operator,
+                    $.colon_operator,
                     optional($._type_function),
                     "type",
                     optional(seq("{", field("representation", $._type_representation), "}"))
@@ -84,7 +84,7 @@ module.exports = grammar({
         structure_type_representation: ($) => lines($, field("field", $.field_definition)),
 
         field_definition: ($) =>
-            seq(field("name", $.variable_name), $._annotate_operator, $._type_annotation),
+            seq(field("name", $.variable_name), $.annotate_operator, $._type_annotation),
 
         enumeration_type_representation: ($) => lines($, field("variant", $.variant_definition)),
 
@@ -98,7 +98,7 @@ module.exports = grammar({
                     field("comment", repeat($.comment)),
                     field("attribute", repeat($._attribute)),
                     field("name", $.type_name),
-                    $._colon_operator,
+                    $.colon_operator,
                     optional($._type_function),
                     "trait",
                     optional(seq(field("type", $._subtype), optional($._where_clause)))
@@ -112,7 +112,7 @@ module.exports = grammar({
                     field("comment", repeat($.comment)),
                     field("attribute", repeat($._attribute)),
                     field("name", $.variable_name),
-                    $._annotate_operator,
+                    $.annotate_operator,
                     $._type_annotation
                 )
             ),
@@ -129,12 +129,12 @@ module.exports = grammar({
                     field("parameter", repeat1($._subtype)),
                     ")",
                     optional($._where_clause),
-                    optional(seq($._colon_operator, field("value", $._expression)))
+                    optional(seq($.colon_operator, field("value", $._expression)))
                 )
             ),
 
         assignment_statement: ($) =>
-            seq(field("pattern", $._pattern), $._colon_operator, field("value", $._expression)),
+            seq(field("pattern", $._pattern), $.colon_operator, field("value", $._expression)),
 
         expression_statement: ($) => field("expression", $._expression),
 
@@ -188,11 +188,7 @@ module.exports = grammar({
         structure_expression_field: ($) =>
             prec(
                 2,
-                seq(
-                    field("name", $.variable_name),
-                    $._colon_operator,
-                    field("value", $._expression)
-                )
+                seq(field("name", $.variable_name), $.colon_operator, field("value", $._expression))
             ),
 
         block_expression: ($) => prec(1, seq("{", optional($._statements), "}")),
@@ -216,7 +212,7 @@ module.exports = grammar({
         _arms: ($) => lines($, field("arm", $.arm)),
 
         arm: ($) =>
-            seq(field("pattern", $._pattern), $._arrow_operator, field("value", $._expression)),
+            seq(field("pattern", $._pattern), $.arrow_operator, field("value", $._expression)),
 
         intrinsic_expression: ($) =>
             seq("intrinsic", field("name", $.text), field("input", repeat($._subexpression))),
@@ -238,7 +234,7 @@ module.exports = grammar({
                             precedence,
                             seq(
                                 field("left", left($)),
-                                field("operator", $[`_${key}_operator`]),
+                                field("operator", $[`${key}_operator`]),
                                 field("right", right($))
                             )
                         ),
@@ -246,22 +242,22 @@ module.exports = grammar({
             )
         ),
 
-        tuple_expression: ($) => variadic($, $._semicolon_operator, $._expression_element),
+        tuple_expression: ($) => variadic($, $.semicolon_operator, $._expression_element),
 
         _multiline_tuple_expression: ($) =>
-            variadic_multiline($, $._semicolon_operator, $._expression_element),
+            variadic_multiline($, $.semicolon_operator, $._expression_element),
 
-        collection_expression: ($) => variadic($, $._comma_operator, $._expression_element),
+        collection_expression: ($) => variadic($, $.comma_operator, $._expression_element),
 
         _multiline_collection_expression: ($) =>
-            variadic_multiline($, $._comma_operator, $._expression_element),
+            variadic_multiline($, $.comma_operator, $._expression_element),
 
         function_expression: ($) =>
             prec.right(
                 0,
                 seq(
                     repeat1(field("input", $._subpattern)),
-                    $._arrow_operator,
+                    $.arrow_operator,
                     field("output", $._expression_element)
                 )
             ),
@@ -303,21 +299,21 @@ module.exports = grammar({
             seq("{", lines($, field("field", $.destructure_pattern_field)), "}"),
 
         destructure_pattern_field: ($) =>
-            seq(field("name", $.variable_name), $._colon_operator, field("value", $._pattern)),
+            seq(field("name", $.variable_name), $.colon_operator, field("value", $._pattern)),
 
         unit_pattern: ($) => seq("(", ")"),
 
-        tuple_pattern: ($) => variadic($, $._semicolon_operator, $._pattern_element),
+        tuple_pattern: ($) => variadic($, $.semicolon_operator, $._pattern_element),
 
         _multiline_tuple_pattern: ($) =>
-            variadic_multiline($, $._semicolon_operator, $._pattern_element),
+            variadic_multiline($, $.semicolon_operator, $._pattern_element),
 
         or_pattern: ($) =>
             prec.left(
                 0,
                 seq(
                     field("left", $._pattern_element),
-                    $._or_operator,
+                    $.or_operator,
                     field("right", $._pattern_element)
                 )
             ),
@@ -326,7 +322,7 @@ module.exports = grammar({
             seq(
                 "(",
                 field("left", $._pattern_element),
-                $._annotate_operator,
+                $.annotate_operator,
                 field("right", $._type_element),
                 ")"
             ),
@@ -367,7 +363,7 @@ module.exports = grammar({
                 0,
                 seq(
                     field("input", repeat1($._subtype)),
-                    $._arrow_operator,
+                    $.arrow_operator,
                     field("output", $._type_element)
                 )
             ),
@@ -385,9 +381,9 @@ module.exports = grammar({
 
         unit_type: ($) => seq("(", ")"),
 
-        tuple_type: ($) => variadic($, $._semicolon_operator, $._type_element),
+        tuple_type: ($) => variadic($, $.semicolon_operator, $._type_element),
 
-        _multiline_tuple_type: ($) => variadic_multiline($, $._semicolon_operator, $._type_element),
+        _multiline_tuple_type: ($) => variadic_multiline($, $.semicolon_operator, $._type_element),
 
         _parameterized_type: ($) =>
             seq(field("name", $.type_name), field("parameter", repeat1($._subtype))),
@@ -397,7 +393,7 @@ module.exports = grammar({
         _type_annotation: ($) => seq(field("type", $._type_element), optional($._where_clause)),
 
         _type_function: ($) =>
-            seq(repeat1(field("parameter", $.parameter_type)), $._type_arrow_operator),
+            seq(repeat1(field("parameter", $.parameter_type)), $.type_arrow_operator),
 
         _where_clause: ($) => seq("where", repeat1($._constraint)),
 
@@ -419,7 +415,7 @@ module.exports = grammar({
         default_constraint: ($) =>
             seq(
                 field("parameter", $.type_parameter_name),
-                $._colon_operator,
+                $.colon_operator,
                 field("value", $._type_element)
             ),
 
@@ -432,7 +428,7 @@ module.exports = grammar({
         assign_attribute: ($) =>
             seq(
                 field("name", $.attribute_name),
-                $._colon_operator,
+                $.colon_operator,
                 field("value", $._attribute_value)
             ),
 
@@ -453,32 +449,32 @@ module.exports = grammar({
         type_parameter_name: ($) => $._lowercase_name,
         attribute_name: ($) => $._lowercase_name,
 
-        _colon_operator: ($) => operator($, ":"),
-        _type_arrow_operator: ($) => operator($, "=>"),
+        colon_operator: ($) => operator($, ":"),
+        type_arrow_operator: ($) => operator($, "=>"),
 
-        _annotate_operator: ($) => operator($, "::"),
-        _as_operator: ($) => operator($, "as"),
-        _to_operator: ($) => operator($, "to"),
-        _by_operator: ($) => operator($, "by"),
-        _power_operator: ($) => operator($, "^"),
-        _multiply_operator: ($) => operator($, "*"),
-        _divide_operator: ($) => operator($, "/"),
-        _remainder_operator: ($) => operator($, "%"),
-        _add_operator: ($) => operator($, "+"),
-        _subtract_operator: ($) => operator($, "-"),
-        _less_than_operator: ($) => operator($, "<"),
-        _less_than_or_equal_operator: ($) => operator($, "<="),
-        _greater_than_operator: ($) => operator($, ">"),
-        _greater_than_or_equal_operator: ($) => operator($, ">="),
-        _equal_operator: ($) => operator($, "="),
-        _not_equal_operator: ($) => operator($, "/="),
-        _is_operator: ($) => operator($, "is"),
-        _and_operator: ($) => operator($, "and"),
-        _or_operator: ($) => operator($, "or"),
-        _apply_operator: ($) => operator($, "."),
-        _semicolon_operator: ($) => operator($, ";", { next_line: false }),
-        _comma_operator: ($) => operator($, ",", { next_line: false }),
-        _arrow_operator: ($) => operator($, "->"),
+        annotate_operator: ($) => operator($, "::"),
+        as_operator: ($) => operator($, "as"),
+        to_operator: ($) => operator($, "to"),
+        by_operator: ($) => operator($, "by"),
+        power_operator: ($) => operator($, "^"),
+        multiply_operator: ($) => operator($, "*"),
+        divide_operator: ($) => operator($, "/"),
+        remainder_operator: ($) => operator($, "%"),
+        add_operator: ($) => operator($, "+"),
+        subtract_operator: ($) => operator($, "-"),
+        less_than_operator: ($) => operator($, "<"),
+        less_than_or_equal_operator: ($) => operator($, "<="),
+        greater_than_operator: ($) => operator($, ">"),
+        greater_than_or_equal_operator: ($) => operator($, ">="),
+        equal_operator: ($) => operator($, "="),
+        not_equal_operator: ($) => operator($, "/="),
+        is_operator: ($) => operator($, "is"),
+        and_operator: ($) => operator($, "and"),
+        or_operator: ($) => operator($, "or"),
+        apply_operator: ($) => operator($, "."),
+        semicolon_operator: ($) => operator($, ";", { next_line: false }),
+        comma_operator: ($) => operator($, ",", { next_line: false }),
+        arrow_operator: ($) => operator($, "->"),
     },
 
     word: ($) => $._lowercase_name,

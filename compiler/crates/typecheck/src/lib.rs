@@ -14,6 +14,6 @@ impl Context<'_> {
             ctx.visit(node);
         }
 
-        Session::new(&ctx.into_constraints())
+        Session::from_constraints(self.nodes(), ctx.into_constraints())
     }
 }

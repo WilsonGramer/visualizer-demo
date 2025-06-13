@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=_schema.json
+as: node
 where:
-  - node:
-      as: node
   - type:
       as: left
   - type:

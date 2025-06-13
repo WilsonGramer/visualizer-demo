@@ -213,8 +213,15 @@ impl Ty {
         }
     }
 
-    pub fn is_unknown_shallow(&self) -> bool {
-        matches!(self, Ty::Var(_) | Ty::Any | Ty::Of(..))
+    pub fn is_incomplete(&self) -> bool {
+        let mut incomplete = false;
+        self.traverse(&mut |ty| {
+            if matches!(ty, Ty::Var(_) | Ty::Any | Ty::Of(..)) {
+                incomplete = true;
+            }
+        });
+
+        incomplete
     }
 }
 

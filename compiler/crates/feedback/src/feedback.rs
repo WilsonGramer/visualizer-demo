@@ -1,11 +1,11 @@
+use crate::selectors::State;
 use itertools::Itertools;
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
 use std::{fmt::Write, sync::LazyLock};
-use wipple_compiler_trace::{AnyRule, NodeId, Rule};
-use wipple_compiler_typecheck::{constraints::Ty, context::FeedbackProvider};
+use wipple_compiler_trace::Rule;
+use wipple_compiler_typecheck::context::FeedbackProvider;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct Feedback {
@@ -31,16 +31,7 @@ pub struct Message {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct MessageOptions {
-    #[serde(default)]
-    pub trace: TraceStyle,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum TraceStyle {
-    Related,
-    #[default]
-    Because,
+    // TODO
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -60,77 +51,9 @@ pub enum Content {
     Template(String),
 }
 
-#[derive(Debug, Default)]
-pub struct TermCounts {
-    pub nodes: usize,
-    pub tys: usize,
-}
-
-#[derive(Debug)]
-pub struct TermsIter {
-    relations: std::vec::IntoIter<NodeTerm>,
-    visited_relations: HashMap<String, NodeTerm>,
-    tys: std::vec::IntoIter<TyTerm>,
-    visited_tys: HashMap<String, TyTerm>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NodeTerm {
-    pub node: NodeId,
-    pub rule: AnyRule,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TyTerm {
-    pub ty: Ty,
-    pub related: Vec<NodeTerm>,
-}
-
-impl TermsIter {
-    pub fn new(relations: Vec<NodeTerm>, tys: Vec<TyTerm>) -> Self {
-        TermsIter {
-            relations: relations.into_iter(),
-            visited_relations: Default::default(),
-            tys: tys.into_iter(),
-            visited_tys: Default::default(),
-        }
-    }
-
-    pub fn relation(&mut self, name: &str) -> NodeTerm {
-        self.visited_relations
-            .entry(name.to_string())
-            .or_insert_with(|| self.relations.next().unwrap())
-            .clone()
-    }
-
-    pub fn ty(&mut self, name: &str) -> TyTerm {
-        self.visited_tys
-            .entry(name.to_string())
-            .or_insert_with(|| self.tys.next().unwrap())
-            .clone()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct State {
-    pub node: NodeTerm,
-    pub nodes: BTreeMap<String, NodeTerm>,
-    pub tys: BTreeMap<String, TyTerm>,
-}
-
-impl State {
-    pub fn new(node: NodeTerm) -> Self {
-        State {
-            node,
-            nodes: Default::default(),
-            tys: Default::default(),
-        }
-    }
-}
-
 fn render_template(
     template: &str,
-    state: &State,
+    state: &State<'_, '_>,
     provider: &FeedbackProvider<'_>,
 ) -> Option<String> {
     static TEMPLATE_REGEX: LazyLock<Regex> =
@@ -186,7 +109,7 @@ fn render_template(
 }
 
 impl Feedback {
-    pub fn render(&self, state: &State, provider: &FeedbackProvider<'_>) -> Option<String> {
+    pub fn render(&self, state: &State<'_, '_>, provider: &FeedbackProvider<'_>) -> Option<String> {
         let mut md = String::new();
 
         for (index, message) in self.messages.iter().enumerate() {
@@ -206,7 +129,7 @@ impl Feedback {
 impl Message {
     pub fn render(
         &self,
-        state: &State,
+        state: &State<'_, '_>,
         provider: &FeedbackProvider<'_>,
         indent: usize,
     ) -> Option<String> {
@@ -251,65 +174,31 @@ impl Message {
 
                 let term = state.tys.get(name)?;
 
-                let mut related = term.related.clone();
-                for term in &term.related {
-                    // TODO: Currently disabled
-                    const LEVEL: usize = 0;
-
-                    collect_related(provider, term.node, &mut related, LEVEL);
-                }
-
-                for related in related {
-                    let (_, related_source) = provider.node_span_source(related.node);
+                for (&related_node, &related_rule) in &term.related {
+                    let (related_node_span, related_node_source) =
+                        provider.node_span_source(related_node);
 
                     write!(
                         md,
-                        "{}{}",
+                        "{}{}{:?}: ...because of `{}`",
                         indent_string(indent + 1),
                         bullet_string(indent + 1),
+                        related_node_span,
+                        related_node_source,
                     )
                     .unwrap();
 
-                    match self.options.trace {
-                        TraceStyle::Related => writeln!(
-                            md,
-                            "See the related {} in `{}`.",
-                            related.rule.name(),
-                            related_source,
-                        )
-                        .unwrap(),
-                        TraceStyle::Because => writeln!(
-                            md,
-                            "...because of {} in `{}`.",
-                            related.rule.name(),
-                            related_source,
-                        )
-                        .unwrap(),
+                    if let Some(rule) = related_rule {
+                        write!(md, " via {}", rule.name()).unwrap();
                     }
+
+                    // TODO: Find the common ancestor of all related nodes (related by syntax)
+
+                    writeln!(md).unwrap();
                 }
             }
         }
 
         Some(md)
-    }
-}
-
-fn collect_related(
-    provider: &FeedbackProvider<'_>,
-    node: NodeId,
-    influences: &mut Vec<NodeTerm>,
-    level: usize,
-) {
-    if level == 0 {
-        return;
-    }
-
-    for (node, rule) in provider.related_nodes(node) {
-        let term = NodeTerm { node, rule };
-
-        if !influences.contains(&term) {
-            influences.push(term.clone());
-            collect_related(provider, term.node, influences, level - 1);
-        }
     }
 }

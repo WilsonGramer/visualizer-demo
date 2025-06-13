@@ -3,7 +3,11 @@ use crate::{
     nodes::Node,
 };
 
-use std::{collections::BTreeMap, rc::Rc};
+use petgraph::prelude::DiGraphMap;
+use std::{
+    collections::{BTreeMap, HashSet},
+    rc::Rc,
+};
 use wipple_compiler_trace::{AnyRule, NodeId, Span};
 
 #[derive(Default)]
@@ -43,16 +47,22 @@ pub struct Trait {
 
 #[derive(Clone)]
 pub struct FeedbackProvider<'a> {
-    tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
+    nodes: &'a BTreeMap<NodeId, HashSet<AnyRule>>,
+    relations: &'a DiGraphMap<NodeId, AnyRule>,
+    tys: &'a BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
     get_span_source: Rc<dyn Fn(NodeId) -> (Span, String) + 'a>,
 }
 
 impl<'a> FeedbackProvider<'a> {
     pub fn new(
-        tys: &'a BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
+        nodes: &'a BTreeMap<NodeId, HashSet<AnyRule>>,
+        relations: &'a DiGraphMap<NodeId, AnyRule>,
+        tys: &'a BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
         get_span_source: impl Fn(NodeId) -> (Span, String) + 'a,
     ) -> Self {
         FeedbackProvider {
+            nodes,
+            relations,
             tys,
             get_span_source: Rc::new(get_span_source),
         }
@@ -62,18 +72,19 @@ impl<'a> FeedbackProvider<'a> {
         (self.get_span_source)(node)
     }
 
+    pub fn node_rules(&self, node: NodeId) -> &HashSet<AnyRule> {
+        self.nodes.get(&node).unwrap()
+    }
+
     pub fn node_tys(&self, node: NodeId) -> impl Iterator<Item = String> {
         self.tys
             .get(&node)
             .into_iter()
-            .flat_map(|(tys, _)| tys)
-            .map(|ty| ty.to_debug_string(self))
+            .flatten()
+            .map(|(ty, _)| ty.to_debug_string(self))
     }
 
     pub fn related_nodes(&self, node: NodeId) -> impl Iterator<Item = (NodeId, AnyRule)> {
-        self.tys
-            .get(&node)
-            .into_iter()
-            .flat_map(|(_, related)| related.iter().map(|(&id, &rule)| (id, rule)))
+        self.relations.edges(node).map(|(_, to, &rule)| (to, rule))
     }
 }

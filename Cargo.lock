@@ -1378,6 +1378,7 @@ dependencies = [
  "colored",
  "console_error_panic_hook",
  "line-col",
+ "petgraph",
  "syntect",
  "tabled",
  "terminal-light",
@@ -1395,6 +1396,7 @@ version = "0.0.0"
 dependencies = [
  "include_dir",
  "itertools",
+ "petgraph",
  "regex",
  "schemars",
  "serde",
@@ -1408,6 +1410,7 @@ dependencies = [
 name = "wipple-compiler-lower"
 version = "0.0.0"
 dependencies = [
+ "petgraph",
  "wipple-compiler-syntax",
  "wipple-compiler-trace",
  "wipple-compiler-typecheck",

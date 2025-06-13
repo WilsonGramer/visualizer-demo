@@ -9,6 +9,7 @@ workspace = true
 [dependencies]
 include_dir = { version = "0.7", features = ["glob"] }
 itertools = "0.14"
+petgraph = "0.8"
 regex = "1"
 schemars = "0.9"
 serde = { version = "1", features = ["derive"] }

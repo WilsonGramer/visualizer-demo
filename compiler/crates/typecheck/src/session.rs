@@ -1,18 +1,14 @@
 use crate::{
-    constraints::{Constraint, Constraints, Ty},
+    constraints::{Constraints, Ty},
     context::FeedbackProvider,
 };
 use itertools::Itertools;
 use petgraph::{
     Direction,
-    prelude::UnGraphMap,
+    prelude::{DiGraphMap, UnGraphMap},
     unionfind::UnionFind,
-    visit::{DfsEvent, depth_first_search},
 };
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    mem,
-};
+use std::{collections::BTreeMap, mem};
 use wipple_compiler_trace::{AnyRule, NodeId, rule};
 
 rule! {
@@ -22,130 +18,85 @@ rule! {
 
 #[derive(Clone)]
 pub struct Session {
-    node_constraints: BTreeMap<NodeId, Vec<Constraint>>,
-
-    /// The type of node _a_ is related to the type of node _b_, but these
-    /// types do NOT necessarily unify. Used for tracing.
-    related_nodes: UnGraphMap<NodeId, AnyRule>,
-
-    /// The type of node _a_ unifies with the type of node _b_.
-    // TODO: Factor out into `Iteration`
-    unify_nodes: UnGraphMap<NodeId, ()>,
+    nodes: Vec<NodeId>,
+    constraints: Constraints,
+    unify: UnGraphMap<NodeId, AnyRule>,
 }
 
 impl Session {
-    pub fn new(constraints: &Constraints) -> Self {
-        let mut node_constraints = BTreeMap::<NodeId, Vec<_>>::new();
-
-        let mut related_nodes = UnGraphMap::new();
-        for (&node, node_tys) in &constraints.tys {
-            for (ty, rule) in node_tys {
-                // Add the overall type...
-                node_constraints
-                    .entry(node)
-                    .or_default()
-                    .push(Constraint::Ty(ty.clone()));
-
-                // ...and record parts that are related to other nodes
-                ty.traverse(&mut |ty| {
-                    if let Ty::Of(other) = *ty {
-                        related_nodes.add_edge(node, other, *rule);
-                    }
-                });
-            }
-        }
-
-        for (&node, bounds) in &constraints.bounds {
-            for (bound, rule) in bounds {
-                node_constraints
-                    .entry(node)
-                    .or_default()
-                    .push(Constraint::Bound(bound.clone()));
-
-                related_nodes.add_edge(node, bound.source, *rule);
-            }
-        }
-
-        let mut unify_nodes = UnGraphMap::<NodeId, ()>::new();
-
-        for (&node, node_tys) in &constraints.tys {
-            // Ensure all nodes are at least added to the graph so they can be
-            // placed in a group
-            unify_nodes.add_node(node);
-
-            // Try every combination of types, rather than folding from left to
-            // right, to create the largest potential number of groups. Include
-            // the node type itself in the list of combinations in case there's
-            // only one additional type
-            for (left, right) in [&Ty::Of(node)]
-                .into_iter()
-                .chain(node_tys.iter().map(|(ty, _)| ty))
-                .tuple_combinations()
-            {
-                let mut unify_nodes_snapshot = unify_nodes.clone();
-                let mut success = true;
-                left.unify_to_keys(right, &mut unify_nodes_snapshot, &mut success);
-
-                if success {
-                    unify_nodes = unify_nodes_snapshot;
+    pub fn from_constraints(
+        nodes: impl IntoIterator<Item = NodeId>,
+        constraints: Constraints,
+    ) -> Self {
+        let mut unify = UnGraphMap::<NodeId, AnyRule>::new();
+        for (&node, tys) in &constraints.tys {
+            for (ty, rule) in tys {
+                // We don't need to deeply traverse the type because all types
+                // here represent the top-level type of a node. For example, if
+                // we have `x :: (1) -> _` and `y :: (1) -> _`, then at this
+                // point the (1) must be attached to another specific node in
+                // the AST (which will be handled in another iteration), or it
+                // can't be inferred anyway.
+                if let Ty::Of(other) = *ty {
+                    unify.add_edge(node, other, *rule);
                 }
             }
         }
 
         Session {
-            node_constraints,
-            related_nodes,
-            unify_nodes,
+            nodes: Vec::from_iter(nodes),
+            constraints,
+            unify,
         }
     }
 
-    pub fn groups(&self, mask: Option<&BTreeSet<NodeId>>) -> Vec<Vec<NodeId>> {
+    pub fn groups(&self) -> BTreeMap<usize, BTreeMap<NodeId, Option<AnyRule>>> {
         // Give every node a unique key to start
         let keys = self
-            .unify_nodes
+            .unify
             .nodes()
-            .filter(|node| mask.is_none_or(|mask| mask.contains(node)))
             .enumerate()
             .map(|(index, node)| (node, index))
             .collect::<BTreeMap<_, _>>();
 
         // Merge keys that unify
         let mut union_find = UnionFind::new(keys.len());
-        for (left, right, ()) in self.unify_nodes.all_edges() {
-            if mask.is_none_or(|mask| mask.contains(&left) && mask.contains(&right)) {
-                union_find.union(*keys.get(&left).unwrap(), *keys.get(&right).unwrap());
-            }
+        let mut rules = BTreeMap::new();
+        for (left, right, rule) in self.unify.all_edges() {
+            union_find.union(*keys.get(&left).unwrap(), *keys.get(&right).unwrap());
+            let representative = union_find.find(*keys.get(&left).unwrap());
+            rules.insert(representative, *rule);
         }
 
         // Create groups from the clustered keys
-        let mut groups = vec![Vec::new(); union_find.len()];
-        for node in self.unify_nodes.nodes() {
-            if mask.is_none_or(|mask| mask.contains(&node)) {
-                let index = *keys.get(&node).unwrap();
-                let group = union_find.find(index);
-                groups[group].push(node);
-            }
+        let mut groups = vec![BTreeMap::<_, _>::new(); union_find.len()];
+        for node in self.unify.nodes() {
+            let index = *keys.get(&node).unwrap();
+            let representative = union_find.find(index);
+            let rule = *rules.get(&representative).unwrap();
+            groups[representative].insert(node, Some(rule));
         }
 
         groups
             .into_iter()
             .filter(|group| !group.is_empty())
+            .enumerate()
             .collect()
     }
 
     pub fn iterate(
         &mut self,
-        groups: Vec<Vec<NodeId>>,
-    ) -> BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)> {
+        groups: &mut BTreeMap<usize, BTreeMap<NodeId, Option<AnyRule>>>,
+    ) -> BTreeMap<NodeId, Vec<(Ty, Option<usize>)>> {
         let mut keys = groups
             .iter()
-            .enumerate()
-            .flat_map(|(index, group)| group.iter().map(move |&node| (node, index)))
+            .flat_map(|(&key, group)| group.keys().map(move |&node| (node, key)))
             .collect::<BTreeMap<_, _>>();
 
         let mut vars = vec![None; keys.len()];
 
-        let mut key = |node: NodeId, vars: &mut Vec<_>| match keys.get(&node) {
+        let key = |node: NodeId, vars: &mut Vec<_>, keys: &mut BTreeMap<_, _>| match keys.get(&node)
+        {
             Some(key) => *key,
             None => {
                 let key = keys.len();
@@ -155,49 +106,41 @@ impl Session {
             }
         };
 
-        let mut instantiate = |ty: &mut Ty, vars: &mut Vec<_>| {
+        let instantiate = |ty: &mut Ty, vars: &mut Vec<_>, keys: &mut BTreeMap<_, _>| {
             ty.traverse_mut(&mut |ty| {
                 if let Ty::Of(node) = ty {
-                    *ty = Ty::Var(key(*node, vars));
+                    *ty = Ty::Var(key(*node, vars, keys));
+                    ty.apply(vars);
                 }
             });
         };
 
-        let mut tys = BTreeMap::<_, (Vec<_>, BTreeMap<_, _>)>::new();
-        let mut other_constraints = BTreeMap::<_, Vec<_>>::new();
-        for (index, group) in groups.into_iter().enumerate() {
+        let mut tys = self.constraints.tys.clone();
+        let mut results = BTreeMap::<_, Vec<_>>::new();
+        for (&group_id, group) in groups.iter_mut() {
             // Fold each type in the group into a single type
-            let mut result = Ty::Var(index);
+            let mut result_ty = Ty::Var(group_id);
             let mut others = Vec::new();
-            for &node in &group {
-                if let Some(constraints) = self.node_constraints.remove(&node) {
+            for node in group.keys().copied().collect::<Vec<_>>() {
+                if let Some(tys) = tys.remove(&node) {
                     // Apply each constraint
-                    for constraint in constraints {
-                        match constraint {
-                            Constraint::Ty(mut ty) => {
-                                instantiate(&mut ty, &mut vars);
+                    for (mut ty, _) in tys {
+                        instantiate(&mut ty, &mut vars, &mut keys);
 
-                                let mut success = true;
-                                let mut snapshot = result.clone();
-                                let mut vars_snapshot = vars.clone();
-                                snapshot.unify_in_group(&ty, &mut vars_snapshot, &mut success);
+                        let mut success = true;
+                        let mut snapshot = result_ty.clone();
+                        let mut vars_snapshot = vars.clone();
 
-                                if success {
-                                    result = snapshot;
-                                    vars = vars_snapshot;
-                                } else {
-                                    // No need to generate a diagnostic here;
-                                    // feedback is generated whenever an
-                                    // expression has multiple types
-                                    others.push(ty);
-                                }
-                            }
-                            constraint @ Constraint::Bound(..) => {
-                                other_constraints
-                                    .entry(node)
-                                    .or_default()
-                                    .push(constraint.clone());
-                            }
+                        snapshot.unify_in_group(&ty, &mut vars_snapshot, &mut success);
+
+                        if success {
+                            result_ty = snapshot;
+                            vars = vars_snapshot;
+                        } else {
+                            // No need to generate a diagnostic here; feedback
+                            // is generated whenever an expression has multiple
+                            // types
+                            others.push(ty);
                         }
                     }
                 }
@@ -205,135 +148,70 @@ impl Session {
 
             // Share the result with every node in the group
 
-            let result = [result.clone()]
+            let result_tys = [result_ty]
                 .into_iter()
                 .chain(others.clone())
+                .map(|ty| (ty, Some(group_id)))
                 .collect::<Vec<_>>();
 
-            for &node in &group {
-                // Record the type
-                tys.entry(node).or_default().0.extend(result.clone());
+            for &node in group.keys() {
+                results.entry(node).or_default().extend(result_tys.clone());
             }
         }
 
         // Any remaining constraints weren't part of groups
-        for (node, constraints) in mem::take(&mut self.node_constraints) {
-            for constraint in constraints {
-                match constraint {
-                    Constraint::Ty(mut ty) => {
-                        instantiate(&mut ty, &mut vars);
-                        tys.entry(node).or_default().0.push(ty);
-                    }
-                    Constraint::Bound(_) => {
-                        other_constraints
-                            .entry(node)
-                            .or_default()
-                            .push(constraint.clone());
-                    }
-                }
+        for (node, constraints) in mem::take(&mut tys) {
+            for (mut ty, _) in constraints {
+                instantiate(&mut ty, &mut vars, &mut keys);
+                results.entry(node).or_default().push((ty, None));
             }
         }
 
-        for node in self.related_nodes.nodes() {
-            // Add at least the node's own type
-            tys.entry(node).or_insert_with(|| {
-                let mut ty = Ty::Var(key(node, &mut vars));
-                ty.apply(&vars);
+        // Include all nodes, including those that had no constraints at all,
+        // and patch up groups
+        for &node in &self.nodes {
+            let Some(mut key) = keys.get(&node).copied() else {
+                continue;
+            };
 
-                // The type is essentially a placeholder; no rules here
-                (vec![ty], Default::default())
-            });
+            // Try to get a more specific key
+            loop {
+                let mut found = false;
+                for (other, ty) in vars.iter().enumerate() {
+                    if *ty == Some(Ty::Var(key)) {
+                        key = other;
+                        found = true;
+                        break;
+                    }
+                }
 
-            // Record the nodes that relate to the result
-            for other in self
-                .related_nodes
-                .neighbors_directed(node, Direction::Incoming)
-            {
-                let rule = *self.related_nodes.edge_weight(other, node).unwrap();
-                tys.entry(node).or_default().1.insert(other, rule);
+                if !found {
+                    break;
+                }
             }
+
+            // Add the node to its group with no specific rule
+            groups.entry(key).or_default().insert(node, None);
+
+            // Add at least the node's own type
+            results.entry(node).or_insert_with(|| {
+                // The type is essentially a placeholder; no rules here
+                vec![(Ty::Var(key), Some(key))]
+            });
         }
 
         // Apply all types
-        for (tys, _) in tys.values_mut() {
-            for ty in tys {
+        for group in results.values_mut() {
+            for (ty, _) in group {
                 ty.apply(&vars);
             }
         }
 
-        // Merge the new types back into the constraints
-
-        self.node_constraints
-            .extend(tys.iter().filter_map(|(&node, (tys, _))| {
-                // Keep only the primary `result` in the constraints...
-                let ty = tys.iter().next()?.clone();
-
-                Some((node, vec![Constraint::Ty(ty)]))
-            }));
-
-        self.node_constraints.extend(other_constraints);
-
-        // ...but return all possible types for diagnostics
-        tys
+        results
     }
 }
 
 impl Ty {
-    /// Before actually unifying, connect all related nodes to a single type
-    /// variable.
-    fn unify_to_keys(
-        &self,
-        other: &Ty,
-        unify_nodes: &mut UnGraphMap<NodeId, ()>,
-        success: &mut bool,
-    ) {
-        match (self, other) {
-            (&Ty::Of(node), &Ty::Of(other)) => {
-                if node != other {
-                    unify_nodes.add_edge(node, other, ());
-                }
-            }
-            (Ty::Var(_), _) | (_, Ty::Var(_)) => {
-                unreachable!("this runs before creating type variables")
-            }
-            (
-                Ty::Named { name, parameters },
-                Ty::Named {
-                    name: other_name,
-                    parameters: other_parameters,
-                },
-            ) if name == other_name => {
-                for (parameter, other) in parameters.iter().zip(other_parameters) {
-                    parameter.unify_to_keys(other, unify_nodes, success);
-                }
-            }
-            (
-                Ty::Function { inputs, output },
-                Ty::Function {
-                    inputs: other_inputs,
-                    output: other_output,
-                },
-            ) if inputs.len() == other_inputs.len() => {
-                for (input, other) in inputs.iter().zip(other_inputs) {
-                    input.unify_to_keys(other, unify_nodes, success);
-                }
-
-                output.unify_to_keys(other_output, unify_nodes, success);
-            }
-            (
-                Ty::Tuple { elements },
-                Ty::Tuple {
-                    elements: other_elements,
-                },
-            ) if elements.len() == other_elements.len() => {
-                for (element, other) in elements.iter().zip(other_elements) {
-                    element.unify_to_keys(other, unify_nodes, success);
-                }
-            }
-            _ => *success = false,
-        }
-    }
-
     fn unify_in_group(&mut self, other: &Ty, vars: &mut Vec<Option<Ty>>, success: &mut bool) {
         self.apply(vars);
 
@@ -351,11 +229,10 @@ impl Ty {
                         if other != Ty::Var(key) {
                             vars[key] = Some(other.clone());
                             *ty = other.clone();
+                            ty.apply(vars);
                         }
                     }
                 }
-
-                ty.apply(vars);
             }
             (ty, &Ty::Var(key)) => {
                 match vars[key].clone() {
@@ -370,8 +247,6 @@ impl Ty {
                         }
                     }
                 }
-
-                ty.apply(vars);
             }
             (_, Ty::Of(..)) | (Ty::Of(..), _) => {
                 unreachable!("`Ty::Of` should be replaced with `Ty::Var`")
@@ -429,51 +304,11 @@ impl Ty {
 impl Session {
     pub fn to_debug_graph(
         &self,
-        start: Option<NodeId>,
-        tys: &BTreeMap<NodeId, (Vec<Ty>, BTreeMap<NodeId, AnyRule>)>,
-        relations: &BTreeMap<NodeId, Vec<(NodeId, AnyRule)>>,
+        groups: &BTreeMap<usize, BTreeMap<NodeId, Option<AnyRule>>>,
+        tys: &BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
+        relations: &DiGraphMap<NodeId, AnyRule>,
         provider: &FeedbackProvider<'_>,
     ) -> String {
-        // Group types that should unify with each other
-
-        let edges = match start {
-            Some(start) => {
-                let mut edges = BTreeMap::new();
-                depth_first_search(&self.related_nodes, [start], |event| {
-                    if let DfsEvent::TreeEdge(to, from) = event {
-                        edges.insert(
-                            (to, from),
-                            Some(*self.related_nodes.edge_weight(to, from).unwrap()),
-                        );
-
-                        depth_first_search(&self.unify_nodes, [to, from], |event| {
-                            if let DfsEvent::TreeEdge(to, from) = event {
-                                edges.insert((to, from), None);
-                            }
-                        });
-                    }
-                });
-
-                edges
-            }
-            None => self
-                .related_nodes
-                .all_edges()
-                .map(|(to, from, rule)| ((to, from), Some(*rule)))
-                .collect(),
-        };
-
-        let mask = start.map(|_| {
-            edges
-                .keys()
-                .flat_map(|&(to, from)| [to, from])
-                .collect::<BTreeSet<_>>()
-        });
-
-        let groups = self.groups(mask.as_ref());
-
-        // Output Graphviz
-
         let font = "Fira Code";
         let error_color =
             |opacity: f32| tabbycat::attributes::Color::Rgba(255, 0, 0, (opacity * 255.) as u8);
@@ -482,13 +317,68 @@ impl Session {
 
         let mut stmts = tabbycat::StmtList::new();
 
-        for (index, group) in groups.iter().enumerate() {
-            let (tys, _) = tys.get(&group[0]).unwrap();
-            let error = tys.len() > 1;
+        for (node, rule) in groups
+            .values()
+            .flatten()
+            .flat_map(|(&node, rules)| rules.iter().map(move |rule| (node, Some(rule))))
+            .chain(self.nodes.iter().map(|&node| (node, None)))
+            .unique_by(|&(node, _)| node)
+        {
+            let (node_span, node_source) = provider.node_span_source(node);
 
-            let mut attrs = tabbycat::AttrList::new().add_pair(tabbycat::attributes::style(
-                tabbycat::attributes::Style::Dashed,
-            ));
+            let label = match rule {
+                Some(rule) => {
+                    format!("{node_span:?}\n{node_source}\n----------------\n{rule:?}")
+                }
+                None => format!("{node_span:?}\n{node_source}"),
+            };
+
+            stmts = mem::take(&mut stmts).add_node(
+                node_id(node),
+                None,
+                Some(
+                    tabbycat::AttrList::new()
+                        .add_pair(tabbycat::attributes::label(label))
+                        .add_pair(tabbycat::attributes::shape(
+                            tabbycat::attributes::Shape::Box,
+                        ))
+                        .add_pair(tabbycat::attributes::width(3.))
+                        .add_pair(tabbycat::attributes::fontname(font)),
+                ),
+            );
+
+            // Also link related nodes
+            for parent in relations.neighbors_directed(node, Direction::Incoming) {
+                let &rule = relations.edge_weight(parent, node).unwrap();
+
+                stmts = stmts.add_edge(
+                    tabbycat::Edge::head_node(node_id(node), None)
+                        .arrow_to_node(node_id(parent), None)
+                        .add_attrpair(tabbycat::attributes::label(format!("{rule:?}")))
+                        .add_attrpair(tabbycat::attributes::fontname(font))
+                        .add_attrpair(tabbycat::attributes::style(
+                            tabbycat::attributes::Style::Solid,
+                        )),
+                );
+            }
+        }
+
+        for (&id, group) in groups {
+            let group_tys = tys.get(group.keys().next().unwrap()).unwrap();
+            let error = group_tys.len() > 1; // mutiple possible types
+
+            let group_tys = group_tys
+                .iter()
+                .map(|(ty, _)| ty.to_debug_string(provider))
+                .unique()
+                .collect::<String>();
+
+            let mut attrs = tabbycat::AttrList::new()
+                .add_pair(tabbycat::attributes::style(
+                    tabbycat::attributes::Style::Dashed,
+                ))
+                .add_pair(tabbycat::attributes::label(group_tys))
+                .add_pair(tabbycat::attributes::fontname(font));
 
             if error {
                 attrs = attrs
@@ -497,101 +387,21 @@ impl Session {
             }
 
             stmts = stmts.add_subgraph(tabbycat::SubGraph::subgraph(
-                Some(tabbycat::Identity::raw(format!("cluster{index}"))),
-                group
-                    .iter()
-                    .fold(tabbycat::StmtList::new(), |stmts, node| {
-                        stmts.add_edge(tabbycat::Edge::head_node(node_id(*node), None))
-                    })
-                    .add_attr(tabbycat::AttrType::Graph, attrs),
-            ))
-        }
-
-        for ((to, from), rule) in edges {
-            let Some(rule) = rule else {
-                // `None` is a marker for unified types; include the node in the
-                // graph, but don't add an edge
-                continue;
-            };
-
-            let display_tys = |node: NodeId| {
-                tys.get(&node)
-                    .into_iter()
-                    .flat_map(|(tys, _)| tys)
-                    .cloned()
-                    .map(|ty| format!("\n{}", ty.to_debug_string(provider)))
-                    .unique()
-                    .collect::<String>()
-            };
-
-            let from_tys = display_tys(from);
-            let to_tys = display_tys(to);
-
-            let (from_span, from_debug) = provider.node_span_source(from);
-
-            let (to_span, to_debug) = provider.node_span_source(to);
-
-            stmts = mem::take(&mut stmts)
-                .add_node(
-                    node_id(from),
-                    None,
-                    Some(
-                        tabbycat::AttrList::new()
-                            .add_pair(tabbycat::attributes::label(format!(
-                                "{from_span:?}\n{from_debug}\n----------------{from_tys}"
-                            )))
-                            .add_pair(tabbycat::attributes::shape(
-                                tabbycat::attributes::Shape::Box,
-                            ))
-                            .add_pair(tabbycat::attributes::width(3.))
-                            .add_pair(tabbycat::attributes::fontname(font)),
-                    ),
-                )
-                .add_node(
-                    node_id(to),
-                    None,
-                    Some(
-                        tabbycat::AttrList::new()
-                            .add_pair(tabbycat::attributes::label(format!(
-                                "{to_span:?}\n{to_debug}\n----------------{to_tys}"
-                            )))
-                            .add_pair(tabbycat::attributes::shape(
-                                tabbycat::attributes::Shape::Box,
-                            ))
-                            .add_pair(tabbycat::attributes::width(3.))
-                            .add_pair(tabbycat::attributes::fontname(font)),
-                    ),
-                )
-                .add_edge(
-                    tabbycat::Edge::head_node(node_id(from), None)
-                        .arrow_to_node(node_id(to), None)
-                        .add_attrpair(tabbycat::attributes::label(format!("{rule:?}")))
-                        .add_attrpair(tabbycat::attributes::fontname(font))
-                        .add_attrpair(tabbycat::attributes::style(
-                            tabbycat::attributes::Style::Dashed,
-                        )),
-                );
-
-            for child in [from, to] {
-                if let Some(relations) = relations.get(&child) {
-                    for (parent, rule) in relations {
-                        stmts = stmts.add_edge(
-                            tabbycat::Edge::head_node(node_id(child), None)
-                                .arrow_to_node(node_id(*parent), None)
-                                .add_attrpair(tabbycat::attributes::label(format!("{rule:?}")))
-                                .add_attrpair(tabbycat::attributes::fontname(font))
-                                .add_attrpair(tabbycat::attributes::style(
-                                    tabbycat::attributes::Style::Solid,
-                                )),
-                        );
-                    }
-                }
-            }
+                Some(tabbycat::Identity::raw(format!("cluster{id}"))),
+                group.iter().fold(
+                    tabbycat::StmtList::new().add_attr(tabbycat::AttrType::Graph, attrs),
+                    |stmts, (&node, _)| stmts.add_node(node_id(node), None, None),
+                ),
+            ));
         }
 
         // Deduplicate statements
-        let stmts =
-            tabbycat::StmtList::new().extend(stmts.into_iter().unique_by(|stmt| stmt.to_string()));
+        let stmts = tabbycat::StmtList::new()
+            .add_equation(
+                tabbycat::Identity::raw("rankdir"),
+                tabbycat::Identity::quoted("LR"),
+            )
+            .extend(stmts.into_iter().unique_by(|stmt| stmt.to_string()));
 
         tabbycat::GraphBuilder::default()
             .id(tabbycat::Identity::quoted("output"))

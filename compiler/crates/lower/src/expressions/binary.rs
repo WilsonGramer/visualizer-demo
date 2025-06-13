@@ -1,13 +1,31 @@
-use crate::{Visit, Visitor};
+use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::BinaryExpression;
-use wipple_compiler_trace::{rule, NodeId, Rule};
+use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_typecheck::nodes::{CallNode, ConstraintNode, Node, PlaceholderNode};
 
 rule! {
-    // TODO
+    /// The operator in a binary operator expression.
+    operator: Typed;
+
+    /// An `=` operator expression.
+    equal: Typed;
+
+    /// The left side of an `=` operator.
+    equal_operator_left: Typed;
+
+    /// The right side of an `=` operator.
+    equal_operator_right: Typed;
+
+    /// The `Equal` trait isn't defined.
+    missing_equal_trait: Typed;
 }
 
 impl Visit for BinaryExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, impl Rule)>) -> NodeId {
+    fn visit<'a>(
+        &'a self,
+        visitor: &mut Visitor<'a>,
+        parent: Option<(NodeId, impl Rule)>,
+    ) -> NodeId {
         match self.operator.source.as_str() {
             "to" => visit_as_math_expression(self, visitor, "To"),
             "by" => visit_as_math_expression(self, visitor, "By"),
@@ -21,10 +39,42 @@ impl Visit for BinaryExpression {
             "<=" => visit_as_comparison_expression(self, visitor, ["Less-Than", "Equal"]),
             ">" => visit_as_comparison_expression(self, visitor, ["Greater-Than"]),
             ">=" => visit_as_comparison_expression(self, visitor, ["Greater-Than", "Equal"]),
-            "=" => {
-                // TODO: a = b <=> Equal a b
-                todo!()
-            }
+            "=" => visitor.node(parent, &self.range, |visitor, id| {
+                let function = visitor.node(
+                    Some((id, rule::operator)),
+                    &self.operator.range,
+                    |visitor, id| {
+                        let equal_trait = visitor
+                            .resolve_name("Equal", id, rule::operator)
+                            .and_then(|definition| match definition {
+                                Definition::Trait { node, .. } => Some(todo!()),
+                                _ => None,
+                            });
+
+                        match equal_trait {
+                            Some(equal_trait) => (
+                                ConstraintNode {
+                                    value: id,
+                                    constraints: vec![todo!()],
+                                }
+                                .boxed(),
+                                rule::operator.erased(),
+                            ),
+                            None => (PlaceholderNode.boxed(), rule::missing_equal_trait.erased()),
+                        }
+                    },
+                );
+
+                let inputs = [
+                    (self.left.as_ref(), rule::equal_operator_left.erased()),
+                    (self.right.as_ref(), rule::equal_operator_right.erased()),
+                ]
+                .into_iter()
+                .map(|(input, rule)| input.visit(visitor, Some((id, rule))))
+                .collect::<Vec<_>>();
+
+                (CallNode { function, inputs }.boxed(), rule::equal.erased())
+            }),
             "/=" => {
                 // TODO: a = b <=> not (Equal a b)
                 todo!()
