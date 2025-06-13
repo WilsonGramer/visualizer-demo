@@ -2,7 +2,7 @@ use colored::Colorize;
 use petgraph::Direction;
 use std::collections::{BTreeMap, HashSet};
 use wasm_bindgen::prelude::*;
-use wipple_compiler_trace::{AnyRule, NodeId, Rule, RuleKind, Span, rule};
+use wipple_compiler_trace::{AnyRule, NodeId, Rule, Span, rule};
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {
@@ -73,8 +73,8 @@ pub fn compile(
 
     let mut typecheck_session = typecheck_ctx.session();
 
-    let mut groups = typecheck_session.groups();
-    let tys = typecheck_session.iterate(&mut groups);
+    let groups = typecheck_session.groups();
+    let tys = typecheck_session.iterate(&groups);
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
     let mut extras = BTreeMap::<NodeId, HashSet<AnyRule>>::new();
@@ -179,7 +179,16 @@ pub fn compile(
         let ty_related_rules = tys
             .iter()
             .flat_map(|(_, group_id)| group_id)
-            .flat_map(|id| groups.get(id).unwrap().get(&node).unwrap())
+            .flat_map(|id| {
+                *groups
+                    .0
+                    .borrow()
+                    .get(id)
+                    .unwrap()
+                    .borrow()
+                    .get(&node)
+                    .unwrap()
+            })
             .map(|rule| format!("\n  as {rule:?}"))
             .collect::<String>();
 

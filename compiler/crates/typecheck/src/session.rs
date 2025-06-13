@@ -8,7 +8,7 @@ use petgraph::{
     prelude::{DiGraphMap, UnGraphMap},
     unionfind::UnionFind,
 };
-use std::{collections::BTreeMap, mem};
+use std::{cell::RefCell, collections::BTreeMap, mem};
 use wipple_compiler_trace::{AnyRule, NodeId, Rule, rule};
 
 rule! {
@@ -49,8 +49,12 @@ impl Session {
             unify,
         }
     }
+}
 
-    pub fn groups(&self) -> BTreeMap<usize, BTreeMap<NodeId, Option<AnyRule>>> {
+pub struct TyGroups(pub RefCell<BTreeMap<usize, RefCell<BTreeMap<NodeId, Option<AnyRule>>>>>);
+
+impl Session {
+    pub fn groups(&self) -> TyGroups {
         // Give every node a unique key to start
         let keys = self
             .unify
@@ -77,20 +81,28 @@ impl Session {
             groups[representative].insert(node, Some(rule));
         }
 
-        groups
-            .into_iter()
-            .filter(|group| !group.is_empty())
-            .enumerate()
-            .collect()
+        TyGroups(RefCell::new(
+            groups
+                .into_iter()
+                .filter(|group| !group.is_empty())
+                .enumerate()
+                .map(|(index, group)| (index, RefCell::new(group)))
+                .collect(),
+        ))
     }
 
-    pub fn iterate(
-        &mut self,
-        groups: &mut BTreeMap<usize, BTreeMap<NodeId, Option<AnyRule>>>,
-    ) -> BTreeMap<NodeId, Vec<(Ty, Option<usize>)>> {
+    pub fn iterate(&mut self, groups: &TyGroups) -> BTreeMap<NodeId, Vec<(Ty, Option<usize>)>> {
         let mut keys = groups
+            .0
+            .borrow()
             .iter()
-            .flat_map(|(&key, group)| group.keys().map(move |&node| (node, key)))
+            .flat_map(|(&key, group)| {
+                group
+                    .borrow()
+                    .keys()
+                    .map(move |&node| (node, key))
+                    .collect::<Vec<_>>()
+            })
             .collect::<BTreeMap<_, _>>();
 
         let mut vars = vec![None; keys.len()];
@@ -106,22 +118,64 @@ impl Session {
             }
         };
 
+        let narrow_key = |key: &mut usize, vars: &mut Vec<_>| {
+            // Try to get a more specific key
+            loop {
+                let mut found = false;
+                for (other, ty) in vars.iter().enumerate() {
+                    if *ty == Some(Ty::Var(*key)) {
+                        *key = other;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if !found {
+                    break;
+                }
+            }
+        };
+
         let instantiate = |ty: &mut Ty, vars: &mut Vec<_>, keys: &mut BTreeMap<_, _>| {
             ty.traverse_mut(&mut |ty| {
-                if let Ty::Of(node) = ty {
-                    *ty = Ty::Var(key(*node, vars, keys));
+                if let Ty::Of(node) = *ty {
+                    let mut key = key(node, vars, keys);
+                    narrow_key(&mut key, vars);
+
+                    *ty = Ty::Var(key);
                     ty.apply(vars);
+
+                    // Add the node to its group with no specific rule
+                    groups
+                        .0
+                        .borrow_mut()
+                        .entry(key)
+                        .or_default()
+                        .borrow_mut()
+                        .insert(node, None);
                 }
             });
         };
 
+        let group_ids = groups.0.borrow().keys().copied().collect::<Vec<_>>();
+
         let mut tys = self.constraints.tys.clone();
         let mut results = BTreeMap::<_, Vec<_>>::new();
-        for (&group_id, group) in groups.iter_mut() {
+        for group_id in group_ids {
+            let nodes = groups
+                .0
+                .borrow()
+                .get(&group_id)
+                .unwrap()
+                .borrow()
+                .keys()
+                .copied()
+                .collect::<Vec<_>>();
+
             // Fold each type in the group into a single type
             let mut result_ty = Ty::Var(group_id);
             let mut others = Vec::new();
-            for node in group.keys().copied().collect::<Vec<_>>() {
+            for &node in &nodes {
                 if let Some(tys) = tys.remove(&node) {
                     // Apply each constraint
                     for (mut ty, _) in tys {
@@ -154,7 +208,7 @@ impl Session {
                 .map(|ty| (ty, Some(group_id)))
                 .collect::<Vec<_>>();
 
-            for &node in group.keys() {
+            for &node in &nodes {
                 results.entry(node).or_default().extend(result_tys.clone());
             }
         }
@@ -174,24 +228,16 @@ impl Session {
                 continue;
             };
 
-            // Try to get a more specific key
-            loop {
-                let mut found = false;
-                for (other, ty) in vars.iter().enumerate() {
-                    if *ty == Some(Ty::Var(key)) {
-                        key = other;
-                        found = true;
-                        break;
-                    }
-                }
-
-                if !found {
-                    break;
-                }
-            }
+            narrow_key(&mut key, &mut vars);
 
             // Add the node to its group with no specific rule
-            groups.entry(key).or_default().insert(node, None);
+            groups
+                .0
+                .borrow_mut()
+                .entry(key)
+                .or_default()
+                .borrow_mut()
+                .insert(node, None);
 
             // Add at least the node's own type
             results.entry(node).or_insert_with(|| {
@@ -304,7 +350,7 @@ impl Ty {
 impl Session {
     pub fn to_debug_graph(
         &self,
-        groups: &BTreeMap<usize, BTreeMap<NodeId, Option<AnyRule>>>,
+        groups: &TyGroups,
         tys: &BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
         relations: &DiGraphMap<NodeId, AnyRule>,
         provider: &FeedbackProvider<'_>,
@@ -319,9 +365,16 @@ impl Session {
         let mut stmts = tabbycat::StmtList::new();
 
         for (node, rule) in groups
+            .0
+            .borrow()
             .values()
-            .flatten()
-            .flat_map(|(&node, rules)| rules.iter().map(move |rule| (node, Some(rule))))
+            .flat_map(|group| {
+                group
+                    .borrow()
+                    .iter()
+                    .map(|(&node, &rule)| (node, rule))
+                    .collect::<Vec<_>>()
+            })
             .chain(self.nodes.iter().map(|&node| (node, None)))
             .unique_by(|&(node, _)| node)
         {
@@ -368,15 +421,22 @@ impl Session {
             }
         }
 
-        for (&id, group) in groups {
-            let group_tys = tys.get(group.keys().next().unwrap()).unwrap();
+        for (&id, group) in groups.0.borrow().iter() {
+            let group_tys = group
+                .borrow()
+                .keys()
+                .flat_map(|node| tys.get(node).unwrap())
+                .map(|(ty, _)| ty)
+                .unique()
+                .collect::<Vec<_>>();
+
             let error = group_tys.len() > 1; // mutiple possible types
 
             let color = if error { error_color } else { success_color };
 
             let group_tys = group_tys
                 .iter()
-                .map(|(ty, _)| ty.to_debug_string(provider))
+                .map(|ty| ty.to_debug_string(provider))
                 .collect::<Vec<_>>()
                 .join("\n");
 
@@ -394,7 +454,7 @@ impl Session {
 
             stmts = stmts.add_subgraph(tabbycat::SubGraph::subgraph(
                 Some(tabbycat::Identity::raw(format!("cluster{id}"))),
-                group.iter().fold(
+                group.borrow().iter().fold(
                     tabbycat::StmtList::new().add_attr(tabbycat::AttrType::Graph, attrs),
                     |stmts, (&node, _)| stmts.add_node(node_id(node), None, None),
                 ),

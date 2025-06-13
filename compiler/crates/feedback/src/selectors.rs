@@ -1,5 +1,4 @@
 use crate::Context;
-use petgraph::Direction;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet, btree_map::Entry};
@@ -161,7 +160,16 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                 }
 
                 let mut related = group_id
-                    .map(|id| self.ctx.groups.get(&id).unwrap().clone())
+                    .map(|id| {
+                        self.ctx
+                            .groups
+                            .0
+                            .borrow()
+                            .get(&id)
+                            .unwrap()
+                            .borrow()
+                            .clone()
+                    })
                     .unwrap_or_default();
 
                 if !matches_rules(&related) {
