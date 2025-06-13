@@ -60,6 +60,12 @@ pub enum RuleKind {
     Extra,
 }
 
+impl RuleKind {
+    pub fn is_hidden(self) -> bool {
+        matches!(self, RuleKind::Extra)
+    }
+}
+
 #[macro_export]
 macro_rules! rule {
     ($($(#[$meta:meta])+ $name:ident: $kind:ident;)*) => {

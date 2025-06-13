@@ -189,7 +189,9 @@ impl Message {
                     .unwrap();
 
                     if let Some(rule) = related_rule {
-                        write!(md, " via {}", rule.name()).unwrap();
+                        if !rule.kind().is_hidden() {
+                            write!(md, " via {}", rule.name()).unwrap();
+                        }
                     }
 
                     // TODO: Find the common ancestor of all related nodes (related by syntax)

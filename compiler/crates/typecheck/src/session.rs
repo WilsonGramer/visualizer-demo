@@ -9,7 +9,7 @@ use petgraph::{
     unionfind::UnionFind,
 };
 use std::{collections::BTreeMap, mem};
-use wipple_compiler_trace::{AnyRule, NodeId, rule};
+use wipple_compiler_trace::{AnyRule, NodeId, Rule, rule};
 
 rule! {
     /// The type was unified with another type.
@@ -350,6 +350,10 @@ impl Session {
             // Also link related nodes
             for parent in relations.neighbors_directed(node, Direction::Incoming) {
                 let &rule = relations.edge_weight(parent, node).unwrap();
+
+                if rule.kind().is_hidden() {
+                    continue;
+                }
 
                 stmts = stmts.add_edge(
                     tabbycat::Edge::head_node(node_id(node), None)

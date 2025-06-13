@@ -79,7 +79,7 @@ pub fn compile(
     // Ensure all expressions are typed (TODO: Put this in its own function)
     let mut extras = BTreeMap::<NodeId, HashSet<AnyRule>>::new();
     for (&node, &(_, rule)) in &lowered.nodes {
-        if rule.kind() != RuleKind::Typed {
+        if rule.kind().is_hidden() {
             continue;
         }
 
