@@ -1,11 +1,10 @@
-import { instance as vizInstance } from "@viz-js/viz";
+import mermaid from "mermaid";
 import "./style.css";
 import { compile } from "wipple-compiler";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 
-const viz = await vizInstance();
-console.log(viz);
+mermaid.initialize({ startOnLoad: false });
 
 const debounce = (timeout: number, f: () => void) => {
     let timeoutId: number | undefined;
@@ -34,12 +33,8 @@ const update = async () => {
     if (syntaxError) {
         log.innerText = `Syntax error: ${syntaxError}`;
     } else {
-        try {
-            graph.children[0]?.remove();
-            graph.appendChild(viz.renderSVGElement(graphString));
-        } catch (e) {
-            console.error(e);
-        }
+        const { svg } = await mermaid.render("graphSvg", graphString);
+        graph.innerHTML = svg;
 
         const markdown = DOMPurify.sanitize(marked.parse(feedback, { async: false }));
         log.innerHTML = `

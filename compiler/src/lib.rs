@@ -147,8 +147,12 @@ pub fn compile(
 
     // Display type graph
 
-    let graph = typecheck_session.to_debug_graph(&groups, &tys, &lowered.relations, &provider);
-    display_graph(graph);
+    let mut buf = Vec::new();
+    typecheck_session
+        .write_debug_graph(&mut buf, &groups, &tys, &lowered.relations, &provider)
+        .unwrap();
+
+    display_graph(String::from_utf8(buf).unwrap());
 
     // Display type table
 

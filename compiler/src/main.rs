@@ -69,7 +69,7 @@ fn run(path: &str, source: &str) {
     let display_graph = |graph: String| {
         let mut process = std::process::Command::new("sh")
             .arg("-c")
-            .arg("dot -Tpng -Gdpi=200 | imgcat")
+            .arg("mmdc -i - -o - -e png --scale 3 | imgcat")
             .stdin(std::process::Stdio::piped())
             .spawn()
             .unwrap();

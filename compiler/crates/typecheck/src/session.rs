@@ -1,25 +1,17 @@
-use crate::{
-    constraints::{Constraints, Ty},
-    context::FeedbackProvider,
-};
-use itertools::Itertools;
-use petgraph::{
-    Direction,
-    prelude::{DiGraphMap, UnGraphMap},
-    unionfind::UnionFind,
-};
+use crate::constraints::{Constraints, Ty};
+use petgraph::{prelude::UnGraphMap, unionfind::UnionFind};
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     mem,
 };
-use wipple_compiler_trace::{AnyRule, NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 #[derive(Clone)]
 pub struct Session {
-    nodes: Vec<NodeId>,
-    constraints: Constraints,
-    unify: UnGraphMap<NodeId, ()>,
+    pub(crate) nodes: Vec<NodeId>,
+    pub(crate) constraints: Constraints,
+    pub(crate) unify: UnGraphMap<NodeId, ()>,
 }
 
 impl Session {
@@ -339,127 +331,5 @@ impl Ty {
                 }
             }
         });
-    }
-}
-
-impl Session {
-    pub fn to_debug_graph(
-        &self,
-        groups: &TyGroups,
-        tys: &BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
-        relations: &DiGraphMap<NodeId, AnyRule>,
-        provider: &FeedbackProvider<'_>,
-    ) -> String {
-        let font = "Fira Code";
-
-        let success_color = |base: u8| tabbycat::attributes::Color::Rgb(base, base, 255);
-        let error_color = |base: u8| tabbycat::attributes::Color::Rgb(255, base, base);
-
-        let node_id = |node: NodeId| tabbycat::Identity::raw(format!("node{}", node.0));
-
-        let mut stmts = tabbycat::StmtList::new();
-
-        for node in groups
-            .0
-            .borrow()
-            .values()
-            .flat_map(|group| group.borrow().iter().copied().collect::<Vec<_>>())
-            .chain(self.nodes.iter().copied())
-            .unique()
-        {
-            let (node_span, node_source) = provider.node_span_source(node);
-
-            stmts = mem::take(&mut stmts).add_node(
-                node_id(node),
-                None,
-                Some(
-                    tabbycat::AttrList::new()
-                        .add_pair(tabbycat::attributes::label(format!(
-                            "{node_span:?}\n{node_source}"
-                        )))
-                        .add_pair(tabbycat::attributes::shape(
-                            tabbycat::attributes::Shape::Box,
-                        ))
-                        .add_pair(tabbycat::attributes::width(3.))
-                        .add_pair(tabbycat::attributes::fontname(font)),
-                ),
-            );
-
-            // Also link related nodes
-            for parent in relations.neighbors_directed(node, Direction::Incoming) {
-                let &rule = relations.edge_weight(parent, node).unwrap();
-
-                if rule.kind().is_hidden() {
-                    continue;
-                }
-
-                stmts = stmts.add_edge(
-                    tabbycat::Edge::head_node(node_id(node), None)
-                        .arrow_to_node(node_id(parent), None)
-                        .add_attrpair(tabbycat::attributes::label(format!("{rule:?}")))
-                        .add_attrpair(tabbycat::attributes::fontname(font))
-                        .add_attrpair(tabbycat::attributes::style(
-                            tabbycat::attributes::Style::Solid,
-                        )),
-                );
-            }
-        }
-
-        for (&id, group) in groups.0.borrow().iter() {
-            let group_tys = group
-                .borrow()
-                .iter()
-                .flat_map(|node| tys.get(node).unwrap())
-                .map(|(ty, _)| ty)
-                .unique()
-                .collect::<Vec<_>>();
-
-            let error = group_tys.len() > 1; // mutiple possible types
-
-            let color = if error { error_color } else { success_color };
-
-            let group_tys = group_tys
-                .iter()
-                .map(|ty| ty.to_debug_string(provider))
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            let mut attrs = tabbycat::AttrList::new()
-                .add_pair(tabbycat::attributes::style(
-                    tabbycat::attributes::Style::Dashed,
-                ))
-                .add_pair(tabbycat::attributes::xlabel(group_tys))
-                .add_pair(tabbycat::attributes::fontname(format!("{font} Semibold")))
-                .add_pair(tabbycat::attributes::fontcolor(color(0)));
-
-            attrs = attrs
-                .add_pair(tabbycat::attributes::bgcolor(color(240)))
-                .add_pair(tabbycat::attributes::color(color(0)));
-
-            stmts = stmts.add_subgraph(tabbycat::SubGraph::subgraph(
-                Some(tabbycat::Identity::raw(format!("cluster{id}"))),
-                group.borrow().iter().fold(
-                    tabbycat::StmtList::new().add_attr(tabbycat::AttrType::Graph, attrs),
-                    |stmts, &node| stmts.add_node(node_id(node), None, None),
-                ),
-            ));
-        }
-
-        // Deduplicate statements
-        let stmts = tabbycat::StmtList::new()
-            .add_equation(
-                tabbycat::Identity::raw("rankdir"),
-                tabbycat::Identity::quoted("LR"),
-            )
-            .extend(stmts.into_iter().unique_by(|stmt| stmt.to_string()));
-
-        tabbycat::GraphBuilder::default()
-            .id(tabbycat::Identity::quoted("output"))
-            .strict(false)
-            .graph_type(tabbycat::GraphType::DiGraph)
-            .stmts(stmts)
-            .build()
-            .unwrap()
-            .to_string()
     }
 }
