@@ -9,4 +9,5 @@ workspace = true
 [dependencies]
 itertools = "0.14"
 petgraph = "0.8"
+union-find = "0.4"
 wipple-compiler-trace = { path = "../trace" }

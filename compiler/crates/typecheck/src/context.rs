@@ -3,7 +3,7 @@ use crate::{
     nodes::Node,
 };
 
-use petgraph::prelude::DiGraphMap;
+use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
     collections::{BTreeMap, HashSet},
     rc::Rc,
@@ -85,6 +85,8 @@ impl<'a> FeedbackProvider<'a> {
     }
 
     pub fn related_nodes(&self, node: NodeId) -> impl Iterator<Item = (NodeId, AnyRule)> {
-        self.relations.edges(node).map(|(_, to, &rule)| (to, rule))
+        self.relations
+            .neighbors_directed(node, Direction::Incoming)
+            .map(move |other| (other, *self.relations.edge_weight(other, node).unwrap()))
     }
 }

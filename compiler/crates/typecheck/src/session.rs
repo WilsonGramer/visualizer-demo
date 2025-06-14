@@ -1,10 +1,11 @@
 use crate::constraints::{Constraints, Ty};
-use petgraph::{prelude::UnGraphMap, unionfind::UnionFind};
+use petgraph::prelude::UnGraphMap;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     mem,
 };
+use union_find::{QuickFindUf, UnionBySize, UnionFind};
 use wipple_compiler_trace::NodeId;
 
 #[derive(Clone)]
@@ -27,7 +28,7 @@ impl Session {
                 // we have `x :: (1) -> _` and `y :: (1) -> _`, then at this
                 // point the (1) must be attached to another specific node in
                 // the AST (which will be handled in another iteration), or it
-                // can't be inferred anyway.
+                // won't influence other nodes anyway.
                 if let Ty::Of(other) = *ty {
                     unify.add_edge(node, other, ());
                 }
@@ -44,6 +45,8 @@ impl Session {
 
 pub struct TyGroups(pub RefCell<BTreeMap<usize, RefCell<BTreeSet<NodeId>>>>);
 
+type Uf = QuickFindUf<UnionBySize>;
+
 impl Session {
     pub fn groups(&self) -> TyGroups {
         // Give every node a unique key to start
@@ -55,13 +58,13 @@ impl Session {
             .collect::<BTreeMap<_, _>>();
 
         // Merge keys that unify
-        let mut union_find = UnionFind::new(keys.len());
+        let mut union_find = Uf::new(keys.len());
         for (left, right, _) in self.unify.all_edges() {
             union_find.union(*keys.get(&left).unwrap(), *keys.get(&right).unwrap());
         }
 
         // Create groups from the clustered keys
-        let mut groups = vec![BTreeSet::<_>::new(); union_find.len()];
+        let mut groups = vec![BTreeSet::<_>::new(); union_find.size()];
         for node in self.unify.nodes() {
             let index = *keys.get(&node).unwrap();
             let representative = union_find.find(index);
@@ -94,19 +97,7 @@ impl Session {
 
         let mut vars = vec![None; keys.len()];
 
-        let key = |node: NodeId, vars: &mut Vec<_>, keys: &mut BTreeMap<_, _>| match keys.get(&node)
-        {
-            Some(key) => *key,
-            None => {
-                let key = keys.len();
-                keys.insert(node, key);
-                vars.push(None);
-                key
-            }
-        };
-
         let narrow_key = |key: &mut usize, vars: &mut Vec<_>| {
-            // Try to get a more specific key
             loop {
                 let mut found = false;
                 for (other, ty) in vars.iter().enumerate() {
@@ -123,79 +114,98 @@ impl Session {
             }
         };
 
+        let key = |node: NodeId, vars: &mut Vec<_>, keys: &mut BTreeMap<_, _>| {
+            let mut key = match keys.get(&node) {
+                Some(key) => *key,
+                None => {
+                    let key = keys.len();
+                    keys.insert(node, key);
+                    vars.push(None);
+                    key
+                }
+            };
+
+            // Try to get a more specific key
+            narrow_key(&mut key, vars);
+
+            // Add the node to its group with no specific rule
+            groups
+                .0
+                .borrow_mut()
+                .entry(key)
+                .or_default()
+                .borrow_mut()
+                .insert(node);
+
+            key
+        };
+
         let instantiate = |ty: &mut Ty, vars: &mut Vec<_>, keys: &mut BTreeMap<_, _>| {
             ty.traverse_mut(&mut |ty| {
                 if let Ty::Of(node) = *ty {
-                    let mut key = key(node, vars, keys);
-                    narrow_key(&mut key, vars);
+                    let key = key(node, vars, keys);
 
                     *ty = Ty::Var(key);
                     ty.apply(vars);
-
-                    // Add the node to its group with no specific rule
-                    groups
-                        .0
-                        .borrow_mut()
-                        .entry(key)
-                        .or_default()
-                        .borrow_mut()
-                        .insert(node);
                 }
             });
         };
 
-        let group_ids = groups.0.borrow().keys().copied().collect::<Vec<_>>();
-
         let mut tys = self.constraints.tys.clone();
+
+        let mut groups = groups.0.borrow().clone().into_iter().collect::<Vec<_>>();
+
+        // Form better groups by applying groups containing incomplete types first
+        groups.sort_by_key(|(_, group)| {
+            group.borrow().iter().any(|node| {
+                tys.get(node).is_some_and(|tys| {
+                    tys.iter().any(|ty| {
+                        let mut ty = ty.clone();
+                        ty.apply(&vars);
+                        !ty.is_incomplete()
+                    })
+                })
+            })
+        });
+
         let mut results = BTreeMap::<_, Vec<_>>::new();
-        for group_id in group_ids {
-            let nodes = groups
-                .0
-                .borrow()
-                .get(&group_id)
-                .unwrap()
+        for (group_id, nodes) in groups {
+            let tys = nodes
                 .borrow()
                 .iter()
-                .copied()
+                .filter_map(|&node| tys.remove(&node))
+                .flatten()
                 .collect::<Vec<_>>();
 
             // Fold each type in the group into a single type
-            let mut result_ty = Ty::Var(group_id);
             let mut others = Vec::new();
-            for &node in &nodes {
-                if let Some(tys) = tys.remove(&node) {
-                    // Apply each constraint
-                    for mut ty in tys {
-                        instantiate(&mut ty, &mut vars, &mut keys);
+            for mut ty in tys {
+                instantiate(&mut ty, &mut vars, &mut keys);
 
-                        let mut success = true;
-                        let mut snapshot = result_ty.clone();
-                        let mut vars_snapshot = vars.clone();
+                let mut success = true;
+                let mut vars_snapshot = vars.clone();
 
-                        snapshot.unify_in_group(&ty, &mut vars_snapshot, &mut success);
+                Ty::Var(group_id).unify_in_group(&ty, &mut vars_snapshot, &mut success);
 
-                        if success {
-                            result_ty = snapshot;
-                            vars = vars_snapshot;
-                        } else {
-                            // No need to generate a diagnostic here; feedback
-                            // is generated whenever an expression has multiple
-                            // types
-                            others.push(ty);
-                        }
-                    }
+                if success {
+                    vars = vars_snapshot;
+                } else {
+                    // No need to generate a diagnostic here; feedback
+                    // is generated whenever an expression has multiple
+                    // types
+                    others.push(ty);
                 }
             }
 
             // Share the result with every node in the group
 
-            let result_tys = [result_ty]
+            let result_tys = [Ty::Var(group_id)]
                 .into_iter()
                 .chain(others.clone())
                 .map(|ty| (ty, Some(group_id)))
                 .collect::<Vec<_>>();
 
-            for &node in &nodes {
+            for &node in nodes.borrow().iter() {
                 results.entry(node).or_default().extend(result_tys.clone());
             }
         }
@@ -208,23 +218,9 @@ impl Session {
             }
         }
 
-        // Include all nodes, including those that had no constraints at all,
-        // and patch up groups
+        // Include all nodes, including those that had no constraints at all
         for &node in &self.nodes {
-            let Some(mut key) = keys.get(&node).copied() else {
-                continue;
-            };
-
-            narrow_key(&mut key, &mut vars);
-
-            // Add the node to its group with no specific rule
-            groups
-                .0
-                .borrow_mut()
-                .entry(key)
-                .or_default()
-                .borrow_mut()
-                .insert(node);
+            let key = key(node, &mut vars, &mut keys);
 
             // Add at least the node's own type
             results.entry(node).or_insert_with(|| {
@@ -235,8 +231,12 @@ impl Session {
 
         // Apply all types
         for group in results.values_mut() {
-            for (ty, _) in group {
+            for (ty, key) in group {
                 ty.apply(&vars);
+
+                if let Some(key) = key {
+                    narrow_key(key, &mut vars);
+                }
             }
         }
 
