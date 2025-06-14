@@ -9,11 +9,6 @@ group: todo
 messages:
   - node: node
     template: |
-      `{{node:source}}` was found to be either {{left:type}} or {{right:type}}, but it can
+      `{{node:source}}` could be a {{left:type}} or {{right:type}}, but it can
       only be one of these.
-  - type: left
-    template: |
-      `{{node:source}}` could be a {{left:type}}...
-  - type: right
-    template: |
-      `{{node:source}}` could also be a {{right:type}}...
+  - trace: left

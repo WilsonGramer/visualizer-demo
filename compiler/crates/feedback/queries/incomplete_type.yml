@@ -9,10 +9,8 @@ messages:
   - node: node
     template: |
       Missing information for the type of `{{node:source}}`.
-  - node: node
+  - node: ty
     template: |
-      Wipple needs to know the full type of this code before running it.
-  - type: ty
-    template: |
-      Wipple determined this code is {{ty:type}} (but it needs more information
-      for the placeholders)...
+      Wipple determined this code is {{ty:type}}, but it needs more information
+      for the `_` placeholders.
+  - trace: ty

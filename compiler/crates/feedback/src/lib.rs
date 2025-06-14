@@ -101,7 +101,7 @@ impl<'a> Context<'a> {
             let span = self.spans.get(node).unwrap();
 
             // Show smaller spans first
-            (span.range.len(), span.range.start)
+            (span.range.len(), span.range.start, *node)
         });
 
         result

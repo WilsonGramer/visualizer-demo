@@ -5,13 +5,13 @@ use wipple_compiler_typecheck::nodes::{DefinitionNode, Node, PlaceholderNode};
 
 rule! {
     /// A name expression.
-    name: Typed;
+    name: Extra;
 
     /// A name that resolved to a value.
-    resolved_name: Typed;
+    resolved_name: Extra;
 
     /// A name that was not resolved to a value.
-    unresolved_name: Typed;
+    unresolved_name: Extra;
 }
 
 impl Visit for NameExpression {
