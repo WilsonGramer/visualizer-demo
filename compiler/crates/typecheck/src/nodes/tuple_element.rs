@@ -2,7 +2,7 @@ use crate::{
     constraints::{ToConstraints, ToConstraintsContext, Ty},
     nodes::Node,
 };
-use wipple_compiler_trace::{NodeId, rule};
+use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone)]
 pub struct TupleElementNode {
@@ -13,17 +13,12 @@ pub struct TupleElementNode {
 
 impl Node for TupleElementNode {}
 
-rule! {
-    /// A tuple element pattern.
-    tuple_element: Extra;
-}
-
 impl ToConstraints for TupleElementNode {
     fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>) {
         let mut elements = vec![Ty::Any; self.count];
         elements[self.index] = Ty::Of(node);
 
         ctx.constraints()
-            .insert_ty(self.target, Ty::Tuple { elements }, rule::tuple_element);
+            .insert_ty(self.target, Ty::Tuple { elements });
     }
 }

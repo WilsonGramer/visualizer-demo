@@ -176,22 +176,6 @@ pub fn compile(
             })
             .collect::<String>();
 
-        let ty_related_rules = tys
-            .iter()
-            .flat_map(|(_, group_id)| group_id)
-            .flat_map(|id| {
-                *groups
-                    .0
-                    .borrow()
-                    .get(id)
-                    .unwrap()
-                    .borrow()
-                    .get(&node)
-                    .unwrap()
-            })
-            .map(|rule| format!("\n  as {rule:?}"))
-            .collect::<String>();
-
         rows.push([
             format!("{node:?}\n{node_span:?}").to_string(),
             format!(
@@ -203,8 +187,7 @@ pub fn compile(
             tys.iter()
                 .map(|(ty, _)| ty.to_debug_string(&provider).blue().to_string())
                 .collect::<Vec<_>>()
-                .join(&" or ".bright_red().to_string())
-                + &ty_related_rules,
+                .join(&" or ".bright_red().to_string()),
         ]);
     }
 

@@ -5,17 +5,16 @@ use crate::{
 use std::{
     any::TypeId,
     cell::{RefCell, RefMut},
-    collections::{BTreeMap, HashSet},
+    collections::BTreeMap,
     fmt::Debug,
     ops::Deref,
 };
-use wipple_compiler_trace::{AnyRule, NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone, Default)]
 pub struct Constraints {
-    pub tys: BTreeMap<NodeId, Vec<(Ty, AnyRule)>>,
-    pub bounds: BTreeMap<NodeId, Vec<(Bound, AnyRule)>>,
-    pub extra: BTreeMap<NodeId, HashSet<AnyRule>>,
+    pub tys: BTreeMap<NodeId, Vec<Ty>>,
+    pub bounds: BTreeMap<NodeId, Vec<Bound>>,
 }
 
 impl Constraints {
@@ -23,32 +22,26 @@ impl Constraints {
         Default::default()
     }
 
-    pub fn insert_ty<R: Rule>(&mut self, node: NodeId, ty: Ty, rule: R) {
-        self.tys.entry(node).or_default().push((ty, rule.erased()));
+    pub fn insert_ty(&mut self, node: NodeId, ty: Ty) {
+        self.tys.entry(node).or_default().push(ty);
     }
 
-    pub fn insert_bound<R: Rule>(&mut self, node: NodeId, bound: Bound, rule: R) {
-        self.bounds
-            .entry(node)
-            .or_default()
-            .push((bound, rule.erased()));
+    pub fn insert_bound(&mut self, node: NodeId, bound: Bound) {
+        self.bounds.entry(node).or_default().push(bound);
     }
 
-    pub fn insert_extra<R: Rule>(&mut self, node: NodeId, rule: R) {
-        self.extra.entry(node).or_default().insert(rule.erased());
-    }
+    pub fn get(&self, node: &NodeId) -> impl Iterator<Item = Constraint> {
+        let tys = self
+            .tys
+            .get(node)
+            .into_iter()
+            .flat_map(|tys| tys.iter().map(|ty| Constraint::Ty(ty.clone())));
 
-    pub fn get(&self, node: &NodeId) -> impl Iterator<Item = (Constraint, AnyRule)> {
-        let tys = self.tys.get(node).into_iter().flat_map(|tys| {
-            tys.iter()
-                .map(|(ty, rule)| (Constraint::Ty(ty.clone()), *rule))
-        });
-
-        let bounds = self.bounds.get(node).into_iter().flat_map(|bounds| {
-            bounds
-                .iter()
-                .map(|(bound, rule)| (Constraint::Bound(bound.clone()), *rule))
-        });
+        let bounds = self
+            .bounds
+            .get(node)
+            .into_iter()
+            .flat_map(|bounds| bounds.iter().map(|bound| Constraint::Bound(bound.clone())));
 
         tys.chain(bounds)
     }
@@ -61,16 +54,11 @@ pub enum Constraint {
 }
 
 impl Constraints {
-    pub fn extend<R: Rule>(
-        &mut self,
-        node: NodeId,
-        iter: impl IntoIterator<Item = Constraint>,
-        rule: R,
-    ) {
+    pub fn extend(&mut self, node: NodeId, iter: impl IntoIterator<Item = Constraint>) {
         for constraint in iter {
             match constraint {
-                Constraint::Ty(ty) => self.insert_ty(node, ty, rule),
-                Constraint::Bound(bound) => self.insert_bound(node, bound, rule),
+                Constraint::Ty(ty) => self.insert_ty(node, ty),
+                Constraint::Bound(bound) => self.insert_bound(node, bound),
             }
         }
     }

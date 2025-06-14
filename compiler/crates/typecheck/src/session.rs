@@ -8,19 +8,18 @@ use petgraph::{
     prelude::{DiGraphMap, UnGraphMap},
     unionfind::UnionFind,
 };
-use std::{cell::RefCell, collections::BTreeMap, mem};
-use wipple_compiler_trace::{AnyRule, NodeId, Rule, rule};
-
-rule! {
-    /// The type was unified with another type.
-    unified: Extra;
-}
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    mem,
+};
+use wipple_compiler_trace::{AnyRule, NodeId, Rule};
 
 #[derive(Clone)]
 pub struct Session {
     nodes: Vec<NodeId>,
     constraints: Constraints,
-    unify: UnGraphMap<NodeId, AnyRule>,
+    unify: UnGraphMap<NodeId, ()>,
 }
 
 impl Session {
@@ -28,9 +27,9 @@ impl Session {
         nodes: impl IntoIterator<Item = NodeId>,
         constraints: Constraints,
     ) -> Self {
-        let mut unify = UnGraphMap::<NodeId, AnyRule>::new();
+        let mut unify = UnGraphMap::<NodeId, ()>::new();
         for (&node, tys) in &constraints.tys {
-            for (ty, rule) in tys {
+            for ty in tys {
                 // We don't need to deeply traverse the type because all types
                 // here represent the top-level type of a node. For example, if
                 // we have `x :: (1) -> _` and `y :: (1) -> _`, then at this
@@ -38,7 +37,7 @@ impl Session {
                 // the AST (which will be handled in another iteration), or it
                 // can't be inferred anyway.
                 if let Ty::Of(other) = *ty {
-                    unify.add_edge(node, other, *rule);
+                    unify.add_edge(node, other, ());
                 }
             }
         }
@@ -51,7 +50,7 @@ impl Session {
     }
 }
 
-pub struct TyGroups(pub RefCell<BTreeMap<usize, RefCell<BTreeMap<NodeId, Option<AnyRule>>>>>);
+pub struct TyGroups(pub RefCell<BTreeMap<usize, RefCell<BTreeSet<NodeId>>>>);
 
 impl Session {
     pub fn groups(&self) -> TyGroups {
@@ -65,20 +64,16 @@ impl Session {
 
         // Merge keys that unify
         let mut union_find = UnionFind::new(keys.len());
-        let mut rules = BTreeMap::new();
-        for (left, right, rule) in self.unify.all_edges() {
+        for (left, right, _) in self.unify.all_edges() {
             union_find.union(*keys.get(&left).unwrap(), *keys.get(&right).unwrap());
-            let representative = union_find.find(*keys.get(&left).unwrap());
-            rules.insert(representative, *rule);
         }
 
         // Create groups from the clustered keys
-        let mut groups = vec![BTreeMap::<_, _>::new(); union_find.len()];
+        let mut groups = vec![BTreeSet::<_>::new(); union_find.len()];
         for node in self.unify.nodes() {
             let index = *keys.get(&node).unwrap();
             let representative = union_find.find(index);
-            let rule = *rules.get(&representative).unwrap();
-            groups[representative].insert(node, Some(rule));
+            groups[representative].insert(node);
         }
 
         TyGroups(RefCell::new(
@@ -99,7 +94,7 @@ impl Session {
             .flat_map(|(&key, group)| {
                 group
                     .borrow()
-                    .keys()
+                    .iter()
                     .map(move |&node| (node, key))
                     .collect::<Vec<_>>()
             })
@@ -152,7 +147,7 @@ impl Session {
                         .entry(key)
                         .or_default()
                         .borrow_mut()
-                        .insert(node, None);
+                        .insert(node);
                 }
             });
         };
@@ -168,7 +163,7 @@ impl Session {
                 .get(&group_id)
                 .unwrap()
                 .borrow()
-                .keys()
+                .iter()
                 .copied()
                 .collect::<Vec<_>>();
 
@@ -178,7 +173,7 @@ impl Session {
             for &node in &nodes {
                 if let Some(tys) = tys.remove(&node) {
                     // Apply each constraint
-                    for (mut ty, _) in tys {
+                    for mut ty in tys {
                         instantiate(&mut ty, &mut vars, &mut keys);
 
                         let mut success = true;
@@ -215,7 +210,7 @@ impl Session {
 
         // Any remaining constraints weren't part of groups
         for (node, constraints) in mem::take(&mut tys) {
-            for (mut ty, _) in constraints {
+            for mut ty in constraints {
                 instantiate(&mut ty, &mut vars, &mut keys);
                 results.entry(node).or_default().push((ty, None));
             }
@@ -237,7 +232,7 @@ impl Session {
                 .entry(key)
                 .or_default()
                 .borrow_mut()
-                .insert(node, None);
+                .insert(node);
 
             // Add at least the node's own type
             results.entry(node).or_insert_with(|| {
@@ -364,35 +359,24 @@ impl Session {
 
         let mut stmts = tabbycat::StmtList::new();
 
-        for (node, rule) in groups
+        for node in groups
             .0
             .borrow()
             .values()
-            .flat_map(|group| {
-                group
-                    .borrow()
-                    .iter()
-                    .map(|(&node, &rule)| (node, rule))
-                    .collect::<Vec<_>>()
-            })
-            .chain(self.nodes.iter().map(|&node| (node, None)))
-            .unique_by(|&(node, _)| node)
+            .flat_map(|group| group.borrow().iter().copied().collect::<Vec<_>>())
+            .chain(self.nodes.iter().copied())
+            .unique()
         {
             let (node_span, node_source) = provider.node_span_source(node);
-
-            let label = match rule {
-                Some(rule) => {
-                    format!("{node_span:?}\n{node_source}\n----------------\n{rule:?}")
-                }
-                None => format!("{node_span:?}\n{node_source}"),
-            };
 
             stmts = mem::take(&mut stmts).add_node(
                 node_id(node),
                 None,
                 Some(
                     tabbycat::AttrList::new()
-                        .add_pair(tabbycat::attributes::label(label))
+                        .add_pair(tabbycat::attributes::label(format!(
+                            "{node_span:?}\n{node_source}"
+                        )))
                         .add_pair(tabbycat::attributes::shape(
                             tabbycat::attributes::Shape::Box,
                         ))
@@ -424,7 +408,7 @@ impl Session {
         for (&id, group) in groups.0.borrow().iter() {
             let group_tys = group
                 .borrow()
-                .keys()
+                .iter()
                 .flat_map(|node| tys.get(node).unwrap())
                 .map(|(ty, _)| ty)
                 .unique()
@@ -444,7 +428,7 @@ impl Session {
                 .add_pair(tabbycat::attributes::style(
                     tabbycat::attributes::Style::Dashed,
                 ))
-                .add_pair(tabbycat::attributes::label(group_tys))
+                .add_pair(tabbycat::attributes::xlabel(group_tys))
                 .add_pair(tabbycat::attributes::fontname(format!("{font} Semibold")))
                 .add_pair(tabbycat::attributes::fontcolor(color(0)));
 
@@ -456,7 +440,7 @@ impl Session {
                 Some(tabbycat::Identity::raw(format!("cluster{id}"))),
                 group.borrow().iter().fold(
                     tabbycat::StmtList::new().add_attr(tabbycat::AttrType::Graph, attrs),
-                    |stmts, (&node, _)| stmts.add_node(node_id(node), None, None),
+                    |stmts, &node| stmts.add_node(node_id(node), None, None),
                 ),
             ));
         }

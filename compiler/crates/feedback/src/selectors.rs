@@ -1,7 +1,7 @@
 use crate::Context;
 use schemars::JsonSchema;
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashSet, btree_map::Entry};
+use std::collections::{BTreeMap, BTreeSet, HashSet, btree_map::Entry};
 use wipple_compiler_trace::{AnyRule, NodeId, Rule};
 use wipple_compiler_typecheck::constraints::Ty;
 
@@ -50,7 +50,7 @@ pub struct NodeTerm {
 pub struct TyTerm {
     pub node: NodeId,
     pub ty: Ty,
-    pub related: BTreeMap<NodeId, Option<AnyRule>>,
+    pub related: BTreeSet<NodeId>,
 }
 
 #[derive(Clone)]
@@ -127,18 +127,8 @@ impl<'ctx, 'a> State<'ctx, 'a> {
         node: Option<&str>,
         name: &str,
         matches: Option<&str>,
-        rules: &[String],
+        _rules: &[String],
     ) -> Result<(), ()> {
-        let matches_rules = |ty_rules: &BTreeMap<NodeId, Option<AnyRule>>| {
-            rules.is_empty()
-                || rules.iter().any(|r| {
-                    ty_rules
-                        .values()
-                        .flatten()
-                        .any(|ty_rule| ty_rule.name() == r)
-                })
-        };
-
         match self.tys.entry(name.to_string()) {
             Entry::Vacant(entry) => {
                 let term = node
@@ -159,6 +149,11 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                     return Err(());
                 }
 
+                // TODO: Once bounds are added
+                // if !matches_rules(&rules) {
+                //     return Err(());
+                // }
+
                 let mut related = group_id
                     .map(|id| {
                         self.ctx
@@ -171,10 +166,6 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                             .clone()
                     })
                     .unwrap_or_default();
-
-                if !matches_rules(&related) {
-                    return Err(());
-                }
 
                 related.remove(&term.node);
 
@@ -190,14 +181,16 @@ impl<'ctx, 'a> State<'ctx, 'a> {
 
                 Ok(())
             }
-            Entry::Occupied(entry) => {
-                let term = entry.get();
+            Entry::Occupied(_entry) => {
+                // let term = entry.get();
 
-                if matches_rules(&term.related) {
-                    Ok(())
-                } else {
-                    Err(())
-                }
+                // if matches_rules(&term.related) {
+                //     Ok(())
+                // } else {
+                //     Err(())
+                // }
+
+                Ok(())
             }
         }
     }

@@ -50,12 +50,6 @@ macro_rules! register_nodes {
                 )*
             }
         }
-
-        pub mod rule {
-            $(
-                pub use super::$mod::rule::*;
-            )*
-        }
     };
 }
 

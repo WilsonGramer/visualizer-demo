@@ -4,7 +4,6 @@ use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Write, sync::LazyLock};
-use wipple_compiler_trace::Rule;
 use wipple_compiler_typecheck::context::FeedbackProvider;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -174,7 +173,7 @@ impl Message {
 
                 let term = state.tys.get(name)?;
 
-                for (&related_node, &related_rule) in &term.related {
+                for &related_node in &term.related {
                     let (related_node_span, related_node_source) =
                         provider.node_span_source(related_node);
 
@@ -187,12 +186,6 @@ impl Message {
                         related_node_source,
                     )
                     .unwrap();
-
-                    if let Some(rule) = related_rule {
-                        if !rule.kind().is_hidden() {
-                            write!(md, " via {}", rule.name()).unwrap();
-                        }
-                    }
 
                     // TODO: Find the common ancestor of all related nodes (related by syntax)
 
