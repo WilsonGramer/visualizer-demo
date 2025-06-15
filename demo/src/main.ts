@@ -1,8 +1,8 @@
 import mermaid from "mermaid";
-import "./style.css";
-import { compile } from "wipple-compiler";
+import initCompiler, { compile } from "wipple-compiler";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+import "./style.css";
 
 mermaid.initialize({ startOnLoad: false });
 
@@ -27,6 +27,8 @@ const update = async () => {
     const url = new URL(window.location.href);
     url.searchParams.set("code", code.value);
     window.history.replaceState({}, "", url.toString());
+
+    await initCompiler();
 
     const [syntaxError, graphString, tys, feedback] = compile(code.value);
 

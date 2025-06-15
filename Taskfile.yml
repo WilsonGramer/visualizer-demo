@@ -31,7 +31,7 @@ tasks:
         deps:
             - build:feedback
         cmds:
-            - wasm-pack build --target bundler {{.CLI_ARGS}}
+            - wasm-pack build --target web {{.CLI_ARGS}}
 
     build:app:
         dir: demo
