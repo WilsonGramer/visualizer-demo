@@ -35,7 +35,6 @@ use wipple_compiler_typecheck::{
 pub struct Result {
     pub nodes: BTreeMap<NodeId, (Box<dyn Node>, AnyRule)>,
     pub spans: BTreeMap<NodeId, Span>,
-    pub names: HashMap<String, NodeId>,
     pub relations: DiGraphMap<NodeId, AnyRule>,
 }
 
@@ -53,14 +52,6 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Res
             .map(|(id, node)| (id, node.unwrap()))
             .collect(),
         spans: visitor.spans,
-        names: visitor
-            .scopes
-            .pop()
-            .unwrap()
-            .0
-            .into_iter()
-            .map(|(name, definition)| (name, definition.source()))
-            .collect(),
         relations: visitor.relations,
     }
 }
@@ -147,7 +138,7 @@ impl<'a> Visitor<'a> {
 }
 
 #[derive(Debug, Clone, Default)]
-struct Scope(HashMap<String, Definition>);
+struct Scope(HashMap<String, Vec<Definition>>);
 
 #[derive(Debug, Clone)]
 enum Definition {
@@ -205,19 +196,38 @@ impl Visitor<'_> {
         self.scopes.pop();
     }
 
-    fn resolve_name(&mut self, name: &str, node: NodeId, rule: impl Rule) -> Option<&Definition> {
-        let definition = self.scopes.iter().rev().find_map(|scope| scope.0.get(name));
+    fn resolve_name<'a, T: 'a>(
+        &'a mut self,
+        name: &str,
+        node: NodeId,
+        rule: impl Rule,
+        mut filter: impl FnMut(&'a Definition) -> Option<T>,
+    ) -> Option<T> {
+        let (result, definition) = self
+            .scopes
+            .iter()
+            .rev()
+            .filter_map(|scope| scope.0.get(name))
+            .flatten()
+            .find_map(|definition| Some((filter(definition)?, definition)))?;
 
-        if let Some(definition) = definition {
-            self.relations
-                .add_edge(definition.source(), node, rule.erased());
-        }
+        self.relations
+            .add_edge(definition.source(), node, rule.erased());
 
-        definition
+        Some(result)
     }
 
-    fn peek_name(&mut self, name: &str) -> Option<&Definition> {
-        self.scopes.iter().rev().find_map(|scope| scope.0.get(name))
+    fn peek_name<'a, T: 'a>(
+        &'a mut self,
+        name: &str,
+        mut filter: impl FnMut(&'a Definition) -> Option<T>,
+    ) -> Option<T> {
+        self.scopes
+            .iter()
+            .rev()
+            .filter_map(|scope| scope.0.get(name))
+            .flatten()
+            .find_map(|definition| filter(definition))
     }
 
     fn define_name(&mut self, name: &str, definition: Definition) {
@@ -225,6 +235,8 @@ impl Visitor<'_> {
             .last_mut()
             .unwrap()
             .0
-            .insert(name.to_string(), definition);
+            .entry(name.to_string())
+            .or_default()
+            .push(definition);
     }
 }

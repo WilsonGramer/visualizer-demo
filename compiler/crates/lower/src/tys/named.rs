@@ -27,15 +27,17 @@ impl Visit for NamedType {
         parent: Option<(NodeId, impl Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
-            let Some((type_node, type_parameters)) = visitor
-                .resolve_name(&self.name.source, id, rule::name_in_named_type)
-                .and_then(|definition| match definition {
+            let Some((type_node, type_parameters)) = visitor.resolve_name(
+                &self.name.source,
+                id,
+                rule::name_in_named_type,
+                |definition| match definition {
                     Definition::Type {
                         node, parameters, ..
                     } => Some((*node, parameters.clone())),
                     _ => None,
-                })
-            else {
+                },
+            ) else {
                 return (
                     PlaceholderNode.boxed(),
                     rule::unresolved_named_type.erased(),

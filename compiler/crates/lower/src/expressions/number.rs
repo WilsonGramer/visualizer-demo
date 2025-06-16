@@ -22,15 +22,13 @@ impl Visit for NumberExpression {
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let number_ty =
-                visitor
-                    .resolve_name("Number", id, rule::number)
-                    .and_then(|definition| match definition {
-                        Definition::Type { node, .. } => Some(Ty::Named {
-                            name: *node,
-                            parameters: Vec::new(),
-                        }),
-                        _ => None,
-                    });
+                visitor.resolve_name("Number", id, rule::number, |definition| match definition {
+                    Definition::Type { node, .. } => Some(Ty::Named {
+                        name: *node,
+                        parameters: Vec::new(),
+                    }),
+                    _ => None,
+                });
 
             match number_ty {
                 Some(number_ty) => (

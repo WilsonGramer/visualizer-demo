@@ -1,7 +1,7 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::BinaryExpression;
 use wipple_compiler_trace::{NodeId, Rule, rule};
-use wipple_compiler_typecheck::nodes::{CallNode, ConstraintNode, Node, PlaceholderNode};
+use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode, Node, PlaceholderNode};
 
 rule! {
     /// The operator in a binary operator expression.
@@ -44,18 +44,19 @@ impl Visit for BinaryExpression {
                     Some((id, rule::operator)),
                     &self.operator.range,
                     |visitor, id| {
-                        let equal_trait = visitor
-                            .resolve_name("Equal", id, rule::operator)
-                            .and_then(|definition| match definition {
-                                Definition::Trait { node, .. } => Some(todo!()),
-                                _ => None,
+                        let equal_function =
+                            visitor.resolve_name("Equal", id, rule::operator, |definition| {
+                                match definition {
+                                    Definition::Constant { node, .. } => Some(*node),
+                                    _ => None,
+                                }
                             });
 
-                        match equal_trait {
-                            Some(equal_trait) => (
-                                ConstraintNode {
-                                    value: id,
-                                    constraints: vec![todo!()],
+                        match equal_function {
+                            Some(equal_function) => (
+                                DefinitionNode {
+                                    definition: equal_function,
+                                    constraints: Vec::new(),
                                 }
                                 .boxed(),
                                 rule::operator.erased(),

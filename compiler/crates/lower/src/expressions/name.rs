@@ -21,19 +21,17 @@ impl Visit for NameExpression {
         parent: Option<(NodeId, impl Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
-            let definition = match visitor.resolve_name(&self.variable.source, id, rule::name) {
-                Some(Definition::Variable { node, .. }) => Some((*node, Vec::new())),
-                Some(Definition::Constant {
-                    node, constraints, ..
-                }) => Some((*node, constraints.clone())),
-                // TODO: Create constructor or use directly?
-                // Some(Definition::Trait {
-                //     node, constraints, ..
-                // }) => Some((*node, constraints.clone())),
-                _ => None,
-            };
-
-            if let Some((definition, constraints)) = definition {
+            if let Some((definition, constraints)) =
+                visitor.resolve_name(&self.variable.source, id, rule::name, |definition| {
+                    match definition {
+                        Definition::Variable { node, .. } => Some((*node, Vec::new())),
+                        Definition::Constant {
+                            node, constraints, ..
+                        } => Some((*node, constraints.clone())),
+                        _ => None,
+                    }
+                })
+            {
                 (
                     DefinitionNode {
                         definition,

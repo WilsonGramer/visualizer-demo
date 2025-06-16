@@ -38,12 +38,16 @@ impl Visit for CallExpression {
             // If `inputs` has a single element with the `[unit]` attribute,
             // flip the order
             if let Some((unit_range, unit_name)) = unit {
-                if let Some(Definition::Constant {
-                    node: definition,
-                    attributes,
-                    constraints,
-                    ..
-                }) = visitor.peek_name(unit_name)
+                if let Some((definition, attributes, constraints)) =
+                    visitor.peek_name(unit_name, |definition| match definition {
+                        Definition::Constant {
+                            node: definition,
+                            attributes,
+                            constraints,
+                            ..
+                        } => Some((definition, attributes, constraints)),
+                        _ => None,
+                    })
                 {
                     if attributes.unit {
                         let definition = *definition;

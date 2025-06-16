@@ -22,9 +22,8 @@ impl Visit for TextExpression {
         parent: Option<(NodeId, impl Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
-            let text_ty = visitor
-                .resolve_name("Text", id, rule::text)
-                .and_then(|definition| match definition {
+            let text_ty =
+                visitor.resolve_name("Text", id, rule::text, |definition| match definition {
                     Definition::Type { node, .. } => Some(Ty::Named {
                         name: *node,
                         parameters: Vec::new(),
