@@ -18,17 +18,17 @@
                 </div>
             </div>
 
-            <div class="relative flex-1 flex flex-row">
+            <div class="relative flex-1 flex flex-col gap-[10px] md:flex-row min-h-0">
                 <textarea
                     id="code"
-                    class="w-[calc(33%-4px)] border-[1.5px] border-black/5 rounded-lg p-[14px] font-mono resize-none focus:outline-blue-500"
+                    class="flex-1 border-[1.5px] border-black/5 rounded-lg p-[14px] font-mono resize-none focus:outline-blue-500"
                     autofocus
                     spellcheck="false"
                     placeholder="Write your code here..."
                 ></textarea>
 
                 <div
-                    class="absolute inset-y-0 right-0 w-2/3 border-[1.5px] border-black/5 rounded-lg overflow-scroll flex flex-col gap-[20px] p-[10px]"
+                    class="flex-2 border-[1.5px] border-black/5 rounded-lg overflow-scroll flex flex-col gap-[20px] p-[10px]"
                 >
                     <div id="graph"></div>
                     <div id="log"></div>
