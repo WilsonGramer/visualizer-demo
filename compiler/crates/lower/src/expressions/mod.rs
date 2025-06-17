@@ -1,36 +1,31 @@
-nodes! {
-    mod annotate;
-    mod apply;
-    mod r#as;
-    mod binary;
-    mod block;
-    mod call;
-    mod collection;
-    mod r#do;
-    mod formatted_text;
-    mod function;
-    mod intrinsic;
-    mod r#is;
-    mod number;
-    mod placeholder;
-    mod structure;
-    mod text;
-    mod tuple;
-    mod unit;
-    mod name;
-    mod when;
-}
+
+mod annotate;
+mod apply;
+mod r#as;
+mod binary;
+mod block;
+mod call;
+mod collection;
+mod r#do;
+mod formatted_text;
+mod function;
+mod intrinsic;
+mod r#is;
+mod name;
+mod number;
+mod placeholder;
+mod structure;
+mod text;
+mod tuple;
+mod unit;
+mod when;
 
 use crate::{Visit, Visitor};
 use wipple_compiler_syntax::Expression;
 use wipple_compiler_trace::{NodeId, Rule};
 
 impl Visit for Expression {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
-    ) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         match self {
             Expression::Placeholder(expression) => expression.visit(visitor, parent),
             Expression::Name(expression) => expression.visit(visitor, parent),

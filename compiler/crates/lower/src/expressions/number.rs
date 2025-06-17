@@ -1,28 +1,26 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::NumberExpression;
-use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
     constraints::{Constraint, Ty},
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
-rule! {
-    /// A number literal.
-    number: Typed;
+/// A number literal.
+pub const NUMBER: Rule = Rule::new("number");
 
-    /// The `Number` type isn't defined.
-    missing_number_type: Typed;
-}
+/// The `Number` type isn't defined.
+pub const MISSING_NUMBER_TYPE: Rule = Rule::new("missing_number_type");
 
 impl Visit for NumberExpression {
     fn visit<'a>(
         &'a self,
         visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let number_ty =
-                visitor.resolve_name("Number", id, rule::number, |definition| match definition {
+                visitor.resolve_name("Number", id, NUMBER, |definition| match definition {
                     Definition::Type { node, .. } => Some(Ty::Named {
                         name: *node,
                         parameters: Vec::new(),
@@ -37,9 +35,9 @@ impl Visit for NumberExpression {
                         constraints: vec![Constraint::Ty(number_ty)],
                     }
                     .boxed(),
-                    rule::number.erased(),
+                    NUMBER,
                 ),
-                None => (PlaceholderNode.boxed(), rule::missing_number_type.erased()),
+                None => (PlaceholderNode.boxed(), MISSING_NUMBER_TYPE),
             }
         })
     }

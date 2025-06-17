@@ -1,24 +1,24 @@
 use crate::{Visit, Visitor};
 use wipple_compiler_syntax::FunctionExpression;
-use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{FunctionNode, PlaceholderNode};
 
-rule! {
+
     /// A function expression.
-    function: Typed;
+pub const FUNCTION: Rule = Rule::new("function");
 
     /// An input to a function expression.
-    function_input: Typed;
+pub const FUNCTION_INPUT: Rule = Rule::new("function_input");
 
     /// The output of a function expression.
-    function_output: Typed;
-}
+pub const FUNCTION_OUTPUT: Rule = Rule::new("function_output");
+
 
 impl Visit for FunctionExpression {
     fn visit<'a>(
         &'a self,
         visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             visitor.push_scope();
@@ -28,22 +28,22 @@ impl Visit for FunctionExpression {
                 .iter()
                 .map(|input| {
                     let target = visitor.node(
-                        Some((id, rule::function_input)),
+                        Some((id, FUNCTION_INPUT)),
                         input.range(),
-                        |_visitor, _id| (PlaceholderNode, rule::function_input),
+                        |_visitor, _id| (PlaceholderNode, FUNCTION_INPUT),
                     );
 
-                    input.visit(visitor, Some((target, rule::function_input)))
+                    input.visit(visitor, Some((target, FUNCTION_INPUT)))
                 })
                 .collect::<Vec<_>>();
 
             let output = self
                 .output
-                .visit(visitor, Some((id, rule::function_output)));
+                .visit(visitor, Some((id, FUNCTION_OUTPUT)));
 
             visitor.pop_scope();
 
-            (FunctionNode { inputs, output }, rule::function)
+            (FunctionNode { inputs, output }, FUNCTION)
         })
     }
 }

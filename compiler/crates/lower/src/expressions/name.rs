@@ -1,28 +1,28 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::NameExpression;
-use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{DefinitionNode, Node, PlaceholderNode};
 
-rule! {
+
     /// A name expression.
-    name: Extra;
+pub const NAME: Rule = Rule::new("name");
 
     /// A name that resolved to a value.
-    resolved_name: Extra;
+pub const RESOLVED_NAME: Rule = Rule::new("resolved_name");
 
     /// A name that was not resolved to a value.
-    unresolved_name: Extra;
-}
+pub const UNRESOLVED_NAME: Rule = Rule::new("unresolved_name");
+
 
 impl Visit for NameExpression {
     fn visit<'a>(
         &'a self,
         visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             if let Some((definition, constraints)) =
-                visitor.resolve_name(&self.variable.source, id, rule::name, |definition| {
+                visitor.resolve_name(&self.variable.source, id, NAME, |definition| {
                     match definition {
                         Definition::Variable { node, .. } => Some((*node, Vec::new())),
                         Definition::Constant {
@@ -38,10 +38,10 @@ impl Visit for NameExpression {
                         constraints,
                     }
                     .boxed(),
-                    rule::resolved_name.erased(),
+                    RESOLVED_NAME,
                 )
             } else {
-                (PlaceholderNode.boxed(), rule::unresolved_name.erased())
+                (PlaceholderNode.boxed(), UNRESOLVED_NAME)
             }
         })
     }

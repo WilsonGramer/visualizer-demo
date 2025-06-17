@@ -1,21 +1,19 @@
 use crate::{Visit, Visitor};
 use wipple_compiler_syntax::PlaceholderExpression;
-use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
-rule! {
-    /// A placeholder expression.
-    placeholder: Typed;
-}
+/// A placeholder expression.
+pub const PLACEHOLDER: Rule = Rule::new("placeholder");
 
 impl Visit for PlaceholderExpression {
     fn visit<'a>(
         &'a self,
         visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |_visitor, _id| {
-            (PlaceholderNode, rule::placeholder)
+            (PlaceholderNode, PLACEHOLDER)
         })
     }
 }

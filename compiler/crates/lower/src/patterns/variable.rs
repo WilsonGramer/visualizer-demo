@@ -1,21 +1,21 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::VariablePattern;
-use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::DefinitionNode;
 
-rule! {
+
     /// A tuple pattern.
-    variable_pattern: Typed;
+pub const VARIABLE_PATTERN: Rule = Rule::new("variable_pattern");
 
     /// The target of a tuple pattern.
-    variable_pattern_target: Typed;
-}
+pub const VARIABLE_PATTERN_TARGET: Rule = Rule::new("variable_pattern_target");
+
 
 impl Visit for VariablePattern {
     fn visit<'a>(
         &'a self,
         visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, _id| {
             visitor.define_name(
@@ -30,7 +30,7 @@ impl Visit for VariablePattern {
                     definition: visitor.parent(),
                     constraints: Vec::new(),
                 },
-                rule::variable_pattern,
+                VARIABLE_PATTERN,
             )
         })
     }

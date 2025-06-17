@@ -1,30 +1,28 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::BinaryExpression;
-use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode, Node, PlaceholderNode};
 
-rule! {
-    /// The operator in a binary operator expression.
-    operator: Typed;
+/// The operator in a binary operator expression.
+pub const OPERATOR: Rule = Rule::new("operator");
 
-    /// An `=` operator expression.
-    equal: Typed;
+/// An `=` operator expression.
+pub const EQUAL: Rule = Rule::new("equal");
 
-    /// The left side of an `=` operator.
-    equal_operator_left: Typed;
+/// The left side of an `=` operator.
+pub const EQUAL_OPERATOR_LEFT: Rule = Rule::new("equal_operator_left");
 
-    /// The right side of an `=` operator.
-    equal_operator_right: Typed;
+/// The right side of an `=` operator.
+pub const EQUAL_OPERATOR_RIGHT: Rule = Rule::new("equal_operator_right");
 
-    /// The `Equal` trait isn't defined.
-    missing_equal_trait: Typed;
-}
+/// The `Equal` trait isn't defined.
+pub const MISSING_EQUAL_TRAIT: Rule = Rule::new("missing_equal_trait");
 
 impl Visit for BinaryExpression {
     fn visit<'a>(
         &'a self,
         visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
     ) -> NodeId {
         match self.operator.source.as_str() {
             "to" => visit_as_math_expression(self, visitor, "To"),
@@ -41,11 +39,11 @@ impl Visit for BinaryExpression {
             ">=" => visit_as_comparison_expression(self, visitor, ["Greater-Than", "Equal"]),
             "=" => visitor.node(parent, &self.range, |visitor, id| {
                 let function = visitor.node(
-                    Some((id, rule::operator)),
+                    Some((id, OPERATOR)),
                     &self.operator.range,
                     |visitor, id| {
                         let equal_function =
-                            visitor.resolve_name("Equal", id, rule::operator, |definition| {
+                            visitor.resolve_name("Equal", id, OPERATOR, |definition| {
                                 match definition {
                                     Definition::Constant { node, .. } => Some(*node),
                                     _ => None,
@@ -59,22 +57,22 @@ impl Visit for BinaryExpression {
                                     constraints: Vec::new(),
                                 }
                                 .boxed(),
-                                rule::operator.erased(),
+                                OPERATOR,
                             ),
-                            None => (PlaceholderNode.boxed(), rule::missing_equal_trait.erased()),
+                            None => (PlaceholderNode.boxed(), MISSING_EQUAL_TRAIT),
                         }
                     },
                 );
 
                 let inputs = [
-                    (self.left.as_ref(), rule::equal_operator_left.erased()),
-                    (self.right.as_ref(), rule::equal_operator_right.erased()),
+                    (self.left.as_ref(), EQUAL_OPERATOR_LEFT),
+                    (self.right.as_ref(), EQUAL_OPERATOR_RIGHT),
                 ]
                 .into_iter()
                 .map(|(input, rule)| input.visit(visitor, Some((id, rule))))
                 .collect::<Vec<_>>();
 
-                (CallNode { function, inputs }.boxed(), rule::equal.erased())
+                (CallNode { function, inputs }.boxed(), EQUAL)
             }),
             "/=" => {
                 // TODO: a = b <=> not (Equal a b)

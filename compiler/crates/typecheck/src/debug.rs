@@ -9,7 +9,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     io::{self, Write},
 };
-use wipple_compiler_trace::{AnyRule, NodeId, Rule};
+use wipple_compiler_trace::{NodeId, Rule};
 
 impl Session {
     pub fn write_debug_graph(
@@ -17,7 +17,7 @@ impl Session {
         w: &mut dyn Write,
         groups: &TyGroups,
         tys: &BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
-        relations: &DiGraphMap<NodeId, AnyRule>,
+        relations: &DiGraphMap<NodeId, Rule>,
         provider: &FeedbackProvider<'_>,
     ) -> io::Result<()> {
         let node_id = |node: NodeId| format!("node{}", node.0);
@@ -50,7 +50,7 @@ impl Session {
             for parent in relations.neighbors_directed(node, Direction::Incoming) {
                 let &rule = relations.edge_weight(parent, node).unwrap();
 
-                if rule.kind().is_hidden() {
+                if rule.hidden {
                     continue;
                 }
 

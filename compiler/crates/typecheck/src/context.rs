@@ -8,7 +8,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     rc::Rc,
 };
-use wipple_compiler_trace::{AnyRule, NodeId, Span};
+use wipple_compiler_trace::{NodeId, Rule, Span};
 
 #[derive(Default)]
 pub struct Context<'a> {
@@ -47,16 +47,16 @@ pub struct Trait {
 
 #[derive(Clone)]
 pub struct FeedbackProvider<'a> {
-    nodes: &'a BTreeMap<NodeId, HashSet<AnyRule>>,
-    relations: &'a DiGraphMap<NodeId, AnyRule>,
+    nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
+    relations: &'a DiGraphMap<NodeId, Rule>,
     tys: &'a BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
     get_span_source: Rc<dyn Fn(NodeId) -> (Span, String) + 'a>,
 }
 
 impl<'a> FeedbackProvider<'a> {
     pub fn new(
-        nodes: &'a BTreeMap<NodeId, HashSet<AnyRule>>,
-        relations: &'a DiGraphMap<NodeId, AnyRule>,
+        nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
+        relations: &'a DiGraphMap<NodeId, Rule>,
         tys: &'a BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
         get_span_source: impl Fn(NodeId) -> (Span, String) + 'a,
     ) -> Self {
@@ -72,7 +72,7 @@ impl<'a> FeedbackProvider<'a> {
         (self.get_span_source)(node)
     }
 
-    pub fn node_rules(&self, node: NodeId) -> &HashSet<AnyRule> {
+    pub fn node_rules(&self, node: NodeId) -> &HashSet<Rule> {
         self.nodes.get(&node).unwrap()
     }
 
@@ -84,7 +84,7 @@ impl<'a> FeedbackProvider<'a> {
             .map(|(ty, _)| ty.to_debug_string(self))
     }
 
-    pub fn related_nodes(&self, node: NodeId) -> impl Iterator<Item = (NodeId, AnyRule)> {
+    pub fn related_nodes(&self, node: NodeId) -> impl Iterator<Item = (NodeId, Rule)> {
         self.relations
             .neighbors_directed(node, Direction::Incoming)
             .map(move |other| (other, *self.relations.edge_weight(other, node).unwrap()))

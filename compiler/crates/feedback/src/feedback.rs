@@ -1,11 +1,20 @@
 use crate::selectors::State;
 use itertools::Itertools;
-use petgraph::{prelude::UnGraphMap, visit::Bfs};
+use petgraph::{
+    graph::UnGraph,
+    graphmap::NodeTrait,
+    prelude::{DiGraphMap, UnGraphMap},
+    visit::Bfs,
+};
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Write, sync::LazyLock};
-use wipple_compiler_trace::{AnyRule, NodeId, Rule};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    sync::LazyLock,
+};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::context::FeedbackProvider;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]

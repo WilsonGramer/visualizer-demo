@@ -2,7 +2,7 @@ use colored::Colorize;
 use petgraph::Direction;
 use std::collections::{BTreeMap, HashSet};
 use wasm_bindgen::prelude::*;
-use wipple_compiler_trace::{AnyRule, NodeId, Rule, Span, rule};
+use wipple_compiler_trace::{NodeId, Rule, Span};
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {
@@ -30,13 +30,11 @@ pub fn compile_wasm(source: String) -> Vec<String> {
     ]
 }
 
-rule! {
-    /// A node's type is unknown.
-    unknown_type: Extra;
+/// A node's type is unknown.
+pub const UNKNOWN_TYPE: Rule = Rule::new("unknown_type");
 
-    /// A node's type is incomplete.
-    incomplete_type: Extra;
-}
+/// A node's type is incomplete.
+pub const INCOMPLETE_TYPE: Rule = Rule::new("incomplete_type");
 
 pub fn compile(
     path: &str,
@@ -77,26 +75,20 @@ pub fn compile(
     let tys = typecheck_session.iterate(&groups);
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
-    let mut extras = BTreeMap::<NodeId, HashSet<AnyRule>>::new();
+    let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
     for (&node, &(_, rule)) in &lowered.nodes {
-        if rule.kind().is_hidden() {
+        if rule.hidden {
             continue;
         }
 
         if let Some(tys) = tys.get(&node) {
             for (ty, _) in tys {
                 if ty.is_incomplete() {
-                    extras
-                        .entry(node)
-                        .or_default()
-                        .insert(rule::incomplete_type.erased());
+                    extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
                 }
             }
         } else {
-            extras
-                .entry(node)
-                .or_default()
-                .insert(rule::unknown_type.erased());
+            extras.entry(node).or_default().insert(UNKNOWN_TYPE);
         }
     }
 
@@ -130,7 +122,6 @@ pub fn compile(
         &provider,
         &feedback_nodes,
         &lowered.spans,
-        &lowered.names,
         &lowered.relations,
         &groups,
         &tys,

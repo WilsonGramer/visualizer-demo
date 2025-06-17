@@ -1,36 +1,36 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::NamedType;
-use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
     constraints::{Constraint, Ty},
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
-rule! {
+
     /// A resolved named type.
-    resolved_named_type: Typed;
+pub const RESOLVED_NAMED_TYPE: Rule = Rule::new("resolved_named_type");
 
     /// An unresolved named type.
-    unresolved_named_type: Typed;
+pub const UNRESOLVED_NAMED_TYPE: Rule = Rule::new("unresolved_named_type");
 
     /// The name in a named type.
-    name_in_named_type: Typed;
+pub const NAME_IN_NAMED_TYPE: Rule = Rule::new("name_in_named_type");
 
     /// A parameter in a named type.
-    parameter_in_named_type: Typed;
-}
+pub const PARAMETER_IN_NAMED_TYPE: Rule = Rule::new("parameter_in_named_type");
+
 
 impl Visit for NamedType {
     fn visit<'a>(
         &'a self,
         visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let Some((type_node, type_parameters)) = visitor.resolve_name(
                 &self.name.source,
                 id,
-                rule::name_in_named_type,
+                NAME_IN_NAMED_TYPE,
                 |definition| match definition {
                     Definition::Type {
                         node, parameters, ..
@@ -40,7 +40,7 @@ impl Visit for NamedType {
             ) else {
                 return (
                     PlaceholderNode.boxed(),
-                    rule::unresolved_named_type.erased(),
+                    UNRESOLVED_NAMED_TYPE,
                 );
             };
 
@@ -49,7 +49,7 @@ impl Visit for NamedType {
             let parameters = self
                 .parameters
                 .iter()
-                .map(|ty| Ty::Of(ty.visit(visitor, Some((id, rule::parameter_in_named_type)))))
+                .map(|ty| Ty::Of(ty.visit(visitor, Some((id, PARAMETER_IN_NAMED_TYPE)))))
                 .collect();
 
             (
@@ -61,7 +61,7 @@ impl Visit for NamedType {
                     })],
                 }
                 .boxed(),
-                rule::resolved_named_type.erased(),
+                RESOLVED_NAMED_TYPE,
             )
         })
     }

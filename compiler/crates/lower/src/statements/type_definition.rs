@@ -3,19 +3,19 @@ use crate::{
     attributes::{AttributeParser, TypeAttributes},
 };
 use wipple_compiler_syntax::TypeDefinitionStatement;
-use wipple_compiler_trace::{NodeId, Rule, rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
-rule! {
+
     /// A type definition.
-    type_definition: Extra;
-}
+pub const TYPE_DEFINITION: Rule = Rule::new("type_definition");
+
 
 impl Visit for TypeDefinitionStatement {
     fn visit<'a>(
         &'a self,
         visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
     ) -> NodeId {
         visitor.node(parent, &self.name.range, |visitor, id| {
             if self.representation.is_some() {
@@ -35,7 +35,7 @@ impl Visit for TypeDefinitionStatement {
                 },
             );
 
-            (PlaceholderNode, rule::type_definition)
+            (PlaceholderNode, TYPE_DEFINITION)
         })
     }
 }

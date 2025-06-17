@@ -2,7 +2,7 @@ use crate::Context;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet, HashSet, btree_map::Entry};
-use wipple_compiler_trace::{AnyRule, NodeId, Rule};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::constraints::Ty;
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -43,7 +43,7 @@ impl Selector {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeTerm {
     pub node: NodeId,
-    pub rule: AnyRule,
+    pub rule: Rule,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,8 +82,7 @@ impl<'ctx, 'a> State<'ctx, 'a> {
     }
 
     pub fn child(&mut self, child: &str, rules: &[String]) -> Result<(), ()> {
-        let matches_rules =
-            |rule: &AnyRule| rules.is_empty() || rules.iter().any(|r| rule.name() == r);
+        let matches_rules = |rule: &Rule| rules.is_empty() || rules.iter().any(|r| rule.name == r);
 
         match self.nodes.entry(child.to_string()) {
             Entry::Vacant(entry) => {

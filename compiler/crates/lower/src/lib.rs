@@ -1,22 +1,8 @@
-macro_rules! nodes {
-    ($(mod $mod:ident;)*) => {
-        $(mod $mod;)*
-
-        pub mod rule {
-            $(pub use super::$mod::rule::*;)*
-        }
-    };
-}
-
-use nodes;
-
-nodes! {
-    mod attributes;
-    mod expressions;
-    mod patterns;
-    mod statements;
-    mod tys;
-}
+mod attributes;
+mod expressions;
+mod patterns;
+mod statements;
+mod tys;
 
 use crate::attributes::{ConstantAttributes, InstanceAttributes, TraitAttributes, TypeAttributes};
 use petgraph::prelude::DiGraphMap;
@@ -25,7 +11,7 @@ use std::{
     ops::Range,
 };
 use wipple_compiler_syntax::{Comment, SourceFile, TypeParameterName};
-use wipple_compiler_trace::{AnyRule, NodeId, Rule, Span};
+use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
     constraints::{Bound, Constraint},
     nodes::{Node, PlaceholderNode},
@@ -33,9 +19,9 @@ use wipple_compiler_typecheck::{
 
 #[derive(Debug)]
 pub struct Result {
-    pub nodes: BTreeMap<NodeId, (Box<dyn Node>, AnyRule)>,
+    pub nodes: BTreeMap<NodeId, (Box<dyn Node>, Rule)>,
     pub spans: BTreeMap<NodeId, Span>,
-    pub relations: DiGraphMap<NodeId, AnyRule>,
+    pub relations: DiGraphMap<NodeId, Rule>,
 }
 
 pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Result {
@@ -57,22 +43,18 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Res
 }
 
 trait Visit {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, impl Rule)>,
-    ) -> NodeId;
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId;
 
     fn visit_root<'a>(&'a self, visitor: &mut Visitor<'a>) -> NodeId {
-        self.visit(visitor, None::<(_, AnyRule)>)
+        self.visit(visitor, None)
     }
 }
 
 struct Visitor<'a> {
     make_span: Box<dyn Fn(Range<usize>) -> Span + 'a>,
-    nodes: BTreeMap<NodeId, Option<(Box<dyn Node>, AnyRule)>>,
+    nodes: BTreeMap<NodeId, Option<(Box<dyn Node>, Rule)>>,
     spans: BTreeMap<NodeId, Span>,
-    relations: DiGraphMap<NodeId, AnyRule>,
+    relations: DiGraphMap<NodeId, Rule>,
     stack: Vec<NodeId>, // used by patterns
     scopes: Vec<Scope>, // used by blocks
 }
@@ -89,17 +71,17 @@ impl<'a> Visitor<'a> {
         }
     }
 
-    fn node<N: Node, R: Rule>(
+    fn node<N: Node>(
         &mut self,
-        parent: Option<(NodeId, impl Rule)>,
+        parent: Option<(NodeId, Rule)>,
         range: &Range<usize>,
-        f: impl FnOnce(&mut Self, NodeId) -> (N, R),
+        f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
         let id = NodeId(self.nodes.len());
         self.nodes.insert(id, None);
 
         if let Some((parent, rule)) = parent {
-            self.relations.add_edge(parent, id, rule.erased());
+            self.relations.add_edge(parent, id, rule);
             self.stack.push(parent);
         }
 
@@ -112,7 +94,7 @@ impl<'a> Visitor<'a> {
         self.nodes.insert(
             id,
             // Use `boxed` instead of `Box::new` in case `node` is already a `Box`
-            Some((node.boxed(), rule.erased())),
+            Some((node.boxed(), rule)),
         );
 
         self.spans.insert(id, (self.make_span)(range.clone()));
@@ -120,15 +102,15 @@ impl<'a> Visitor<'a> {
         id
     }
 
-    fn root_node<N: Node, R: Rule>(
+    fn root_node<N: Node>(
         &mut self,
         range: &Range<usize>,
-        f: impl FnOnce(&mut Self, NodeId) -> (N, R),
+        f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
-        self.node(None::<(_, AnyRule)>, range, f)
+        self.node(None, range, f)
     }
 
-    fn root_placeholder_node<R: Rule>(&mut self, range: &Range<usize>, rule: R) -> NodeId {
+    fn root_placeholder_node(&mut self, range: &Range<usize>, rule: Rule) -> NodeId {
         self.root_node(range, |_, _| (PlaceholderNode, rule))
     }
 
@@ -200,7 +182,7 @@ impl Visitor<'_> {
         &'a mut self,
         name: &str,
         node: NodeId,
-        rule: impl Rule,
+        rule: Rule,
         mut filter: impl FnMut(&'a Definition) -> Option<T>,
     ) -> Option<T> {
         let (result, definition) = self
@@ -211,8 +193,7 @@ impl Visitor<'_> {
             .flatten()
             .find_map(|definition| Some((filter(definition)?, definition)))?;
 
-        self.relations
-            .add_edge(definition.source(), node, rule.erased());
+        self.relations.add_edge(definition.source(), node, rule);
 
         Some(result)
     }

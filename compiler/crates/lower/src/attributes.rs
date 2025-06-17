@@ -1,6 +1,6 @@
 use crate::Visitor;
 use wipple_compiler_syntax::{Attribute, AttributeValue};
-use wipple_compiler_trace::rule;
+use wipple_compiler_trace::Rule;
 
 #[derive(Debug, Clone, Default)]
 pub struct ConstantAttributes {
@@ -48,22 +48,20 @@ impl InstanceAttributes {
     }
 }
 
-rule! {
-    /// An unknown attribute.
-    unknown_attribute: Extra;
+/// An unknown attribute.
+pub const UNKNOWN_ATTRIBUTE: Rule = Rule::new("unknown_attribute");
 
-    /// A duplicate attribute.
-    duplicate_attribute: Extra;
+/// A duplicate attribute.
+pub const DUPLICATE_ATTRIBUTE: Rule = Rule::new("duplicate_attribute");
 
-    /// The attribute is missing a value.
-    missing_attribute_value: Extra;
+/// The attribute is missing a value.
+pub const MISSING_ATTRIBUTE_VALUE: Rule = Rule::new("missing_attribute_value");
 
-    /// The attribute shouldn't have a value.
-    extra_attribute_value: Extra;
+/// The attribute shouldn't have a value.
+pub const EXTRA_ATTRIBUTE_VALUE: Rule = Rule::new("extra_attribute_value");
 
-    /// The attribute value is a different type than required.
-    mismatched_attribute_value: Extra;
-}
+/// The attribute value is a different type than required.
+pub const MISMATCHED_ATTRIBUTE_VALUE: Rule = Rule::new("mismatched_attribute_value");
 
 pub struct AttributeParser<'a, 'v> {
     visitor: &'v mut Visitor<'a>,
@@ -86,7 +84,7 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
                     if attribute.name.source == name {
                         if found {
                             self.visitor
-                                .root_placeholder_node(&attribute.range, rule::duplicate_attribute);
+                                .root_placeholder_node(&attribute.range, DUPLICATE_ATTRIBUTE);
 
                             continue;
                         }
@@ -97,7 +95,7 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
                 Attribute::Assign(attribute) => {
                     if attribute.name.source == name {
                         self.visitor
-                            .root_placeholder_node(&attribute.range, rule::extra_attribute_value);
+                            .root_placeholder_node(&attribute.range, EXTRA_ATTRIBUTE_VALUE);
                     }
                 }
             }
@@ -125,14 +123,14 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
                 Attribute::Name(attribute) => {
                     if attribute.name.source == name {
                         self.visitor
-                            .root_placeholder_node(&attribute.range, rule::missing_attribute_value);
+                            .root_placeholder_node(&attribute.range, MISSING_ATTRIBUTE_VALUE);
                     }
                 }
                 Attribute::Assign(attribute) => {
                     if attribute.name.source == name {
                         if value.is_some() {
                             self.visitor
-                                .root_placeholder_node(&attribute.range, rule::duplicate_attribute);
+                                .root_placeholder_node(&attribute.range, DUPLICATE_ATTRIBUTE);
 
                             continue;
                         }
@@ -142,7 +140,7 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
                         if value.is_none() {
                             self.visitor.root_placeholder_node(
                                 &attribute.range,
-                                rule::mismatched_attribute_value,
+                                MISMATCHED_ATTRIBUTE_VALUE,
                             );
                         }
                     }

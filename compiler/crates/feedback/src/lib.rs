@@ -9,19 +9,18 @@ use crate::{
 };
 use petgraph::prelude::DiGraphMap;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     mem,
 };
-use wipple_compiler_trace::{AnyRule, NodeId, Rule, Span};
+use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{constraints::Ty, context::FeedbackProvider, session::TyGroups};
 
 #[derive(Clone)]
 pub struct Context<'a> {
     pub feedback: &'a FeedbackProvider<'a>,
-    pub nodes: &'a BTreeMap<NodeId, HashSet<AnyRule>>,
+    pub nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
     pub spans: &'a BTreeMap<NodeId, Span>,
-    pub names: &'a HashMap<String, NodeId>,
-    pub relations: &'a DiGraphMap<NodeId, AnyRule>,
+    pub relations: &'a DiGraphMap<NodeId, Rule>,
     pub groups: &'a TyGroups,
     pub tys: &'a BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
 }
@@ -29,10 +28,9 @@ pub struct Context<'a> {
 impl<'a> Context<'a> {
     pub fn new(
         feedback: &'a FeedbackProvider<'a>,
-        nodes: &'a BTreeMap<NodeId, HashSet<AnyRule>>,
+        nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
         spans: &'a BTreeMap<NodeId, Span>,
-        names: &'a HashMap<String, NodeId>,
-        relations: &'a DiGraphMap<NodeId, AnyRule>,
+        relations: &'a DiGraphMap<NodeId, Rule>,
         groups: &'a TyGroups,
         tys: &'a BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
     ) -> Self {
@@ -40,7 +38,6 @@ impl<'a> Context<'a> {
             feedback,
             nodes,
             spans,
-            names,
             relations,
             groups,
             tys,
@@ -59,7 +56,7 @@ impl<'a> Context<'a> {
                     if query
                         .rule
                         .as_deref()
-                        .is_some_and(|query_rule| rule.name() != query_rule)
+                        .is_some_and(|query_rule| rule.name != query_rule)
                     {
                         continue;
                     }
