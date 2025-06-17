@@ -1,20 +1,14 @@
 use crate::selectors::State;
 use itertools::Itertools;
-use petgraph::{
-    graph::UnGraph,
-    graphmap::NodeTrait,
-    prelude::{DiGraphMap, UnGraphMap},
-    visit::Bfs,
-};
+use petgraph::{Direction, graphmap::NodeTrait, prelude::DiGraphMap};
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
     fmt::Write,
     sync::LazyLock,
 };
-use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::context::FeedbackProvider;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -182,103 +176,86 @@ impl Message {
             Message::Trace { trace: name } => {
                 let term = state.tys.get(name)?;
 
-                let (node_span, node_source) = provider.node_span_source(term.node);
+                let (node_span, _node_source) = provider.node_span_source(term.node);
 
-                writeln!(
-                    md,
-                    "{}{}{:?}: `{}` must be `{}` because of:",
-                    indent_string(indent),
-                    bullet_string(indent),
-                    node_span,
-                    node_source,
-                    term.ty.to_debug_string(provider),
-                )
-                .unwrap();
+                let search = [term.node]
+                    .into_iter()
+                    .chain(term.related.clone())
+                    .collect::<Vec<_>>();
 
-                let relations_undirected =
-                    UnGraphMap::<NodeId, AnyRule>::from_edges(state.ctx.relations.all_edges());
+                if let Some(mut common_node) =
+                    common_ancestor(state.ctx.relations, search.iter().copied()).next()
+                {
+                    // If the node directly relates to another node, use that
+                    // (eg. show the function instead of its input)
+                    let mut skip = BTreeSet::new();
+                    let common_node = loop {
+                        let neighbors = state
+                            .ctx
+                            .relations
+                            .neighbors_directed(common_node, Direction::Incoming);
 
-                let trace = term
-                    .related
-                    .iter()
-                    .filter_map(|&related_node| {
-                        // TODO: Move to separate function
+                        let Some((next,)) = neighbors.collect_tuple() else {
+                            break common_node;
+                        };
 
-                        let mut visited_from_term = Vec::new();
-                        let mut visited_from_related = Vec::new();
-                        let mut from_term = Bfs::new(&relations_undirected, term.node);
-                        let mut from_related = Bfs::new(&relations_undirected, related_node);
-                        let (common_node, path) = loop {
-                            let Some(term_current) = from_term.next(&relations_undirected) else {
-                                break None;
-                            };
+                        skip.insert(common_node);
 
-                            let Some(related_current) = from_related.next(&relations_undirected)
-                            else {
-                                break None;
-                            };
+                        common_node = next;
+                    };
 
-                            if term_current == related_current
-                                || visited_from_related.iter().contains(&term_current)
-                            {
-                                visited_from_related.push(related_current);
-                                break Some((term_current, visited_from_related));
-                            } else if visited_from_term.iter().contains(&related_current) {
-                                visited_from_term.push(term_current);
-                                break Some((related_current, visited_from_term));
-                            }
+                    let (_, common_source) = provider.node_span_source(common_node);
 
-                            visited_from_term.push(term_current);
-                            visited_from_related.push(related_current);
-                        }?;
+                    let mut search_sources = search
+                        .iter()
+                        .filter(|&node| !skip.contains(node))
+                        .map(|&node| {
+                            let (_span, source) = provider.node_span_source(node);
+                            format!("`{source}`")
+                        })
+                        .collect::<Vec<_>>();
 
-                        let path = path
-                            .into_iter()
-                            .chain([common_node])
-                            .tuple_windows()
-                            .filter_map(|(from, to)| {
-                                Some((from, to, relations_undirected.edge_weight(from, to)?))
-                            })
-                            .filter(|(_, _, rule)| !rule.kind().is_hidden())
-                            .collect::<Vec<_>>();
+                    let last_search_source = search_sources.pop().unwrap();
 
-                        Some((related_node, path))
-                    })
-                    .min_by_key(|(_, path)| path.len());
-
-                if let Some((related_node, path)) = trace {
-                    let (related_node_span, related_node_source) =
-                        provider.node_span_source(related_node);
-
-                    write!(
+                    writeln!(
                         md,
-                        "{}{}{:?}: `{}`",
-                        indent_string(indent + 1),
-                        bullet_string(indent + 1),
-                        related_node_span,
-                        related_node_source
+                        "{}{}{:?}: {} and {} need to be the same type because they {} involve `{}`",
+                        indent_string(indent),
+                        bullet_string(indent),
+                        node_span,
+                        search_sources.join(", "),
+                        last_search_source,
+                        if search_sources.len() > 1 {
+                            "all"
+                        } else {
+                            "both"
+                        },
+                        common_source,
                     )
                     .unwrap();
-
-                    for (from, to, rule) in path {
-                        let (_from_span, from_source) = provider.node_span_source(from);
-                        let (_to_span, to_source) = provider.node_span_source(to);
-
-                        write!(
-                            md,
-                            ", via `{}` as {} to `{}`",
-                            from_source,
-                            rule.name(),
-                            to_source
-                        )
-                        .unwrap();
-                    }
-
-                    writeln!(md).unwrap();
                 }
             }
         }
 
         Some(md)
     }
+}
+
+fn common_ancestor<N: NodeTrait, E: Copy>(
+    graph: &DiGraphMap<N, E>,
+    nodes: impl IntoIterator<Item = N>,
+) -> impl Iterator<Item = N> {
+    nodes
+        .into_iter()
+        .fold(BTreeMap::<N, usize>::new(), |mut result, start| {
+            petgraph::visit::depth_first_search(graph, [start], |event| {
+                if let petgraph::visit::DfsEvent::Discover(node, _) = event {
+                    *result.entry(node).or_default() += 1;
+                }
+            });
+
+            result
+        })
+        .into_iter()
+        .filter_map(|(node, count)| (count > 1).then_some(node))
 }

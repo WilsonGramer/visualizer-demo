@@ -34,7 +34,7 @@ impl Debug for Span {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Rule {
     pub name: &'static str,
     pub hidden: bool,
@@ -51,5 +51,11 @@ impl Rule {
     pub const fn hidden(mut self) -> Self {
         self.hidden = true;
         self
+    }
+}
+
+impl Debug for Rule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
     }
 }

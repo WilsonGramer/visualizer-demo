@@ -76,12 +76,8 @@ impl<'a> FeedbackProvider<'a> {
         self.nodes.get(&node).unwrap()
     }
 
-    pub fn node_tys(&self, node: NodeId) -> impl Iterator<Item = String> {
-        self.tys
-            .get(&node)
-            .into_iter()
-            .flatten()
-            .map(|(ty, _)| ty.to_debug_string(self))
+    pub fn node_tys(&self, node: NodeId) -> impl Iterator<Item = &Ty> {
+        self.tys.get(&node).into_iter().flatten().map(|(ty, _)| ty)
     }
 
     pub fn related_nodes(&self, node: NodeId) -> impl Iterator<Item = (NodeId, Rule)> {
