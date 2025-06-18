@@ -6,17 +6,11 @@ use wipple_compiler_syntax::TypeDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
-
-    /// A type definition.
+/// A type definition.
 pub const TYPE_DEFINITION: Rule = Rule::new("type_definition");
 
-
 impl Visit for TypeDefinitionStatement {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, Rule)>,
-    ) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.node(parent, &self.name.range, |visitor, id| {
             if self.representation.is_some() {
                 todo!();

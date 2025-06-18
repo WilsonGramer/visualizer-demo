@@ -3,20 +3,14 @@ use wipple_compiler_syntax::BlockExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::BlockNode;
 
-
-    /// A block expression.
+/// A block expression.
 pub const BLOCK: Rule = Rule::new("block");
 
-    /// A statement in a block.
+/// A statement in a block.
 pub const BLOCK_STATEMENT: Rule = Rule::new("block_statement");
 
-
 impl Visit for BlockExpression {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, Rule)>,
-    ) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             visitor.push_scope();
 

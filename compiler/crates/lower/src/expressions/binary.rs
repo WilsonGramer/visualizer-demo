@@ -19,11 +19,7 @@ pub const EQUAL_OPERATOR_RIGHT: Rule = Rule::new("equal_operator_right");
 pub const MISSING_EQUAL_TRAIT: Rule = Rule::new("missing_equal_trait");
 
 impl Visit for BinaryExpression {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, Rule)>,
-    ) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         match self.operator.source.as_str() {
             "to" => visit_as_math_expression(self, visitor, "To"),
             "by" => visit_as_math_expression(self, visitor, "By"),
@@ -38,10 +34,8 @@ impl Visit for BinaryExpression {
             ">" => visit_as_comparison_expression(self, visitor, ["Greater-Than"]),
             ">=" => visit_as_comparison_expression(self, visitor, ["Greater-Than", "Equal"]),
             "=" => visitor.node(parent, &self.range, |visitor, id| {
-                let function = visitor.node(
-                    Some((id, OPERATOR)),
-                    &self.operator.range,
-                    |visitor, id| {
+                let function =
+                    visitor.node(Some((id, OPERATOR)), &self.operator.range, |visitor, id| {
                         let equal_function =
                             visitor.resolve_name("Equal", id, OPERATOR, |definition| {
                                 match definition {
@@ -61,8 +55,7 @@ impl Visit for BinaryExpression {
                             ),
                             None => (PlaceholderNode.boxed(), MISSING_EQUAL_TRAIT),
                         }
-                    },
-                );
+                    });
 
                 let inputs = [
                     (self.left.as_ref(), EQUAL_OPERATOR_LEFT),

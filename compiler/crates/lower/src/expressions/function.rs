@@ -3,23 +3,17 @@ use wipple_compiler_syntax::FunctionExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{FunctionNode, PlaceholderNode};
 
-
-    /// A function expression.
+/// A function expression.
 pub const FUNCTION: Rule = Rule::new("function");
 
-    /// An input to a function expression.
+/// An input to a function expression.
 pub const FUNCTION_INPUT: Rule = Rule::new("function_input");
 
-    /// The output of a function expression.
+/// The output of a function expression.
 pub const FUNCTION_OUTPUT: Rule = Rule::new("function_output");
 
-
 impl Visit for FunctionExpression {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, Rule)>,
-    ) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             visitor.push_scope();
 
@@ -37,9 +31,7 @@ impl Visit for FunctionExpression {
                 })
                 .collect::<Vec<_>>();
 
-            let output = self
-                .output
-                .visit(visitor, Some((id, FUNCTION_OUTPUT)));
+            let output = self.output.visit(visitor, Some((id, FUNCTION_OUTPUT)));
 
             visitor.pop_scope();
 

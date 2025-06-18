@@ -3,23 +3,17 @@ use wipple_compiler_syntax::TuplePattern;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{PlaceholderNode, TupleElementNode};
 
-
-    /// A tuple pattern.
+/// A tuple pattern.
 pub const TUPLE_PATTERN: Rule = Rule::new("tuple_pattern");
 
-    /// The target of a tuple pattern.
+/// The target of a tuple pattern.
 pub const TUPLE_PATTERN_TARGET: Rule = Rule::new("tuple_pattern_target");
 
-    /// An element in a tuple pattern.
+/// An element in a tuple pattern.
 pub const TUPLE_PATTERN_ELEMENT: Rule = Rule::new("tuple_pattern_element");
 
-
 impl Visit for TuplePattern {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, Rule)>,
-    ) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             for (index, element) in self.elements.iter().enumerate() {
                 let target = visitor.node(

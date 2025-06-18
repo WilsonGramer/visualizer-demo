@@ -7,29 +7,22 @@ use wipple_compiler_typecheck::{
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
-
-    /// A text literal.
+/// A text literal.
 pub const TEXT: Rule = Rule::new("text");
 
-    /// The `Text` type isn't defined.
+/// The `Text` type isn't defined.
 pub const MISSING_TEXT_TYPE: Rule = Rule::new("missing_text_type");
 
-
 impl Visit for TextExpression {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, Rule)>,
-    ) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
-            let text_ty =
-                visitor.resolve_name("Text", id, TEXT, |definition| match definition {
-                    Definition::Type { node, .. } => Some(Ty::Named {
-                        name: *node,
-                        parameters: Vec::new(),
-                    }),
-                    _ => None,
-                });
+            let text_ty = visitor.resolve_name("Text", id, TEXT, |definition| match definition {
+                Definition::Type { node, .. } => Some(Ty::Named {
+                    name: *node,
+                    parameters: Vec::new(),
+                }),
+                _ => None,
+            });
 
             match text_ty {
                 Some(text_ty) => (

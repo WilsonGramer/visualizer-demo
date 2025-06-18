@@ -6,17 +6,11 @@ use wipple_compiler_typecheck::{
     nodes::ConstraintNode,
 };
 
-
-    /// A unit pattern.
+/// A unit pattern.
 pub const UNIT_PATTERN: Rule = Rule::new("unit_pattern");
 
-
 impl Visit for UnitPattern {
-    fn visit<'a>(
-        &'a self,
-        visitor: &mut Visitor<'a>,
-        parent: Option<(NodeId, Rule)>,
-    ) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.node(parent, &self.range, |visitor, _id| {
             (
                 ConstraintNode {
