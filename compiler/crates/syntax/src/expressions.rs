@@ -1,5 +1,5 @@
 use crate::{
-    BinaryOperator,
+    BinaryOperator, TypeName,
     patterns::Pattern,
     statements::Statement,
     tokens::{Number, Text, VariableName},
@@ -13,8 +13,11 @@ pub enum Expression {
     #[tree_sitter(rule = "placeholder_expression")]
     Placeholder(PlaceholderExpression),
 
-    #[tree_sitter(rule = "name_expression")]
-    Name(NameExpression),
+    #[tree_sitter(rule = "variable_name_expression")]
+    VariableName(VariableNameExpression),
+
+    #[tree_sitter(rule = "type_name_expression")]
+    TypeName(TypeNameExpression),
 
     #[tree_sitter(rule = "number_expression")]
     Number(NumberExpression),
@@ -128,9 +131,18 @@ pub struct PlaceholderExpression {
 /// foo
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, FromNode)]
-pub struct NameExpression {
+pub struct VariableNameExpression {
     pub range: Range<usize>,
     pub variable: VariableName,
+}
+
+/// ```wipple
+/// foo
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Hash, FromNode)]
+pub struct TypeNameExpression {
+    pub range: Range<usize>,
+    pub r#type: TypeName,
 }
 
 /// ```wipple

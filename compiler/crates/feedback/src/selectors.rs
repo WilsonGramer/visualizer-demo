@@ -156,13 +156,14 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                 let mut related = group_id
                     .map(|id| {
                         self.ctx
-                            .groups
-                            .0
-                            .borrow()
-                            .get(&id)
-                            .unwrap()
-                            .borrow()
-                            .clone()
+                            .tys
+                            .iter()
+                            .filter_map(|(&node, tys)| {
+                                tys.iter()
+                                    .any(|(_, group)| group.is_some_and(|group| group == id))
+                                    .then_some(node)
+                            })
+                            .collect::<BTreeSet<_>>()
                     })
                     .unwrap_or_default();
 

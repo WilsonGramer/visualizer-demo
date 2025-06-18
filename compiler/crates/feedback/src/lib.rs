@@ -13,7 +13,7 @@ use std::{
     mem,
 };
 use wipple_compiler_trace::{NodeId, Rule, Span};
-use wipple_compiler_typecheck::{constraints::Ty, context::FeedbackProvider, session::TyGroups};
+use wipple_compiler_typecheck::{constraints::Ty, context::FeedbackProvider};
 
 #[derive(Clone)]
 pub struct Context<'a> {
@@ -21,7 +21,6 @@ pub struct Context<'a> {
     pub nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
     pub spans: &'a BTreeMap<NodeId, Span>,
     pub relations: &'a DiGraphMap<NodeId, Rule>,
-    pub groups: &'a TyGroups,
     pub tys: &'a BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
 }
 
@@ -31,7 +30,6 @@ impl<'a> Context<'a> {
         nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
         spans: &'a BTreeMap<NodeId, Span>,
         relations: &'a DiGraphMap<NodeId, Rule>,
-        groups: &'a TyGroups,
         tys: &'a BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
     ) -> Self {
         Context {
@@ -39,7 +37,6 @@ impl<'a> Context<'a> {
             nodes,
             spans,
             relations,
-            groups,
             tys,
         }
     }

@@ -26,6 +26,20 @@ pub enum Type {
     Tuple(TupleType),
 }
 
+impl Type {
+    pub fn range(&self) -> &Range<usize> {
+        match self {
+            Type::Placeholder(ty) => &ty.range,
+            Type::Unit(ty) => &ty.range,
+            Type::Named(ty) => &ty.range,
+            Type::Block(ty) => &ty.range,
+            Type::Function(ty) => &ty.range,
+            Type::Parameter(ty) => &ty.range,
+            Type::Tuple(ty) => &ty.range,
+        }
+    }
+}
+
 /// ```wipple
 /// _
 /// ```

@@ -7,14 +7,14 @@ use wipple_compiler_typecheck::{
 };
 
 /// The unit type.
-pub const UNIT_TYPE: Rule = Rule::new("unit_type");
+pub const UNIT_TYPE: Rule = Rule::new("unit_type", &[]);
 
 impl Visit for UnitType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
-        visitor.node(parent, &self.range, |_visitor, id| {
+        visitor.node(parent, &self.range, |visitor, _id| {
             (
                 ConstraintNode {
-                    value: id,
+                    value: visitor.target(),
                     constraints: vec![Constraint::Ty(Ty::unit())],
                 },
                 UNIT_TYPE,

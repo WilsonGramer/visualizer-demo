@@ -1,21 +1,21 @@
 use crate::{Visit, Visitor};
 use wipple_compiler_syntax::FunctionExpression;
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
 use wipple_compiler_typecheck::nodes::{FunctionNode, PlaceholderNode};
 
 /// A function expression.
-pub const FUNCTION: Rule = Rule::new("function");
+pub const FUNCTION: Rule = Rule::new("function", &[RuleCategory::Expression]);
 
 /// An input to a function expression.
-pub const FUNCTION_INPUT: Rule = Rule::new("function_input");
+pub const FUNCTION_INPUT: Rule = Rule::new("function_input", &[]);
 
 /// The output of a function expression.
-pub const FUNCTION_OUTPUT: Rule = Rule::new("function_output");
+pub const FUNCTION_OUTPUT: Rule = Rule::new("function_output", &[RuleCategory::Expression]);
 
 impl Visit for FunctionExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, id| {
-            visitor.push_scope();
+        visitor.typed_node(parent, &self.range, |visitor, id| {
+            visitor.push_scope(id);
 
             let inputs = self
                 .inputs

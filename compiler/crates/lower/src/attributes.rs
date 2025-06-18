@@ -49,19 +49,19 @@ impl InstanceAttributes {
 }
 
 /// An unknown attribute.
-pub const UNKNOWN_ATTRIBUTE: Rule = Rule::new("unknown_attribute");
+pub const UNKNOWN_ATTRIBUTE: Rule = Rule::new("unknown_attribute", &[]);
 
 /// A duplicate attribute.
-pub const DUPLICATE_ATTRIBUTE: Rule = Rule::new("duplicate_attribute");
+pub const DUPLICATE_ATTRIBUTE: Rule = Rule::new("duplicate_attribute", &[]);
 
 /// The attribute is missing a value.
-pub const MISSING_ATTRIBUTE_VALUE: Rule = Rule::new("missing_attribute_value");
+pub const MISSING_ATTRIBUTE_VALUE: Rule = Rule::new("missing_attribute_value", &[]);
 
 /// The attribute shouldn't have a value.
-pub const EXTRA_ATTRIBUTE_VALUE: Rule = Rule::new("extra_attribute_value");
+pub const EXTRA_ATTRIBUTE_VALUE: Rule = Rule::new("extra_attribute_value", &[]);
 
 /// The attribute value is a different type than required.
-pub const MISMATCHED_ATTRIBUTE_VALUE: Rule = Rule::new("mismatched_attribute_value");
+pub const MISMATCHED_ATTRIBUTE_VALUE: Rule = Rule::new("mismatched_attribute_value", &[]);
 
 pub struct AttributeParser<'a, 'v> {
     visitor: &'v mut Visitor<'a>,

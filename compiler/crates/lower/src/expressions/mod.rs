@@ -10,13 +10,14 @@ mod formatted_text;
 mod function;
 mod intrinsic;
 mod r#is;
-mod name;
 mod number;
 mod placeholder;
 mod structure;
 mod text;
 mod tuple;
+mod type_name;
 mod unit;
+mod variable_name;
 mod when;
 
 use crate::{Visit, Visitor};
@@ -27,7 +28,8 @@ impl Visit for Expression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         match self {
             Expression::Placeholder(expression) => expression.visit(visitor, parent),
-            Expression::Name(expression) => expression.visit(visitor, parent),
+            Expression::VariableName(expression) => expression.visit(visitor, parent),
+            Expression::TypeName(expression) => expression.visit(visitor, parent),
             Expression::Number(expression) => expression.visit(visitor, parent),
             Expression::Text(expression) => expression.visit(visitor, parent),
             Expression::FormattedText(expression) => expression.visit(visitor, parent),

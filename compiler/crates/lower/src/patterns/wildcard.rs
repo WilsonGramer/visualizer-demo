@@ -4,7 +4,7 @@ use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::ConstraintNode;
 
 /// A wildcard pattern.
-pub const WILDCARD_PATTERN: Rule = Rule::new("wildcard_pattern");
+pub const WILDCARD_PATTERN: Rule = Rule::new("wildcard_pattern", &[]);
 
 impl Visit for WildcardPattern {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

@@ -99,7 +99,7 @@ pub struct TraitDefinitionStatement {
     pub comments: Vec<Comment>,
     pub attributes: Vec<Attribute>,
     pub name: TypeName,
-    pub parameters: Vec<Type>,
+    pub parameters: Vec<TypeParameterName>,
     pub r#type: Option<Type>,
 }
 

@@ -158,7 +158,8 @@ module.exports = grammar({
         _subexpression: ($) =>
             choice(
                 $.placeholder_expression,
-                $.name_expression,
+                $.variable_name_expression,
+                $.type_name_expression,
                 $.number_expression,
                 $.text_expression,
                 $.structure_expression,
@@ -176,7 +177,9 @@ module.exports = grammar({
 
         placeholder_expression: ($) => "_",
 
-        name_expression: ($) => field("variable", $.variable_name),
+        variable_name_expression: ($) => field("variable", $.variable_name),
+
+        type_name_expression: ($) => field("type", $.type_name),
 
         number_expression: ($) => field("value", $.number),
 
@@ -501,7 +504,7 @@ module.exports = grammar({
         [$.collection_expression, $._multiline_collection_expression],
         [$._multiline_tuple_expression, $._multiline_tuple_pattern],
         [$.placeholder_expression, $.wildcard_pattern],
-        [$.name_expression, $.variable_pattern],
+        [$.variable_name_expression, $.variable_pattern],
         [$.number_expression, $.number_pattern],
         [$.text_expression, $.text_pattern],
         [$.unit_expression, $.unit_pattern],

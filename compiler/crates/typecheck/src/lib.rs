@@ -11,10 +11,14 @@ impl Context<'_> {
         let mut ctx = ToConstraintsContext::new(self);
         ctx.register_all();
 
-        for node in self.nodes() {
-            ctx.visit(node);
-        }
+        let nodes = self
+            .nodes()
+            .map(|(node, _)| {
+                ctx.visit(node);
+                node
+            })
+            .collect::<Vec<_>>();
 
-        Session::from_constraints(self.nodes(), ctx.into_constraints())
+        Session::from_constraints(nodes, ctx.into_constraints())
     }
 }

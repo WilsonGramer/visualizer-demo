@@ -15,7 +15,7 @@ impl Node for TupleElementNode {}
 
 impl ToConstraints for TupleElementNode {
     fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>) {
-        let mut elements = vec![Ty::Any; self.count];
+        let mut elements = vec![Ty::Unknown; self.count];
         elements[self.index] = Ty::Of(node);
 
         ctx.constraints()

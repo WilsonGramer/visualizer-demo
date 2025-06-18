@@ -12,21 +12,21 @@ use wipple_compiler_trace::{NodeId, Rule, Span};
 
 #[derive(Default)]
 pub struct Context<'a> {
-    pub nodes: BTreeMap<NodeId, &'a dyn Node>,
+    pub nodes: BTreeMap<NodeId, (&'a dyn Node, Rule)>,
 }
 
 impl<'a> Context<'a> {
-    pub fn insert(&mut self, value: &'a impl Node) -> NodeId {
+    pub fn insert(&mut self, value: &'a impl Node, rule: Rule) -> NodeId {
         let node = NodeId(self.nodes.len());
-        self.nodes.insert(node, value);
+        self.nodes.insert(node, (value, rule));
         node
     }
 
-    pub(crate) fn nodes(&self) -> impl Iterator<Item = NodeId> {
-        self.nodes.keys().copied()
+    pub(crate) fn nodes(&self) -> impl Iterator<Item = (NodeId, Rule)> {
+        self.nodes.iter().map(|(&node, &(_, rule))| (node, rule))
     }
 
-    pub(crate) fn get(&self, node: NodeId) -> &'a dyn Node {
+    pub(crate) fn get(&self, node: NodeId) -> (&'a dyn Node, Rule) {
         *self
             .nodes
             .get(&node)

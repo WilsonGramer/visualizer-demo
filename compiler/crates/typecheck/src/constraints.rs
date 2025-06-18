@@ -11,10 +11,13 @@ use std::{
 };
 use wipple_compiler_trace::NodeId;
 
+pub type TyConstraints = BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>;
+pub type BoundConstraints = BTreeMap<NodeId, Vec<Bound>>;
+
 #[derive(Debug, Clone, Default)]
 pub struct Constraints {
-    pub tys: BTreeMap<NodeId, Vec<Ty>>,
-    pub bounds: BTreeMap<NodeId, Vec<Bound>>,
+    pub tys: TyConstraints,
+    pub bounds: BoundConstraints,
 }
 
 impl Constraints {
@@ -23,7 +26,7 @@ impl Constraints {
     }
 
     pub fn insert_ty(&mut self, node: NodeId, ty: Ty) {
-        self.tys.entry(node).or_default().push(ty);
+        self.tys.entry(node).or_default().push((ty, None));
     }
 
     pub fn insert_bound(&mut self, node: NodeId, bound: Bound) {
@@ -35,7 +38,7 @@ impl Constraints {
             .tys
             .get(node)
             .into_iter()
-            .flat_map(|tys| tys.iter().map(|ty| Constraint::Ty(ty.clone())));
+            .flat_map(|tys| tys.iter().map(|(ty, _)| Constraint::Ty(ty.clone())));
 
         let bounds = self
             .bounds
@@ -116,7 +119,7 @@ impl<'a> ToConstraintsContext<'a> {
     }
 
     pub fn visit(&mut self, node_id: NodeId) {
-        let node = self.ctx.get(node_id);
+        let (node, _) = self.ctx.get(node_id);
 
         let Some(rule) = self.rules.get(&node.type_id()) else {
             return;
@@ -136,9 +139,10 @@ impl<'a> ToConstraintsContext<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ty {
-    Var(usize),
-    Any,
+    Unknown,
     Of(NodeId),
+    Instantiate(NodeId),
+    Group(usize),
     Named { name: NodeId, parameters: Vec<Ty> },
     Function { inputs: Vec<Ty>, output: Box<Ty> },
     Tuple { elements: Vec<Ty> },
@@ -155,7 +159,7 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Var(_) | Ty::Any | Ty::Of(..) => {}
+            Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Instantiate { .. } => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters {
                     parameter.traverse(f);
@@ -180,7 +184,7 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Var(_) | Ty::Any | Ty::Of(..) => {}
+            Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Instantiate { .. } => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters {
                     parameter.traverse_mut(f);
@@ -201,24 +205,48 @@ impl Ty {
         }
     }
 
+    pub fn needs_instantiation(&self) -> bool {
+        let mut needs_instantiation = false;
+        self.traverse(&mut |ty| {
+            if matches!(ty, Ty::Instantiate(_)) {
+                needs_instantiation = true;
+            }
+        });
+
+        needs_instantiation
+    }
+
     pub fn is_incomplete(&self) -> bool {
         let mut incomplete = false;
         self.traverse(&mut |ty| {
-            if matches!(ty, Ty::Var(_) | Ty::Any | Ty::Of(..)) {
+            if matches!(
+                ty,
+                Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Instantiate { .. }
+            ) {
                 incomplete = true;
             }
         });
 
         incomplete
     }
+
+    pub fn relative_ordering(&self) -> usize {
+        match self {
+            Ty::Instantiate { .. } => 0,
+            Ty::Unknown | Ty::Of(..) | Ty::Group(_) => 1,
+            _ => 2,
+        }
+    }
 }
 
 impl Ty {
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
-            Ty::Var(var) => format!("({var})"),
-            Ty::Any => String::from("_"),
-            Ty::Of(node) => format!("({})", provider.node_span_source(*node).1),
+            Ty::Group(var) => format!("({var})"),
+            Ty::Unknown => String::from("_"),
+            Ty::Of(node) | Ty::Instantiate(node) => {
+                format!("({})", provider.node_span_source(*node).1)
+            }
             Ty::Named { name, parameters } => format!(
                 "{}{}",
                 provider.node_span_source(*name).1,

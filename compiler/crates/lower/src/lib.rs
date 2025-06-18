@@ -7,7 +7,7 @@ mod tys;
 use crate::attributes::{ConstantAttributes, InstanceAttributes, TraitAttributes, TypeAttributes};
 use petgraph::prelude::DiGraphMap;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     ops::Range,
 };
 use wipple_compiler_syntax::{Comment, SourceFile, TypeParameterName};
@@ -20,8 +20,10 @@ use wipple_compiler_typecheck::{
 #[derive(Debug)]
 pub struct Result {
     pub nodes: BTreeMap<NodeId, (Box<dyn Node>, Rule)>,
+    pub typed_nodes: BTreeSet<NodeId>,
     pub spans: BTreeMap<NodeId, Span>,
     pub relations: DiGraphMap<NodeId, Rule>,
+    pub definitions: HashMap<NodeId, Definition>,
 }
 
 pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Result {
@@ -37,8 +39,18 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Res
             .into_iter()
             .map(|(id, node)| (id, node.unwrap()))
             .collect(),
+        typed_nodes: visitor.typed_nodes,
         spans: visitor.spans,
         relations: visitor.relations,
+        definitions: visitor
+            .scopes
+            .pop()
+            .unwrap()
+            .1
+            .into_values()
+            .flatten()
+            .map(|definition| (definition.source(), definition))
+            .collect(),
     }
 }
 
@@ -53,10 +65,13 @@ trait Visit {
 struct Visitor<'a> {
     make_span: Box<dyn Fn(Range<usize>) -> Span + 'a>,
     nodes: BTreeMap<NodeId, Option<(Box<dyn Node>, Rule)>>,
+    typed_nodes: BTreeSet<NodeId>,
     spans: BTreeMap<NodeId, Span>,
     relations: DiGraphMap<NodeId, Rule>,
-    stack: Vec<NodeId>, // used by patterns
-    scopes: Vec<Scope>, // used by blocks
+    stack: Vec<NodeId>,
+    target: Option<NodeId>,
+    scopes: Vec<Scope>,
+    implicit_type_parameters: bool,
 }
 
 impl<'a> Visitor<'a> {
@@ -64,14 +79,37 @@ impl<'a> Visitor<'a> {
         Visitor {
             make_span: Box::new(make_span),
             nodes: Default::default(),
+            typed_nodes: Default::default(),
             spans: Default::default(),
             relations: Default::default(),
             stack: Default::default(),
+            target: None,
             scopes: vec![Scope::default()],
+            implicit_type_parameters: false,
         }
     }
 
     fn node<N: Node>(
+        &mut self,
+        parent: Option<(NodeId, Rule)>,
+        range: &Range<usize>,
+        f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
+    ) -> NodeId {
+        self.node_inner(parent, range, f)
+    }
+
+    fn typed_node<N: Node>(
+        &mut self,
+        parent: Option<(NodeId, Rule)>,
+        range: &Range<usize>,
+        f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
+    ) -> NodeId {
+        let id = self.node_inner(parent, range, f);
+        self.typed_nodes.insert(id);
+        id
+    }
+
+    fn node_inner<N: Node>(
         &mut self,
         parent: Option<(NodeId, Rule)>,
         range: &Range<usize>,
@@ -117,13 +155,27 @@ impl<'a> Visitor<'a> {
     fn parent(&self) -> NodeId {
         *self.stack.last().expect("no parent")
     }
+
+    fn target(&self) -> NodeId {
+        self.target.expect("no target")
+    }
+
+    fn with_target<T>(&mut self, target: NodeId, f: impl FnOnce(&mut Self) -> T) -> T {
+        let old_target = self.target.take();
+
+        self.target = Some(target);
+        let result = f(self);
+        self.target = old_target;
+
+        result
+    }
 }
 
 #[derive(Debug, Clone, Default)]
-struct Scope(HashMap<String, Vec<Definition>>);
+struct Scope(Option<NodeId>, HashMap<String, Vec<Definition>>);
 
 #[derive(Debug, Clone)]
-enum Definition {
+pub enum Definition {
     Variable {
         node: NodeId,
     },
@@ -131,6 +183,7 @@ enum Definition {
         node: NodeId,
         comments: Vec<Comment>,
         attributes: ConstantAttributes,
+        parameters: Vec<TypeParameterName>,
         constraints: Vec<Constraint>,
     },
     Type {
@@ -146,14 +199,17 @@ enum Definition {
         attributes: TraitAttributes,
         parameters: Vec<TypeParameterName>,
         constraints: Vec<Constraint>,
-        // TODO: value
     },
     Instance {
         node: NodeId,
         comments: Vec<Comment>,
         attributes: InstanceAttributes,
         bound: Bound,
+        parameters: Vec<TypeParameterName>,
         constraints: Vec<Constraint>,
+    },
+    TypeParameter {
+        node: NodeId,
     },
 }
 
@@ -164,18 +220,23 @@ impl Definition {
             | Definition::Constant { node, .. }
             | Definition::Type { node, .. }
             | Definition::Trait { node, .. }
-            | Definition::Instance { node, .. } => *node,
+            | Definition::Instance { node, .. }
+            | Definition::TypeParameter { node, .. } => *node,
         }
     }
 }
 
 impl Visitor<'_> {
-    fn push_scope(&mut self) {
-        self.scopes.push(Scope::default());
+    fn push_scope(&mut self, definition: NodeId) {
+        self.scopes.push(Scope(Some(definition), HashMap::new()));
     }
 
     fn pop_scope(&mut self) {
         self.scopes.pop();
+    }
+
+    fn definition(&self) -> NodeId {
+        self.scopes.last().unwrap().0.unwrap()
     }
 
     fn resolve_name<'a, T: 'a>(
@@ -189,7 +250,7 @@ impl Visitor<'_> {
             .scopes
             .iter()
             .rev()
-            .filter_map(|scope| scope.0.get(name))
+            .filter_map(|scope| scope.1.get(name))
             .flatten()
             .find_map(|definition| Some((filter(definition)?, definition)))?;
 
@@ -201,23 +262,33 @@ impl Visitor<'_> {
     fn peek_name<'a, T: 'a>(
         &'a mut self,
         name: &str,
-        mut filter: impl FnMut(&'a Definition) -> Option<T>,
+        filter: impl FnMut(&'a Definition) -> Option<T>,
     ) -> Option<T> {
         self.scopes
             .iter()
             .rev()
-            .filter_map(|scope| scope.0.get(name))
+            .filter_map(|scope| scope.1.get(name))
             .flatten()
-            .find_map(|definition| filter(definition))
+            .find_map(filter)
     }
 
     fn define_name(&mut self, name: &str, definition: Definition) {
         self.scopes
             .last_mut()
             .unwrap()
-            .0
+            .1
             .entry(name.to_string())
             .or_default()
             .push(definition);
+    }
+
+    fn with_implicit_type_parameters<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        assert!(!self.implicit_type_parameters);
+
+        self.implicit_type_parameters = true;
+        let result = f(self);
+        self.implicit_type_parameters = false;
+
+        result
     }
 }

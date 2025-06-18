@@ -1,31 +1,35 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::{CallExpression, Expression};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
 use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode};
 
 /// A function call.
-pub const FUNCTION_CALL: Rule = Rule::new("function_call");
+pub const FUNCTION_CALL: Rule = Rule::new("function_call", &[RuleCategory::Expression]);
 
 /// The function in a function call.
-pub const FUNCTION_IN_FUNCTION_CALL: Rule = Rule::new("function_in_function_call");
+pub const FUNCTION_IN_FUNCTION_CALL: Rule =
+    Rule::new("function_in_function_call", &[RuleCategory::Expression]);
 
 /// An input in a function call.
-pub const INPUT_IN_FUNCTION_CALL: Rule = Rule::new("input_in_function_call");
+pub const INPUT_IN_FUNCTION_CALL: Rule =
+    Rule::new("input_in_function_call", &[RuleCategory::Expression]);
 
 /// A number with a unit.
-pub const UNIT_CALL: Rule = Rule::new("unit_call");
+pub const UNIT_CALL: Rule = Rule::new("unit_call", &[RuleCategory::Expression]);
 
 /// The number component.
-pub const NUMBER_IN_UNIT_CALL: Rule = Rule::new("number_in_unit_call");
+pub const NUMBER_IN_UNIT_CALL: Rule = Rule::new("number_in_unit_call", &[RuleCategory::Expression]);
 
 /// The unit component.
-pub const UNIT_IN_UNIT_CALL: Rule = Rule::new("unit_in_unit_call");
+pub const UNIT_IN_UNIT_CALL: Rule = Rule::new("unit_in_unit_call", &[RuleCategory::Expression]);
 
 impl Visit for CallExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, id| {
+        visitor.typed_node(parent, &self.range, |visitor, id| {
             let unit = match self.inputs.as_slice() {
-                [Expression::Name(input)] => Some((&input.range, input.variable.source.as_str())),
+                [Expression::VariableName(input)] => {
+                    Some((&input.range, input.variable.source.as_str()))
+                }
                 _ => None,
             };
 
@@ -47,7 +51,7 @@ impl Visit for CallExpression {
                         let definition = *definition;
                         let constraints = constraints.clone();
 
-                        let function = visitor.node(
+                        let function = visitor.typed_node(
                             Some((id, UNIT_IN_UNIT_CALL)),
                             unit_range,
                             |_visitor, _id| {

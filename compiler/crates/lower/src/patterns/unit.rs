@@ -7,7 +7,7 @@ use wipple_compiler_typecheck::{
 };
 
 /// A unit pattern.
-pub const UNIT_PATTERN: Rule = Rule::new("unit_pattern");
+pub const UNIT_PATTERN: Rule = Rule::new("unit_pattern", &[]);
 
 impl Visit for UnitPattern {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

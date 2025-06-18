@@ -1,24 +1,19 @@
-use crate::{
-    constraints::Ty,
-    context::FeedbackProvider,
-    session::{Session, TyGroups},
-};
+use crate::{context::FeedbackProvider, session::Session};
 use itertools::Itertools;
 use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeSet,
     io::{self, Write},
 };
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
 
 impl Session {
     pub fn write_debug_graph(
         &self,
         w: &mut dyn Write,
-        groups: &TyGroups,
-        tys: &BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>,
         relations: &DiGraphMap<NodeId, Rule>,
         provider: &FeedbackProvider<'_>,
+        mut filter: impl FnMut(NodeId) -> bool,
     ) -> io::Result<()> {
         let node_id = |node: NodeId| format!("node{}", node.0);
 
@@ -36,21 +31,21 @@ impl Session {
             "classDef error fill:#ff000010,stroke:#ff0000,stroke-dasharray:10;"
         )?;
 
-        for node in groups
-            .0
-            .borrow()
-            .values()
-            .flat_map(|group| group.borrow().iter().copied().collect::<Vec<_>>())
-            .chain(self.nodes.iter().copied())
-            .unique()
-        {
+        let mut exclude = BTreeSet::new();
+
+        for &node in self.constraints.tys.keys() {
+            if !filter(node) {
+                continue;
+            }
+
             let (node_span, node_source) = provider.node_span_source(node);
 
             // Also link related nodes
             for parent in relations.neighbors_directed(node, Direction::Incoming) {
                 let &rule = relations.edge_weight(parent, node).unwrap();
 
-                if rule.hidden {
+                if !rule.is(RuleCategory::Expression) {
+                    exclude.insert(parent);
                     continue;
                 }
 
@@ -63,45 +58,48 @@ impl Session {
                 )?;
             }
 
-            writeln!(
-                w,
-                "{}@{{ label: {:?} }}",
-                node_id(node),
-                format!("{node_span:?}\n{node_source}")
-            )?;
+            if !exclude.contains(&node) {
+                writeln!(
+                    w,
+                    "{}@{{ label: {:?} }}",
+                    node_id(node),
+                    format!("{node_span:?}\n{node_source}")
+                )?;
+            }
         }
 
-        let mut visited = BTreeSet::new();
+        let groups = self
+            .constraints
+            .tys
+            .iter()
+            .flat_map(|(&node, tys)| tys.iter().map(move |(ty, group)| (node, ty, *group)))
+            .filter_map(|(node, ty, group)| Some((group?, (node, ty))))
+            .into_group_map();
 
-        for (&id, group) in groups.0.borrow().iter() {
-            let group_tys = group
-                .borrow()
-                .iter()
-                .filter(|&node| !visited.contains(node))
-                .flat_map(|node| tys.get(node).unwrap())
-                .map(|(ty, _)| ty)
-                .unique()
+        for (id, group_tys) in groups {
+            let group_tys = group_tys
+                .into_iter()
+                .filter(|(node, _)| filter(*node))
                 .collect::<Vec<_>>();
 
             if group_tys.is_empty() {
                 continue;
             }
 
-            let error = group_tys.len() > 1; // mutiple possible types
+            let error = !group_tys.iter().map(|&(_, ty)| ty).all_equal();
 
-            let group_tys = group_tys
+            let description = group_tys
                 .iter()
+                .map(|(_, ty)| ty)
+                .unique()
                 .map(|ty| ty.to_debug_string(provider))
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            writeln!(w, "subgraph group{id}[\"**{group_tys}**\"]")?;
+            writeln!(w, "subgraph group{id}[\"**{description}**\"]")?;
 
-            for &node in group.borrow().iter() {
-                if !visited.contains(&node) {
-                    visited.insert(node);
-                    writeln!(w, "{}", node_id(node))?;
-                }
+            for (node, _) in group_tys {
+                writeln!(w, "{}", node_id(node))?;
             }
 
             writeln!(w, "end")?;

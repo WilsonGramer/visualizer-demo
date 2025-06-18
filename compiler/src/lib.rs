@@ -1,6 +1,9 @@
 use colored::Colorize;
 use petgraph::Direction;
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    ops::Range,
+};
 use wasm_bindgen::prelude::*;
 use wipple_compiler_trace::{NodeId, Rule, Span};
 
@@ -31,10 +34,10 @@ pub fn compile_wasm(source: String) -> Vec<String> {
 }
 
 /// A node's type is unknown.
-pub const UNKNOWN_TYPE: Rule = Rule::new("unknown_type");
+pub const UNKNOWN_TYPE: Rule = Rule::new("unknown_type", &[]);
 
 /// A node's type is incomplete.
-pub const INCOMPLETE_TYPE: Rule = Rule::new("incomplete_type");
+pub const INCOMPLETE_TYPE: Rule = Rule::new("incomplete_type", &[]);
 
 pub fn compile(
     path: &str,
@@ -54,34 +57,35 @@ pub fn compile(
 
     let line_col = line_col::LineColLookup::new(source);
 
-    let lowered = wipple_compiler_lower::visit(&source_file, |range| Span {
+    let make_span = |range: Range<usize>| Span {
         path: path.to_string(),
         range: range.clone(),
         start_line_col: line_col.get(range.start),
         end_line_col: line_col.get(range.end),
-    });
+    };
+
+    let lowered = wipple_compiler_lower::visit(&source_file, make_span);
 
     let typecheck_ctx = wipple_compiler_typecheck::context::Context {
         nodes: lowered
             .nodes
             .iter()
-            .map(|(&id, (node, _))| (id, node.as_ref()))
+            .filter(|(node, _)| lowered.typed_nodes.contains(node))
+            .map(|(&id, (node, rule))| (id, (node.as_ref(), *rule)))
             .collect(),
     };
 
     let mut typecheck_session = typecheck_ctx.session();
-
-    let groups = typecheck_session.groups();
-    let tys = typecheck_session.iterate(&groups);
+    typecheck_session.run();
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
     let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
-    for (&node, &(_, rule)) in &lowered.nodes {
-        if rule.hidden {
+    for &node in lowered.nodes.keys() {
+        if !lowered.typed_nodes.contains(&node) {
             continue;
         }
 
-        if let Some(tys) = tys.get(&node) {
+        if let Some(tys) = typecheck_session.constraints.tys.get(&node) {
             for (ty, _) in tys {
                 if ty.is_incomplete() {
                     extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
@@ -95,25 +99,24 @@ pub fn compile(
     let feedback_nodes = lowered
         .nodes
         .iter()
+        .filter(|(node, _)| lowered.typed_nodes.contains(node))
         .map(|(&id, &(_, rule))| {
             let extras = extras.get(&id).cloned().unwrap_or_default();
             (id, extras.into_iter().chain([rule]).collect())
         })
         .collect();
 
+    let get_span_source = |node| {
+        let span = lowered.spans.get(&node).unwrap();
+        let source = &source[span.range.clone()];
+        (span.clone(), source.to_string())
+    };
+
     let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
         &feedback_nodes,
         &lowered.relations,
-        &tys,
-        |node| {
-            let Some(span) = lowered.spans.get(&node) else {
-                return (Span::root(path), String::from("<unknown>"));
-            };
-
-            let source = &source[span.range.clone()];
-
-            (span.clone(), source.to_string())
-        },
+        &typecheck_session.constraints.tys,
+        get_span_source,
     );
 
     // Display feedback
@@ -123,8 +126,7 @@ pub fn compile(
         &feedback_nodes,
         &lowered.spans,
         &lowered.relations,
-        &groups,
-        &tys,
+        &typecheck_session.constraints.tys,
     );
 
     let feedback = feedback_ctx.collect_feedback();
@@ -140,14 +142,16 @@ pub fn compile(
 
     let mut buf = Vec::new();
     typecheck_session
-        .write_debug_graph(&mut buf, &groups, &tys, &lowered.relations, &provider)
+        .write_debug_graph(&mut buf, &lowered.relations, &provider, |node| {
+            lowered.typed_nodes.contains(&node)
+        })
         .unwrap();
 
     display_graph(String::from_utf8(buf).unwrap());
 
     // Display type table
 
-    let mut displayed_tys = Vec::from_iter(&tys);
+    let mut displayed_tys = Vec::from_iter(&typecheck_session.constraints.tys);
     displayed_tys.sort_by_key(|(node, _)| {
         let span = lowered.spans.get(node).unwrap();
         (span.range.start, span.range.end)
@@ -156,6 +160,10 @@ pub fn compile(
     let mut rows = Vec::new();
 
     for (&node, tys) in displayed_tys {
+        if !lowered.typed_nodes.contains(&node) {
+            continue;
+        }
+
         let (node_span, node_debug) = provider.node_span_source(node);
 
         let node_related_rules = lowered

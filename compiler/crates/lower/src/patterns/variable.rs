@@ -4,10 +4,10 @@ use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::DefinitionNode;
 
 /// A tuple pattern.
-pub const VARIABLE_PATTERN: Rule = Rule::new("variable_pattern");
+pub const VARIABLE_PATTERN: Rule = Rule::new("variable_pattern", &[]);
 
 /// The target of a tuple pattern.
-pub const VARIABLE_PATTERN_TARGET: Rule = Rule::new("variable_pattern_target");
+pub const VARIABLE_PATTERN_TARGET: Rule = Rule::new("variable_pattern_target", &[]);
 
 impl Visit for VariablePattern {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

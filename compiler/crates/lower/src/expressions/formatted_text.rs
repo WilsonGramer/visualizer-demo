@@ -1,6 +1,6 @@
 use crate::{Visit, Visitor};
 use wipple_compiler_syntax::FormattedTextExpression;
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
 
 // TODO
 
