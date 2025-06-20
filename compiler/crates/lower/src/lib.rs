@@ -243,10 +243,9 @@ impl Visitor<'_> {
         &'a mut self,
         name: &str,
         node: NodeId,
-        rule: Rule,
-        mut filter: impl FnMut(&'a Definition) -> Option<T>,
-    ) -> Option<T> {
-        let (result, definition) = self
+        mut filter: impl FnMut(&'a Definition) -> Option<(T, Rule)>,
+    ) -> Option<(T, Rule)> {
+        let ((result, rule), definition) = self
             .scopes
             .iter()
             .rev()
@@ -256,7 +255,7 @@ impl Visitor<'_> {
 
         self.relations.add_edge(definition.source(), node, rule);
 
-        Some(result)
+        Some((result, rule))
     }
 
     fn peek_name<'a, T: 'a>(

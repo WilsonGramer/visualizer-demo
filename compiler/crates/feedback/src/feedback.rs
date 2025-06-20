@@ -220,8 +220,8 @@ impl Message {
                     writeln!(
                         md,
                         "{}{}{:?}: {} and {} need to be the same type because they {} involve `{}`",
-                        indent_string(indent + 1),
-                        bullet_string(indent + 1),
+                        indent_string(indent),
+                        bullet_string(indent),
                         node_span,
                         search_sources.join(", "),
                         last_search_source,

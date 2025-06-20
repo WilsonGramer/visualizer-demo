@@ -40,21 +40,19 @@ impl Visit for BinaryExpression {
                     &self.operator.range,
                     |visitor, id| {
                         let equal_function =
-                            visitor.resolve_name("Equal", id, OPERATOR, |definition| {
-                                match definition {
-                                    Definition::Constant { node, .. } => Some(*node),
-                                    _ => None,
-                                }
+                            visitor.resolve_name("Equal", id, |definition| match definition {
+                                Definition::Constant { node, .. } => Some((*node, OPERATOR)),
+                                _ => None,
                             });
 
                         match equal_function {
-                            Some(equal_function) => (
+                            Some((equal_function, rule)) => (
                                 DefinitionNode {
                                     definition: equal_function,
                                     constraints: Vec::new(),
                                 }
                                 .boxed(),
-                                OPERATOR,
+                                rule,
                             ),
                             None => (PlaceholderNode.boxed(), MISSING_EQUAL_TRAIT),
                         }

@@ -80,7 +80,7 @@ pub fn compile(
     // Ensure all expressions are typed (TODO: Put this in its own function)
     let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
     for &node in lowered.nodes.keys() {
-        if !lowered.typed_nodes.contains(&node) {
+        if !(typecheck_session.filter)(node) {
             continue;
         }
 
@@ -98,7 +98,6 @@ pub fn compile(
     let feedback_nodes = lowered
         .nodes
         .iter()
-        .filter(|(node, _)| lowered.typed_nodes.contains(node))
         .map(|(&id, &(_, rule))| {
             let extras = extras.get(&id).cloned().unwrap_or_default();
             (id, extras.into_iter().chain([rule]).collect())

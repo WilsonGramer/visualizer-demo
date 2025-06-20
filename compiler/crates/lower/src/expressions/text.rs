@@ -16,22 +16,25 @@ pub const MISSING_TEXT_TYPE: Rule = Rule::new("missing_text_type", &[]);
 impl Visit for TextExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
-            let text_ty = visitor.resolve_name("Text", id, TEXT, |definition| match definition {
-                Definition::Type { node, .. } => Some(Ty::Named {
-                    name: *node,
-                    parameters: Vec::new(),
-                }),
+            let text_ty = visitor.resolve_name("Text", id, |definition| match definition {
+                Definition::Type { node, .. } => Some((
+                    Ty::Named {
+                        name: *node,
+                        parameters: Vec::new(),
+                    },
+                    TEXT,
+                )),
                 _ => None,
             });
 
             match text_ty {
-                Some(text_ty) => (
+                Some((text_ty, rule)) => (
                     ConstraintNode {
                         value: id,
                         constraints: vec![Constraint::Ty(text_ty)],
                     }
                     .boxed(),
-                    TEXT,
+                    rule,
                 ),
                 None => (PlaceholderNode.boxed(), MISSING_TEXT_TYPE),
             }

@@ -15,23 +15,25 @@ pub const MISSING_NUMBER_TYPE: Rule = Rule::new("missing_number_type", &[]);
 impl Visit for NumberExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
-            let number_ty =
-                visitor.resolve_name("Number", id, NUMBER, |definition| match definition {
-                    Definition::Type { node, .. } => Some(Ty::Named {
+            let number_ty = visitor.resolve_name("Number", id, |definition| match definition {
+                Definition::Type { node, .. } => Some((
+                    Ty::Named {
                         name: *node,
                         parameters: Vec::new(),
-                    }),
-                    _ => None,
-                });
+                    },
+                    NUMBER,
+                )),
+                _ => None,
+            });
 
             match number_ty {
-                Some(number_ty) => (
+                Some((number_ty, rule)) => (
                     ConstraintNode {
                         value: id,
                         constraints: vec![Constraint::Ty(number_ty)],
                     }
                     .boxed(),
-                    NUMBER,
+                    rule,
                 ),
                 None => (PlaceholderNode.boxed(), MISSING_NUMBER_TYPE),
             }

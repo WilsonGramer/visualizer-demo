@@ -16,21 +16,19 @@ impl Visit for ParameterType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let existing =
-                visitor.resolve_name(&self.name.source, id, PARAMETER_TYPE, |definition| {
-                    match definition {
-                        Definition::TypeParameter { node } => Some(*node),
-                        _ => None,
-                    }
+                visitor.resolve_name(&self.name.source, id, |definition| match definition {
+                    Definition::TypeParameter { node } => Some((*node, PARAMETER_TYPE)),
+                    _ => None,
                 });
 
             match existing {
-                Some(node) => (
+                Some((node, rule)) => (
                     ConstraintNode {
                         value: visitor.target(),
                         constraints: vec![Constraint::Ty(Ty::Generic(node))],
                     }
                     .boxed(),
-                    PARAMETER_TYPE,
+                    rule,
                 ),
                 None => {
                     if visitor.implicit_type_parameters {
