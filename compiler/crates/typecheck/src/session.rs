@@ -3,9 +3,9 @@ use petgraph::prelude::UnGraphMap;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use wipple_compiler_trace::NodeId;
 
-#[derive(Debug, Clone)]
-pub struct Session {
+pub struct Session<'a> {
     pub constraints: Constraints,
+    pub filter: Box<dyn Fn(NodeId) -> bool + 'a>,
     groups: Vec<Group>,
 }
 
@@ -24,14 +24,19 @@ impl Group {
     }
 }
 
-impl Session {
+impl<'a> Session<'a> {
     pub fn from_constraints(
         nodes: impl IntoIterator<Item = NodeId>,
         constraints: Constraints,
+        filter: impl Fn(NodeId) -> bool + 'a,
     ) -> Self {
         // Form initial groups based on nodes that directly relate to each other
         let mut directly_related = UnGraphMap::<NodeId, ()>::new();
         for (&node, tys) in &constraints.tys {
+            if !filter(node) {
+                continue;
+            }
+
             for (ty, _) in tys {
                 // We don't need to deeply traverse the type because all types
                 // here represent the top-level type of a node. For example, if
@@ -53,6 +58,10 @@ impl Session {
 
         // Put nodes with no relations into their own groups to start with
         for node in nodes {
+            if !filter(node) {
+                continue;
+            }
+
             if !directly_related.contains_node(node) {
                 groups.push(Group::new([node]));
             }
@@ -61,16 +70,16 @@ impl Session {
         Session {
             constraints,
             groups,
+            filter: Box::new(filter),
         }
     }
 
     pub fn run(&mut self) -> TyConstraints {
-        // FIXME: Run multiple times
-        self.next().unwrap_or_default()
+        self.last().unwrap_or_default()
     }
 }
 
-impl Session {
+impl Session<'_> {
     fn refine_index(&mut self, index: &mut usize) {
         loop {
             let mut found = false;
@@ -113,16 +122,15 @@ impl Session {
     fn replace_of_with_group(&mut self, ty: &mut Ty) {
         ty.apply(self);
         ty.traverse_mut(&mut |ty| {
-            if let Ty::Of(node) = ty {
-                let index = self.index_for(Some(*node));
-                *ty = Ty::Group(index);
+            if let Ty::Of(node) = *ty {
+                *ty = Ty::Group(self.index_for(Some(node)));
                 ty.apply(self);
             }
         });
     }
 }
 
-impl Iterator for Session {
+impl Iterator for Session<'_> {
     type Item = TyConstraints;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -167,7 +175,8 @@ impl Iterator for Session {
             // Fold each type in the group into a single type
             let mut others = Vec::new();
             for (_node, (mut ty, _)) in tys {
-                if ty.needs_instantiation() {
+                // Skip generic types until they have been instantiated
+                if ty.is_generic() {
                     others.push(ty);
                     continue;
                 }
@@ -201,7 +210,7 @@ impl Iterator for Session {
         // Any remaining constraints weren't part of groups
         for (node, constraints) in &mut tys {
             for (ty, _) in constraints {
-                if ty.needs_instantiation() {
+                if ty.is_generic() {
                     continue;
                 }
 
@@ -210,10 +219,11 @@ impl Iterator for Session {
             }
         }
 
-        // Apply all types
+        // Apply all types and instantiate generics as needed
         for tys in results.values_mut() {
             for (ty, index) in tys.iter_mut() {
                 ty.apply(self);
+                ty.instantiate(self);
 
                 if let Some(index) = index {
                     self.refine_index(index);
@@ -247,7 +257,7 @@ impl Iterator for Session {
 }
 
 impl Ty {
-    fn unify_with(&mut self, other: &Ty, session: &mut Session, success: &mut bool) {
+    fn unify_with(&mut self, other: &Ty, session: &mut Session<'_>, success: &mut bool) {
         self.apply(session);
 
         match (self, other) {
@@ -255,7 +265,7 @@ impl Ty {
             (_, Ty::Of(..)) | (Ty::Of(..), _) => {
                 unreachable!("`Ty::Of` should be replaced with `Ty::Group`")
             }
-            (_, Ty::Instantiate(..)) | (Ty::Instantiate(..), _) => {
+            (_, Ty::Generic(..)) | (Ty::Generic(..), _) => {
                 // Skip; these are treated as opaque until instantiated
             }
             (ty @ &mut Ty::Group(index), other) => {
@@ -312,11 +322,11 @@ impl Ty {
         }
     }
 
-    fn apply(&mut self, session: &mut Session) {
+    fn apply(&mut self, session: &Session<'_>) {
         self.apply_inner(session, &mut Vec::new());
     }
 
-    fn apply_inner(&mut self, session: &mut Session, stack: &mut Vec<usize>) {
+    fn apply_inner(&mut self, session: &Session<'_>, stack: &mut Vec<usize>) {
         self.traverse_mut(&mut |ty| {
             if let Ty::Group(index) = *ty {
                 if stack.contains(&index) {
@@ -331,6 +341,57 @@ impl Ty {
                 }
 
                 stack.pop();
+            }
+        });
+    }
+
+    fn instantiate(&mut self, session: &mut Session<'_>) {
+        self.traverse_mut(&mut |ty| {
+            if let Ty::Generic(node) = *ty {
+                // Replace all variables in the definition with fresh ones
+                let mut definition_ty = Ty::Of(node);
+                loop {
+                    let mut progress = false;
+
+                    let mut groups = BTreeMap::new();
+                    definition_ty.apply(session);
+                    definition_ty.traverse_mut(&mut |ty| {
+                        if let Ty::Of(node) = *ty {
+                            if let Some(tys) = session.constraints.tys.get(&node) {
+                                if tys.len() != 1 {
+                                    panic!("definition has multiple types: {node:?}");
+                                }
+
+                                *ty = tys.iter().next().unwrap().0.clone();
+                                ty.apply(session);
+
+                                // TODO: Also add bounds here
+                            } else {
+                                // Found a type parameter or other
+                                // non-expression node; replace it with a fresh
+                                // group (or cached locally)
+                                let index = *groups
+                                    .entry(node)
+                                    .or_insert_with(|| session.index_for(None));
+
+                                *ty = Ty::Group(index);
+                            }
+
+                            progress = true;
+                        }
+                    });
+
+                    if !progress {
+                        break;
+                    }
+                }
+
+                // Add the type to a fresh group
+                let index = session.index_for(None);
+                session.groups[index].ty = Some(definition_ty.clone());
+
+                *ty = Ty::Group(index);
+                ty.apply(session);
             }
         });
     }

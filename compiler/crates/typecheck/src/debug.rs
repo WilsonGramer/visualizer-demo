@@ -7,13 +7,12 @@ use std::{
 };
 use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
 
-impl Session {
+impl Session<'_> {
     pub fn write_debug_graph(
         &self,
         w: &mut dyn Write,
         relations: &DiGraphMap<NodeId, Rule>,
         provider: &FeedbackProvider<'_>,
-        mut filter: impl FnMut(NodeId) -> bool,
     ) -> io::Result<()> {
         let node_id = |node: NodeId| format!("node{}", node.0);
 
@@ -34,7 +33,7 @@ impl Session {
         let mut exclude = BTreeSet::new();
 
         for &node in self.constraints.tys.keys() {
-            if !filter(node) {
+            if !(self.filter)(node) {
                 continue;
             }
 
@@ -79,7 +78,7 @@ impl Session {
         for (id, group_tys) in groups {
             let group_tys = group_tys
                 .into_iter()
-                .filter(|(node, _)| filter(*node))
+                .filter(|(node, _)| (self.filter)(*node))
                 .collect::<Vec<_>>();
 
             if group_tys.is_empty() {

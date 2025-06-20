@@ -141,7 +141,7 @@ impl<'a> ToConstraintsContext<'a> {
 pub enum Ty {
     Unknown,
     Of(NodeId),
-    Instantiate(NodeId),
+    Generic(NodeId),
     Group(usize),
     Named { name: NodeId, parameters: Vec<Ty> },
     Function { inputs: Vec<Ty>, output: Box<Ty> },
@@ -159,7 +159,7 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Instantiate { .. } => {}
+            Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Generic { .. } => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters {
                     parameter.traverse(f);
@@ -184,7 +184,7 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Instantiate { .. } => {}
+            Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Generic { .. } => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters {
                     parameter.traverse_mut(f);
@@ -205,15 +205,15 @@ impl Ty {
         }
     }
 
-    pub fn needs_instantiation(&self) -> bool {
-        let mut needs_instantiation = false;
+    pub fn is_generic(&self) -> bool {
+        let mut generic = false;
         self.traverse(&mut |ty| {
-            if matches!(ty, Ty::Instantiate(_)) {
-                needs_instantiation = true;
+            if matches!(ty, Ty::Generic(_)) {
+                generic = true;
             }
         });
 
-        needs_instantiation
+        generic
     }
 
     pub fn is_incomplete(&self) -> bool {
@@ -221,7 +221,7 @@ impl Ty {
         self.traverse(&mut |ty| {
             if matches!(
                 ty,
-                Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Instantiate { .. }
+                Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Generic { .. }
             ) {
                 incomplete = true;
             }
@@ -232,7 +232,7 @@ impl Ty {
 
     pub fn relative_ordering(&self) -> usize {
         match self {
-            Ty::Instantiate { .. } => 0,
+            Ty::Generic { .. } => 0,
             Ty::Unknown | Ty::Of(..) | Ty::Group(_) => 1,
             _ => 2,
         }
@@ -244,7 +244,7 @@ impl Ty {
         match self {
             Ty::Group(var) => format!("({var})"),
             Ty::Unknown => String::from("_"),
-            Ty::Of(node) | Ty::Instantiate(node) => {
+            Ty::Of(node) | Ty::Generic(node) => {
                 format!("({})", provider.node_span_source(*node).1)
             }
             Ty::Named { name, parameters } => format!(

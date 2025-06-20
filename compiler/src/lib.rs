@@ -70,12 +70,11 @@ pub fn compile(
         nodes: lowered
             .nodes
             .iter()
-            .filter(|(node, _)| lowered.typed_nodes.contains(node))
             .map(|(&id, (node, rule))| (id, (node.as_ref(), *rule)))
             .collect(),
     };
 
-    let mut typecheck_session = typecheck_ctx.session();
+    let mut typecheck_session = typecheck_ctx.session(|node| lowered.typed_nodes.contains(&node));
     typecheck_session.run();
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
@@ -142,9 +141,7 @@ pub fn compile(
 
     let mut buf = Vec::new();
     typecheck_session
-        .write_debug_graph(&mut buf, &lowered.relations, &provider, |node| {
-            lowered.typed_nodes.contains(&node)
-        })
+        .write_debug_graph(&mut buf, &lowered.relations, &provider)
         .unwrap();
 
     display_graph(String::from_utf8(buf).unwrap());

@@ -27,7 +27,7 @@ impl Visit for ParameterType {
                 Some(node) => (
                     ConstraintNode {
                         value: visitor.target(),
-                        constraints: vec![Constraint::Ty(Ty::Instantiate(node))],
+                        constraints: vec![Constraint::Ty(Ty::Generic(node))],
                     }
                     .boxed(),
                     PARAMETER_TYPE,
@@ -40,7 +40,7 @@ impl Visit for ParameterType {
                         (
                             ConstraintNode {
                                 value: visitor.target(),
-                                constraints: vec![Constraint::Ty(Ty::Instantiate(id))],
+                                constraints: vec![Constraint::Ty(Ty::Generic(id))],
                             }
                             .boxed(),
                             PARAMETER_TYPE,

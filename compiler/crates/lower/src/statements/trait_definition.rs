@@ -30,7 +30,7 @@ impl Visit for TraitDefinitionStatement {
                     comments: self.comments.clone(),
                     attributes,
                     parameters: self.parameters.clone(),
-                    constraints: Vec::from_iter(ty.map(|ty| Constraint::Ty(Ty::Instantiate(ty)))),
+                    constraints: Vec::from_iter(ty.map(|ty| Constraint::Ty(Ty::Generic(ty)))),
                 },
             );
 

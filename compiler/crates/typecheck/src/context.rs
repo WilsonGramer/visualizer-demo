@@ -10,7 +10,7 @@ use std::{
 };
 use wipple_compiler_trace::{NodeId, Rule, Span};
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Context<'a> {
     pub nodes: BTreeMap<NodeId, (&'a dyn Node, Rule)>,
 }
@@ -20,10 +20,6 @@ impl<'a> Context<'a> {
         let node = NodeId(self.nodes.len());
         self.nodes.insert(node, (value, rule));
         node
-    }
-
-    pub(crate) fn nodes(&self) -> impl Iterator<Item = (NodeId, Rule)> {
-        self.nodes.iter().map(|(&node, &(_, rule))| (node, rule))
     }
 
     pub(crate) fn get(&self, node: NodeId) -> (&'a dyn Node, Rule) {
