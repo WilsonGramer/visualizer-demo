@@ -18,10 +18,11 @@ impl Visit for TraitDefinitionStatement {
             let attributes =
                 TraitAttributes::parse(&mut AttributeParser::new(visitor, &self.attributes));
 
-            let ty = self
-                .r#type
-                .as_ref()
-                .map(|ty| visitor.with_target(id, |visitor| ty.visit(visitor, None)));
+            let ty = self.r#type.as_ref().map(|ty| {
+                visitor.with_implicit_type_parameters(|visitor| {
+                    visitor.with_target(id, |visitor| ty.visit(visitor, None))
+                })
+            });
 
             visitor.define_name(
                 &self.name.source,

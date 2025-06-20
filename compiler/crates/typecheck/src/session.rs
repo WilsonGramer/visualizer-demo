@@ -348,36 +348,49 @@ impl Ty {
     fn instantiate(&mut self, session: &mut Session<'_>) {
         self.traverse_mut(&mut |ty| {
             if let Ty::Generic(node) = *ty {
-                // Replace all variables in the definition with fresh ones
+                let mut groups = BTreeMap::new();
+
+                let get_definition_ty = |session: &mut Session<'_>, node: NodeId| {
+                    let tys = session.constraints.tys.get(&node)?;
+
+                    if tys.len() != 1 {
+                        panic!("definition has multiple types: {node:?}");
+                    }
+
+                    let mut ty = tys.iter().next().unwrap().0.clone();
+                    ty.apply(session);
+
+                    Some(ty)
+                };
+
+                // Replace all variables in the definition with fresh ones and
+                // collect other constraints (eg. bounds)
                 let mut definition_ty = Ty::Of(node);
                 loop {
                     let mut progress = false;
 
-                    let mut groups = BTreeMap::new();
                     definition_ty.apply(session);
                     definition_ty.traverse_mut(&mut |ty| {
-                        if let Ty::Of(node) = *ty {
-                            if let Some(tys) = session.constraints.tys.get(&node) {
-                                if tys.len() != 1 {
-                                    panic!("definition has multiple types: {node:?}");
+                        match *ty {
+                            Ty::Of(node) => {
+                                if let Some(definition_ty) = get_definition_ty(session, node) {
+                                    *ty = definition_ty.clone();
+                                    progress = true;
+
+                                    // TODO: Also add bounds and other constraints here
                                 }
-
-                                *ty = tys.iter().next().unwrap().0.clone();
-                                ty.apply(session);
-
-                                // TODO: Also add bounds here
-                            } else {
-                                // Found a type parameter or other
-                                // non-expression node; replace it with a fresh
-                                // group (or cached locally)
+                            }
+                            Ty::Generic(node) => {
+                                // Found a type parameter; replace it with a
+                                // fresh group (or cached locally)
                                 let index = *groups
                                     .entry(node)
                                     .or_insert_with(|| session.index_for(None));
 
                                 *ty = Ty::Group(index);
+                                progress = true;
                             }
-
-                            progress = true;
+                            _ => {}
                         }
                     });
 
