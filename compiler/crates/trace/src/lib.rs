@@ -37,21 +37,11 @@ impl Debug for Span {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Rule {
     pub name: &'static str,
-    pub categories: &'static [RuleCategory],
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum RuleCategory {
-    Expression,
 }
 
 impl Rule {
-    pub const fn new(name: &'static str, categories: &'static [RuleCategory]) -> Self {
-        Rule { name, categories }
-    }
-
-    pub fn is(&self, category: RuleCategory) -> bool {
-        self.categories.contains(&category)
+    pub const fn new(name: &'static str) -> Self {
+        Rule { name }
     }
 }
 

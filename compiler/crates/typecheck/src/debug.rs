@@ -5,12 +5,13 @@ use std::{
     collections::BTreeSet,
     io::{self, Write},
 };
-use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
+use wipple_compiler_trace::{NodeId, Rule};
 
 impl Session<'_> {
     pub fn write_debug_graph(
         &self,
         w: &mut dyn Write,
+        definitions: &BTreeSet<NodeId>,
         relations: &DiGraphMap<NodeId, Rule>,
         provider: &FeedbackProvider<'_>,
     ) -> io::Result<()> {
@@ -18,7 +19,7 @@ impl Session<'_> {
 
         writeln!(
             w,
-            "%%{{init: {{'layout':'elk','theme':'neutral','fontFamily':'Fira Code'}}}}%%"
+            "%%{{init: {{'theme':'neutral','fontFamily':'Fira Code'}}}}%%"
         )?;
         writeln!(w, "flowchart LR")?;
         writeln!(
@@ -30,10 +31,10 @@ impl Session<'_> {
             "classDef error fill:#ff000010,stroke:#ff0000,stroke-dasharray:10;"
         )?;
 
-        let mut exclude = BTreeSet::new();
+        let mut visited = BTreeSet::new();
 
-        for &node in self.constraints.tys.keys() {
-            if !(self.filter)(node) {
+        for &node in self.constraints.tys.keys().chain(definitions) {
+            if !(self.filter)(node) && !definitions.contains(&node) {
                 continue;
             }
 
@@ -41,12 +42,11 @@ impl Session<'_> {
 
             // Also link related nodes
             for parent in relations.neighbors_directed(node, Direction::Incoming) {
-                let &rule = relations.edge_weight(parent, node).unwrap();
-
-                if !rule.is(RuleCategory::Expression) {
-                    exclude.insert(parent);
+                if !(self.filter)(parent) && !definitions.contains(&parent) {
                     continue;
                 }
+
+                let &rule = relations.edge_weight(parent, node).unwrap();
 
                 writeln!(
                     w,
@@ -55,16 +55,18 @@ impl Session<'_> {
                     format!("{rule:?}"),
                     node_id(parent)
                 )?;
+
+                visited.insert(parent);
             }
 
-            if !exclude.contains(&node) {
-                writeln!(
-                    w,
-                    "{}@{{ label: {:?} }}",
-                    node_id(node),
-                    format!("{node_span:?}\n{node_source}")
-                )?;
-            }
+            writeln!(
+                w,
+                "{}@{{ label: {:?} }}",
+                node_id(node),
+                format!("{node_span:?}\n{node_source}")
+            )?;
+
+            visited.insert(node);
         }
 
         let groups = self
@@ -78,7 +80,7 @@ impl Session<'_> {
         for (id, group_tys) in groups {
             let group_tys = group_tys
                 .into_iter()
-                .filter(|(node, _)| (self.filter)(*node))
+                .filter(|&(node, _)| visited.contains(&node) && !definitions.contains(&node))
                 .collect::<Vec<_>>();
 
             if group_tys.is_empty() {

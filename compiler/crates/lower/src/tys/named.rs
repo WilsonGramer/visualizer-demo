@@ -7,16 +7,16 @@ use wipple_compiler_typecheck::{
 };
 
 /// A resolved named type.
-pub const RESOLVED_NAMED_TYPE: Rule = Rule::new("resolved_named_type", &[]);
+pub const RESOLVED_NAMED_TYPE: Rule = Rule::new("resolved named type");
 
 /// An unresolved named type.
-pub const UNRESOLVED_NAMED_TYPE: Rule = Rule::new("unresolved_named_type", &[]);
+pub const UNRESOLVED_NAMED_TYPE: Rule = Rule::new("unresolved named type");
 
 /// The name in a named type.
-pub const NAME_IN_NAMED_TYPE: Rule = Rule::new("name_in_named_type", &[]);
+pub const NAME_IN_NAMED_TYPE: Rule = Rule::new("name in named type");
 
 /// A parameter in a named type.
-pub const PARAMETER_IN_NAMED_TYPE: Rule = Rule::new("parameter_in_named_type", &[]);
+pub const PARAMETER_IN_NAMED_TYPE: Rule = Rule::new("parameter in named type");
 
 impl Visit for NamedType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

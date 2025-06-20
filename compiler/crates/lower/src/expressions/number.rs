@@ -1,16 +1,16 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::NumberExpression;
-use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
     constraints::{Constraint, Ty},
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
 /// A number literal.
-pub const NUMBER: Rule = Rule::new("number", &[]);
+pub const NUMBER: Rule = Rule::new("number");
 
 /// The `Number` type isn't defined.
-pub const MISSING_NUMBER_TYPE: Rule = Rule::new("missing_number_type", &[]);
+pub const MISSING_NUMBER_TYPE: Rule = Rule::new("missing number type");
 
 impl Visit for NumberExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

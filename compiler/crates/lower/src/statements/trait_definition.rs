@@ -10,7 +10,7 @@ use wipple_compiler_typecheck::{
 };
 
 /// A trait definition.
-pub const TRAIT_DEFINITION: Rule = Rule::new("trait_definition", &[]);
+pub const TRAIT_DEFINITION: Rule = Rule::new("trait definition");
 
 impl Visit for TraitDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

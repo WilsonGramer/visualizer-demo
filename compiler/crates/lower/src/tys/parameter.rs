@@ -7,10 +7,10 @@ use wipple_compiler_typecheck::{
 };
 
 /// A parameter type.
-pub const PARAMETER_TYPE: Rule = Rule::new("parameter_type", &[]);
+pub const PARAMETER_TYPE: Rule = Rule::new("parameter type");
 
 /// An unresolved parameter type.
-pub const UNRESOLVED_PARAMETER_TYPE: Rule = Rule::new("unresolved_parameter_type", &[]);
+pub const UNRESOLVED_PARAMETER_TYPE: Rule = Rule::new("unresolved parameter type");
 
 impl Visit for ParameterType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

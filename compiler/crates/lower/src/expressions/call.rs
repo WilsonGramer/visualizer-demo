@@ -1,27 +1,25 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::{CallExpression, Expression};
-use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode};
 
 /// A function call.
-pub const FUNCTION_CALL: Rule = Rule::new("function_call", &[RuleCategory::Expression]);
+pub const FUNCTION_CALL: Rule = Rule::new("function call");
 
 /// The function in a function call.
-pub const FUNCTION_IN_FUNCTION_CALL: Rule =
-    Rule::new("function_in_function_call", &[RuleCategory::Expression]);
+pub const FUNCTION_IN_FUNCTION_CALL: Rule = Rule::new("function in function call");
 
 /// An input in a function call.
-pub const INPUT_IN_FUNCTION_CALL: Rule =
-    Rule::new("input_in_function_call", &[RuleCategory::Expression]);
+pub const INPUT_IN_FUNCTION_CALL: Rule = Rule::new("input in function call");
 
 /// A number with a unit.
-pub const UNIT_CALL: Rule = Rule::new("unit_call", &[RuleCategory::Expression]);
+pub const UNIT_CALL: Rule = Rule::new("unit call");
 
 /// The number component.
-pub const NUMBER_IN_UNIT_CALL: Rule = Rule::new("number_in_unit_call", &[RuleCategory::Expression]);
+pub const NUMBER_IN_UNIT_CALL: Rule = Rule::new("number in unit call");
 
 /// The unit component.
-pub const UNIT_IN_UNIT_CALL: Rule = Rule::new("unit_in_unit_call", &[RuleCategory::Expression]);
+pub const UNIT_IN_UNIT_CALL: Rule = Rule::new("unit in unit call");
 
 impl Visit for CallExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

@@ -34,10 +34,10 @@ pub fn compile_wasm(source: String) -> Vec<String> {
 }
 
 /// A node's type is unknown.
-pub const UNKNOWN_TYPE: Rule = Rule::new("unknown_type", &[]);
+pub const UNKNOWN_TYPE: Rule = Rule::new("unknown type");
 
 /// A node's type is incomplete.
-pub const INCOMPLETE_TYPE: Rule = Rule::new("incomplete_type", &[]);
+pub const INCOMPLETE_TYPE: Rule = Rule::new("incomplete type");
 
 pub fn compile(
     path: &str,
@@ -140,7 +140,12 @@ pub fn compile(
 
     let mut buf = Vec::new();
     typecheck_session
-        .write_debug_graph(&mut buf, &lowered.relations, &provider)
+        .write_debug_graph(
+            &mut buf,
+            &lowered.definitions.keys().copied().collect(),
+            &lowered.relations,
+            &provider,
+        )
         .unwrap();
 
     display_graph(String::from_utf8(buf).unwrap());

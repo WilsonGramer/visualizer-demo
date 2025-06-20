@@ -1,23 +1,22 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::BinaryExpression;
-use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode, Node, PlaceholderNode};
 
 /// The operator in a binary operator expression.
-pub const OPERATOR: Rule = Rule::new("operator", &[]);
+pub const OPERATOR: Rule = Rule::new("operator");
 
 /// An `=` operator expression.
-pub const EQUAL: Rule = Rule::new("equal", &[]);
+pub const EQUAL: Rule = Rule::new("equal");
 
 /// The left side of an `=` operator.
-pub const EQUAL_OPERATOR_LEFT: Rule = Rule::new("equal_operator_left", &[RuleCategory::Expression]);
+pub const EQUAL_OPERATOR_LEFT: Rule = Rule::new("equal operator left");
 
 /// The right side of an `=` operator.
-pub const EQUAL_OPERATOR_RIGHT: Rule =
-    Rule::new("equal_operator_right", &[RuleCategory::Expression]);
+pub const EQUAL_OPERATOR_RIGHT: Rule = Rule::new("equal operator right");
 
 /// The `Equal` trait isn't defined.
-pub const MISSING_EQUAL_TRAIT: Rule = Rule::new("missing_equal_trait", &[]);
+pub const MISSING_EQUAL_TRAIT: Rule = Rule::new("missing equal trait");
 
 impl Visit for BinaryExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

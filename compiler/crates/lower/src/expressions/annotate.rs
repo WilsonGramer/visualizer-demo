@@ -1,16 +1,16 @@
 use crate::{Visit, Visitor};
 use wipple_compiler_syntax::AnnotateExpression;
-use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
+use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
     constraints::{Constraint, Ty},
     nodes::ConstraintNode,
 };
 
 /// A value annotated with a type.
-pub const ANNOTATED_VALUE: Rule = Rule::new("annotated_value", &[RuleCategory::Expression]);
+pub const ANNOTATED_VALUE: Rule = Rule::new("annotated value");
 
 /// A type annotating a value.
-pub const TYPE_IN_ANNOTATED_VALUE: Rule = Rule::new("type_in_annotated_value", &[]);
+pub const TYPE_IN_ANNOTATED_VALUE: Rule = Rule::new("type in annotated value");
 
 impl Visit for AnnotateExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

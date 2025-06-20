@@ -4,13 +4,13 @@ use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
 /// The value is assigned to a pattern.
-pub const ASSIGNMENT_VALUE: Rule = Rule::new("assignment_value", &[]);
+pub const ASSIGNMENT_VALUE: Rule = Rule::new("assignment_value");
 
 /// The pattern in an assignment.
-pub const ASSIGNMENT_PATTERN: Rule = Rule::new("assignment_pattern", &[]);
+pub const ASSIGNMENT_PATTERN: Rule = Rule::new("assignment_pattern");
 
 /// An assignment.
-pub const ASSIGNMENT: Rule = Rule::new("assignment", &[]);
+pub const ASSIGNMENT: Rule = Rule::new("assignment");
 
 impl Visit for AssignmentStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

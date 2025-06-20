@@ -7,13 +7,13 @@ use wipple_compiler_typecheck::{
 };
 
 /// A function type.
-pub const FUNCTION_TYPE: Rule = Rule::new("function_type", &[]);
+pub const FUNCTION_TYPE: Rule = Rule::new("function type");
 
 /// An input to a function type.
-pub const FUNCTION_TYPE_INPUT: Rule = Rule::new("function_type_input", &[]);
+pub const FUNCTION_TYPE_INPUT: Rule = Rule::new("function type input");
 
 /// The output of a function type.
-pub const FUNCTION_TYPE_OUTPUT: Rule = Rule::new("function_type_output", &[]);
+pub const FUNCTION_TYPE_OUTPUT: Rule = Rule::new("function type output");
 
 impl Visit for FunctionType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

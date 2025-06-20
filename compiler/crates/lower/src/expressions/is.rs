@@ -1,6 +1,6 @@
 use crate::{Visit, Visitor};
 use wipple_compiler_syntax::IsExpression;
-use wipple_compiler_trace::{NodeId, Rule, RuleCategory};
+use wipple_compiler_trace::{NodeId, Rule};
 
 // TODO
 

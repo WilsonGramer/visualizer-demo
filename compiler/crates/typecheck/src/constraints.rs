@@ -242,10 +242,10 @@ impl Ty {
 impl Ty {
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
-            Ty::Group(var) => format!("({var})"),
+            Ty::Group(var) => format!("?{var}"),
             Ty::Unknown => String::from("_"),
             Ty::Of(node) | Ty::Generic(node) => {
-                format!("({})", provider.node_span_source(*node).1)
+                format!("?({})", provider.node_span_source(*node).1)
             }
             Ty::Named { name, parameters } => format!(
                 "{}{}",

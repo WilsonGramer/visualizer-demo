@@ -4,7 +4,7 @@ use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
 /// A placeholder type.
-pub const PLACEHOLDER_TYPE: Rule = Rule::new("placeholder_type", &[]);
+pub const PLACEHOLDER_TYPE: Rule = Rule::new("placeholder type");
 
 impl Visit for PlaceholderType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {

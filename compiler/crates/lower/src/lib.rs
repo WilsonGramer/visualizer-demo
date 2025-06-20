@@ -46,7 +46,7 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Res
             .scopes
             .pop()
             .unwrap()
-            .1
+            .definitions
             .into_values()
             .flatten()
             .map(|definition| (definition.source(), definition))
@@ -172,7 +172,10 @@ impl<'a> Visitor<'a> {
 }
 
 #[derive(Debug, Clone, Default)]
-struct Scope(Option<NodeId>, HashMap<String, Vec<Definition>>);
+struct Scope {
+    source: Option<NodeId>,
+    definitions: HashMap<String, Vec<Definition>>,
+}
 
 #[derive(Debug, Clone)]
 pub enum Definition {
@@ -228,7 +231,10 @@ impl Definition {
 
 impl Visitor<'_> {
     fn push_scope(&mut self, definition: NodeId) {
-        self.scopes.push(Scope(Some(definition), HashMap::new()));
+        self.scopes.push(Scope {
+            source: Some(definition),
+            definitions: HashMap::new(),
+        });
     }
 
     fn pop_scope(&mut self) {
@@ -236,7 +242,7 @@ impl Visitor<'_> {
     }
 
     fn definition(&self) -> NodeId {
-        self.scopes.last().unwrap().0.unwrap()
+        self.scopes.last().unwrap().source.unwrap()
     }
 
     fn resolve_name<'a, T: 'a>(
@@ -249,7 +255,7 @@ impl Visitor<'_> {
             .scopes
             .iter()
             .rev()
-            .filter_map(|scope| scope.1.get(name))
+            .filter_map(|scope| scope.definitions.get(name))
             .flatten()
             .find_map(|definition| Some((filter(definition)?, definition)))?;
 
@@ -266,7 +272,7 @@ impl Visitor<'_> {
         self.scopes
             .iter()
             .rev()
-            .filter_map(|scope| scope.1.get(name))
+            .filter_map(|scope| scope.definitions.get(name))
             .flatten()
             .find_map(filter)
     }
@@ -275,7 +281,7 @@ impl Visitor<'_> {
         self.scopes
             .last_mut()
             .unwrap()
-            .1
+            .definitions
             .entry(name.to_string())
             .or_default()
             .push(definition);

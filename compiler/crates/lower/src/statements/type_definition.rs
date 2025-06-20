@@ -7,7 +7,7 @@ use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
 /// A type definition.
-pub const TYPE_DEFINITION: Rule = Rule::new("type_definition", &[]);
+pub const TYPE_DEFINITION: Rule = Rule::new("type definition");
 
 impl Visit for TypeDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
