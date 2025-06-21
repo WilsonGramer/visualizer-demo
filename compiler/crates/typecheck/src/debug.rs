@@ -1,4 +1,4 @@
-use crate::{context::FeedbackProvider, session::Session};
+use crate::{context::FeedbackProvider, typechecker::Typechecker};
 use itertools::Itertools;
 use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
@@ -7,7 +7,7 @@ use std::{
 };
 use wipple_compiler_trace::{NodeId, Rule};
 
-impl Session<'_> {
+impl Typechecker<'_> {
     pub fn write_debug_graph(
         &self,
         w: &mut dyn Write,

@@ -54,7 +54,6 @@ impl Visit for InstanceDefinitionStatement {
                 comments: Vec::new(),
                 attributes,
                 bound: Bound {
-                    source: id,
                     tr: trait_node,
                     parameters,
                 },

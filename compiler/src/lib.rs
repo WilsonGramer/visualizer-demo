@@ -72,17 +72,19 @@ pub fn compile(
             .collect(),
     };
 
-    let mut typecheck_session = typecheck_ctx.session(|node| lowered.typed_nodes.contains(&node));
-    typecheck_session.run();
+    let mut typechecker = typecheck_ctx
+        .typechecker_from_constraints_where(|node| lowered.typed_nodes.contains(&node));
+
+    typechecker.run();
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
     let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
     for &node in lowered.nodes.keys() {
-        if !(typecheck_session.filter)(node) {
+        if !(typechecker.filter)(node) {
             continue;
         }
 
-        if let Some(tys) = typecheck_session.constraints.tys.get(&node) {
+        if let Some(tys) = typechecker.constraints.tys.get(&node) {
             for (ty, _) in tys {
                 if ty.is_incomplete() {
                     extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
@@ -111,7 +113,7 @@ pub fn compile(
     let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
         &feedback_nodes,
         &lowered.relations,
-        &typecheck_session.constraints.tys,
+        &typechecker.constraints.tys,
         get_span_source,
     );
 
@@ -122,7 +124,7 @@ pub fn compile(
         &feedback_nodes,
         &lowered.spans,
         &lowered.relations,
-        &typecheck_session.constraints.tys,
+        &typechecker.constraints.tys,
     );
 
     let feedback = feedback_ctx.collect_feedback();
@@ -137,7 +139,7 @@ pub fn compile(
     // Display type graph
 
     let mut buf = Vec::new();
-    typecheck_session
+    typechecker
         .write_debug_graph(
             &mut buf,
             &lowered.definitions.keys().copied().collect(),
@@ -150,7 +152,7 @@ pub fn compile(
 
     // Display type table
 
-    let mut displayed_tys = Vec::from_iter(&typecheck_session.constraints.tys);
+    let mut displayed_tys = Vec::from_iter(&typechecker.constraints.tys);
     displayed_tys.sort_by_key(|(node, _)| {
         let span = lowered.spans.get(node).unwrap();
         (span.range.start, span.range.end)

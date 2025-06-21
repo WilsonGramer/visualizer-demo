@@ -2,13 +2,16 @@ pub mod constraints;
 pub mod context;
 mod debug;
 pub mod nodes;
-pub mod session;
+pub mod typechecker;
 
-use crate::{constraints::ToConstraintsContext, context::Context, session::Session};
+use crate::{constraints::ToConstraintsContext, context::Context, typechecker::Typechecker};
 use wipple_compiler_trace::NodeId;
 
 impl Context<'_> {
-    pub fn session<'a>(&'a self, filter: impl Fn(NodeId) -> bool + 'a) -> Session<'a> {
+    pub fn typechecker_from_constraints_where<'a>(
+        &'a self,
+        filter: impl Fn(NodeId) -> bool + 'a,
+    ) -> Typechecker<'a> {
         let mut ctx = ToConstraintsContext::new(self);
         ctx.register_all();
 
@@ -21,6 +24,6 @@ impl Context<'_> {
             })
             .collect::<Vec<_>>();
 
-        Session::from_constraints(nodes, ctx.into_constraints(), filter)
+        Typechecker::from_constraints(nodes, ctx.into_constraints(), filter)
     }
 }

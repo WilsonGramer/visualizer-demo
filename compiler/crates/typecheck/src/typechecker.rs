@@ -3,7 +3,7 @@ use petgraph::prelude::UnGraphMap;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use wipple_compiler_trace::NodeId;
 
-pub struct Session<'a> {
+pub struct Typechecker<'a> {
     pub constraints: Constraints,
     pub filter: Box<dyn Fn(NodeId) -> bool + 'a>,
     groups: Vec<Group>,
@@ -24,7 +24,7 @@ impl Group {
     }
 }
 
-impl<'a> Session<'a> {
+impl<'a> Typechecker<'a> {
     pub fn from_constraints(
         nodes: impl IntoIterator<Item = NodeId>,
         constraints: Constraints,
@@ -67,7 +67,7 @@ impl<'a> Session<'a> {
             }
         }
 
-        Session {
+        Typechecker {
             constraints,
             groups,
             filter: Box::new(filter),
@@ -79,7 +79,7 @@ impl<'a> Session<'a> {
     }
 }
 
-impl Session<'_> {
+impl Typechecker<'_> {
     fn refine_index(&mut self, index: &mut usize) {
         loop {
             let mut found = false;
@@ -130,7 +130,7 @@ impl Session<'_> {
     }
 }
 
-impl Iterator for Session<'_> {
+impl Iterator for Typechecker<'_> {
     type Item = TyConstraints;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -257,8 +257,8 @@ impl Iterator for Session<'_> {
 }
 
 impl Ty {
-    fn unify_with(&mut self, other: &Ty, session: &mut Session<'_>, success: &mut bool) {
-        self.apply(session);
+    fn unify_with(&mut self, other: &Ty, typechecker: &mut Typechecker<'_>, success: &mut bool) {
+        self.apply(typechecker);
 
         match (self, other) {
             (Ty::Unknown, _) | (_, Ty::Unknown) => {}
@@ -270,18 +270,18 @@ impl Ty {
             }
             (ty @ &mut Ty::Group(index), other) => {
                 let mut other = other.clone();
-                other.apply(session);
-                session.groups[index].ty = Some(other.clone());
+                other.apply(typechecker);
+                typechecker.groups[index].ty = Some(other.clone());
                 *ty = other;
-                ty.apply(session);
+                ty.apply(typechecker);
             }
-            (other, &Ty::Group(index)) => match session.groups[index].ty.clone() {
+            (other, &Ty::Group(index)) => match typechecker.groups[index].ty.clone() {
                 Some(group_ty) => {
-                    other.unify_with(&group_ty, session, success);
+                    other.unify_with(&group_ty, typechecker, success);
                 }
                 None => {
-                    other.apply(session);
-                    session.groups[index].ty = Some(other.clone());
+                    other.apply(typechecker);
+                    typechecker.groups[index].ty = Some(other.clone());
                 }
             },
             (
@@ -292,7 +292,7 @@ impl Ty {
                 },
             ) if name == other_name => {
                 for (parameter, other) in parameters.iter_mut().zip(other_parameters) {
-                    parameter.unify_with(other, session, success);
+                    parameter.unify_with(other, typechecker, success);
                 }
             }
             (
@@ -303,10 +303,10 @@ impl Ty {
                 },
             ) if inputs.len() == other_inputs.len() => {
                 for (input, other) in inputs.iter_mut().zip(other_inputs) {
-                    input.unify_with(other, session, success);
+                    input.unify_with(other, typechecker, success);
                 }
 
-                output.unify_with(other_output, session, success);
+                output.unify_with(other_output, typechecker, success);
             }
             (
                 Ty::Tuple { elements },
@@ -315,18 +315,18 @@ impl Ty {
                 },
             ) if elements.len() == other_elements.len() => {
                 for (element, other) in elements.iter_mut().zip(other_elements) {
-                    element.unify_with(other, session, success);
+                    element.unify_with(other, typechecker, success);
                 }
             }
             _ => *success = false,
         }
     }
 
-    fn apply(&mut self, session: &Session<'_>) {
-        self.apply_inner(session, &mut Vec::new());
+    fn apply(&mut self, typechecker: &Typechecker<'_>) {
+        self.apply_inner(typechecker, &mut Vec::new());
     }
 
-    fn apply_inner(&mut self, session: &Session<'_>, stack: &mut Vec<usize>) {
+    fn apply_inner(&mut self, typechecker: &Typechecker<'_>, stack: &mut Vec<usize>) {
         self.traverse_mut(&mut |ty| {
             if let Ty::Group(index) = *ty {
                 if stack.contains(&index) {
@@ -335,9 +335,9 @@ impl Ty {
 
                 stack.push(index);
 
-                if let Some(group_ty) = &session.groups[index].ty {
+                if let Some(group_ty) = &typechecker.groups[index].ty {
                     *ty = group_ty.clone();
-                    ty.apply_inner(session, stack);
+                    ty.apply_inner(typechecker, stack);
                 }
 
                 stack.pop();
@@ -345,20 +345,20 @@ impl Ty {
         });
     }
 
-    fn instantiate(&mut self, session: &mut Session<'_>) {
+    fn instantiate(&mut self, typechecker: &mut Typechecker<'_>) {
         self.traverse_mut(&mut |ty| {
             if let Ty::Generic(node) = *ty {
                 let mut groups = BTreeMap::new();
 
-                let get_definition_ty = |session: &mut Session<'_>, node: NodeId| {
-                    let tys = session.constraints.tys.get(&node)?;
+                let get_definition_ty = |typechecker: &mut Typechecker<'_>, node: NodeId| {
+                    let tys = typechecker.constraints.tys.get(&node)?;
 
                     if tys.len() != 1 {
                         panic!("definition has multiple types: {node:?}");
                     }
 
                     let mut ty = tys.iter().next().unwrap().0.clone();
-                    ty.apply(session);
+                    ty.apply(typechecker);
 
                     Some(ty)
                 };
@@ -369,11 +369,11 @@ impl Ty {
                 loop {
                     let mut progress = false;
 
-                    definition_ty.apply(session);
+                    definition_ty.apply(typechecker);
                     definition_ty.traverse_mut(&mut |ty| {
                         match *ty {
                             Ty::Of(node) => {
-                                if let Some(definition_ty) = get_definition_ty(session, node) {
+                                if let Some(definition_ty) = get_definition_ty(typechecker, node) {
                                     *ty = definition_ty.clone();
                                     progress = true;
 
@@ -385,7 +385,7 @@ impl Ty {
                                 // fresh group (or cached locally)
                                 let index = *groups
                                     .entry(node)
-                                    .or_insert_with(|| session.index_for(None));
+                                    .or_insert_with(|| typechecker.index_for(None));
 
                                 *ty = Ty::Group(index);
                                 progress = true;
@@ -400,11 +400,11 @@ impl Ty {
                 }
 
                 // Add the type to a fresh group
-                let index = session.index_for(None);
-                session.groups[index].ty = Some(definition_ty.clone());
+                let index = typechecker.index_for(None);
+                typechecker.groups[index].ty = Some(definition_ty.clone());
 
                 *ty = Ty::Group(index);
-                ty.apply(session);
+                ty.apply(typechecker);
             }
         });
     }

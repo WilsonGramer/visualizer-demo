@@ -5,7 +5,7 @@ use crate::{
 use wipple_compiler_syntax::TraitDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
+    constraints::{Bound, Constraint, Ty},
     nodes::PlaceholderNode,
 };
 
@@ -49,8 +49,15 @@ impl Visit for TraitDefinitionStatement {
                     node: id,
                     comments: self.comments.clone(),
                     attributes,
-                    parameters,
-                    constraints: Vec::from_iter(ty.map(|ty| Constraint::Ty(Ty::Generic(ty)))),
+                    parameters: parameters.clone(),
+                    constraints: ty
+                        .map(|ty| Constraint::Ty(Ty::Generic(ty)))
+                        .into_iter()
+                        .chain([Constraint::Bound(Bound {
+                            tr: id,
+                            parameters: parameters.into_iter().map(Ty::Generic).collect(),
+                        })])
+                        .collect(),
                 }),
             );
 
