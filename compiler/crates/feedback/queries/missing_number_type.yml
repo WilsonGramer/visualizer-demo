@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=_schema.json
 as: literal
-rule: missing_number_type
+rule: missing number type
 group: todo
 messages:
   - node: literal

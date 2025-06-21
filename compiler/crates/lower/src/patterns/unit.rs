@@ -6,7 +6,6 @@ use wipple_compiler_typecheck::{
     nodes::ConstraintNode,
 };
 
-/// A unit pattern.
 pub const UNIT_PATTERN: Rule = Rule::new("unit pattern");
 
 impl Visit for UnitPattern {

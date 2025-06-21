@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=_schema.json
 as: attribute
-rule: duplicate_attribute
+rule: duplicate attribute
 group: todo
 messages:
   - node: attribute

@@ -6,16 +6,12 @@ use wipple_compiler_typecheck::{
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
-/// A resolved named type.
 pub const RESOLVED_NAMED_TYPE: Rule = Rule::new("resolved named type");
 
-/// An unresolved named type.
 pub const UNRESOLVED_NAMED_TYPE: Rule = Rule::new("unresolved named type");
 
-/// The name in a named type.
 pub const NAME_IN_NAMED_TYPE: Rule = Rule::new("name in named type");
 
-/// A parameter in a named type.
 pub const PARAMETER_IN_NAMED_TYPE: Rule = Rule::new("parameter in named type");
 
 impl Visit for NamedType {
@@ -23,9 +19,10 @@ impl Visit for NamedType {
         visitor.node(parent, &self.range, |visitor, id| {
             let Some(((type_node, type_parameters), rule)) =
                 visitor.resolve_name(&self.name.source, id, |definition| match definition {
-                    Definition::Type {
-                        node, parameters, ..
-                    } => Some(((*node, parameters.clone()), NAME_IN_NAMED_TYPE)),
+                    Definition::Type(definition) => Some((
+                        (definition.node, definition.parameters.clone()),
+                        NAME_IN_NAMED_TYPE,
+                    )),
                     _ => None,
                 })
             else {

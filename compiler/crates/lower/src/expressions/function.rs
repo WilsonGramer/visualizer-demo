@@ -3,13 +3,10 @@ use wipple_compiler_syntax::FunctionExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{FunctionNode, PlaceholderNode};
 
-/// A function expression.
 pub const FUNCTION: Rule = Rule::new("function");
 
-/// An input to a function expression.
 pub const FUNCTION_INPUT: Rule = Rule::new("function input");
 
-/// The output of a function expression.
 pub const FUNCTION_OUTPUT: Rule = Rule::new("function output");
 
 impl Visit for FunctionExpression {

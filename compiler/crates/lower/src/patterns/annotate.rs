@@ -6,10 +6,8 @@ use wipple_compiler_typecheck::{
     nodes::ConstraintNode,
 };
 
-/// A pattern annotated with a type.
 pub const ANNOTATED_PATTERN: Rule = Rule::new("annotated pattern");
 
-/// A type annotating a pattern.
 pub const TYPE_IN_ANNOTATED_PATTERN: Rule = Rule::new("type in annotated pattern");
 
 impl Visit for AnnotatePattern {

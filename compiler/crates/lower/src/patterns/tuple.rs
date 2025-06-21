@@ -3,13 +3,10 @@ use wipple_compiler_syntax::TuplePattern;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{PlaceholderNode, TupleElementNode};
 
-/// A tuple pattern.
 pub const TUPLE_PATTERN: Rule = Rule::new("tuple pattern");
 
-/// The target of a tuple pattern.
 pub const TUPLE_PATTERN_TARGET: Rule = Rule::new("tuple pattern target");
 
-/// An element in a tuple pattern.
 pub const TUPLE_PATTERN_ELEMENT: Rule = Rule::new("tuple pattern element");
 
 impl Visit for TuplePattern {

@@ -6,7 +6,6 @@ use wipple_compiler_typecheck::{
     nodes::ConstraintNode,
 };
 
-/// A unit expression.
 pub const UNIT: Rule = Rule::new("unit");
 
 impl Visit for UnitExpression {

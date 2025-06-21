@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=_schema.json
 as: node
-rule: unknown_type
+rule: unknown type
 group: todo
 messages:
   - node: node

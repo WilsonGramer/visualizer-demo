@@ -3,7 +3,6 @@ use wipple_compiler_syntax::PlaceholderType;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
-/// A placeholder type.
 pub const PLACEHOLDER_TYPE: Rule = Rule::new("placeholder type");
 
 impl Visit for PlaceholderType {

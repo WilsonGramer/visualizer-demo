@@ -6,7 +6,6 @@ use wipple_compiler_typecheck::{
     nodes::ConstraintNode,
 };
 
-/// The unit type.
 pub const UNIT_TYPE: Rule = Rule::new("unit type");
 
 impl Visit for UnitType {

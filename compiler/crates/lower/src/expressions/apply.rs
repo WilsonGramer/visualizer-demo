@@ -3,13 +3,10 @@ use wipple_compiler_syntax::ApplyExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::CallNode;
 
-/// A function application (using `.`).
 pub const APPLY: Rule = Rule::new("apply");
 
-/// The function in a function application.
 pub const FUNCTION_IN_APPLY: Rule = Rule::new("function in apply");
 
-/// The input in a function application.
 pub const INPUT_IN_APPLY: Rule = Rule::new("input in apply");
 
 impl Visit for ApplyExpression {

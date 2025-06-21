@@ -33,10 +33,8 @@ pub fn compile_wasm(source: String) -> Vec<String> {
     ]
 }
 
-/// A node's type is unknown.
 pub const UNKNOWN_TYPE: Rule = Rule::new("unknown type");
 
-/// A node's type is incomplete.
 pub const INCOMPLETE_TYPE: Rule = Rule::new("incomplete type");
 
 pub fn compile(

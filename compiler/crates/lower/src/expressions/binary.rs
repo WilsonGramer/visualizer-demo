@@ -3,19 +3,14 @@ use wipple_compiler_syntax::BinaryExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode, Node, PlaceholderNode};
 
-/// The operator in a binary operator expression.
 pub const OPERATOR: Rule = Rule::new("operator");
 
-/// An `=` operator expression.
 pub const EQUAL: Rule = Rule::new("equal");
 
-/// The left side of an `=` operator.
 pub const EQUAL_OPERATOR_LEFT: Rule = Rule::new("equal operator left");
 
-/// The right side of an `=` operator.
 pub const EQUAL_OPERATOR_RIGHT: Rule = Rule::new("equal operator right");
 
-/// The `Equal` trait isn't defined.
 pub const MISSING_EQUAL_TRAIT: Rule = Rule::new("missing equal trait");
 
 impl Visit for BinaryExpression {
@@ -40,15 +35,18 @@ impl Visit for BinaryExpression {
                     |visitor, id| {
                         let equal_function =
                             visitor.resolve_name("Equal", id, |definition| match definition {
-                                Definition::Constant { node, .. } => Some((*node, OPERATOR)),
+                                Definition::Trait(definition) => Some((
+                                    (definition.node, definition.constraints.clone()),
+                                    OPERATOR,
+                                )),
                                 _ => None,
                             });
 
                         match equal_function {
-                            Some((equal_function, rule)) => (
+                            Some(((equal_function, constraints), rule)) => (
                                 DefinitionNode {
                                     definition: equal_function,
-                                    constraints: Vec::new(),
+                                    constraints,
                                 }
                                 .boxed(),
                                 rule,

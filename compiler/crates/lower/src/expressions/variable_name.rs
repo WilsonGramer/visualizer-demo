@@ -3,16 +3,12 @@ use wipple_compiler_syntax::VariableNameExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{DefinitionNode, Node, PlaceholderNode};
 
-/// A variable name expression.
 pub const VARIABLE_NAME: Rule = Rule::new("variable name");
 
-/// A variable name that resolved to a value.
 pub const RESOLVED_VARIABLE_NAME: Rule = Rule::new("resolved variable name");
 
-/// A variable name that resolved to a value.
 pub const RESOLVED_CONSTANT_NAME: Rule = Rule::new("resolved constant name");
 
-/// A variable name that was not resolved to a value.
 pub const UNRESOLVED_VARIABLE_NAME: Rule = Rule::new("unresolved variable name");
 
 impl Visit for VariableNameExpression {
@@ -20,12 +16,13 @@ impl Visit for VariableNameExpression {
         visitor.typed_node(parent, &self.range, |visitor, id| {
             if let Some(((definition, constraints), rule)) =
                 visitor.resolve_name(&self.variable.source, id, |definition| match definition {
-                    Definition::Variable { node, .. } => {
-                        Some(((*node, Vec::new()), RESOLVED_VARIABLE_NAME))
+                    Definition::Variable(definition) => {
+                        Some(((definition.node, Vec::new()), RESOLVED_VARIABLE_NAME))
                     }
-                    Definition::Constant {
-                        node, constraints, ..
-                    } => Some(((*node, constraints.clone()), RESOLVED_CONSTANT_NAME)),
+                    Definition::Constant(definition) => Some((
+                        (definition.node, definition.constraints.clone()),
+                        RESOLVED_CONSTANT_NAME,
+                    )),
                     _ => None,
                 })
             {

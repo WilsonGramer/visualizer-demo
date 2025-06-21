@@ -6,13 +6,10 @@ use wipple_compiler_typecheck::{
     nodes::ConstraintNode,
 };
 
-/// A function type.
 pub const FUNCTION_TYPE: Rule = Rule::new("function type");
 
-/// An input to a function type.
 pub const FUNCTION_TYPE_INPUT: Rule = Rule::new("function type input");
 
-/// The output of a function type.
 pub const FUNCTION_TYPE_OUTPUT: Rule = Rule::new("function type output");
 
 impl Visit for FunctionType {

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=_schema.json
 as: name
-rule: unresolved_name
+rule: unresolved variable name
 group: todo
 messages:
   - node: name

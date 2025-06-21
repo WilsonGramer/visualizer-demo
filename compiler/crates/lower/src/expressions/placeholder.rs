@@ -3,7 +3,6 @@ use wipple_compiler_syntax::PlaceholderExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
-/// A placeholder expression.
 pub const PLACEHOLDER: Rule = Rule::new("placeholder");
 
 impl Visit for PlaceholderExpression {

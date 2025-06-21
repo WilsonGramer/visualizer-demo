@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=_schema.json
 as: attribute
-rule: unknown_attribute
+rule: unknown attribute
 group: todo
 messages:
   - node: attribute

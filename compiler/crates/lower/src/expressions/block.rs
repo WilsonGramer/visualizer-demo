@@ -3,10 +3,8 @@ use wipple_compiler_syntax::BlockExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::BlockNode;
 
-/// A block expression.
 pub const BLOCK: Rule = Rule::new("block");
 
-/// A statement in a block.
 pub const BLOCK_STATEMENT: Rule = Rule::new("block statement");
 
 impl Visit for BlockExpression {

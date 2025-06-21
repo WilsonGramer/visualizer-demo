@@ -1,12 +1,10 @@
-use crate::{Definition, Visit, Visitor};
+use crate::{Definition, VariableDefinition, Visit, Visitor};
 use wipple_compiler_syntax::VariablePattern;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::DefinitionNode;
 
-/// A tuple pattern.
 pub const VARIABLE_PATTERN: Rule = Rule::new("variable pattern");
 
-/// The target of a tuple pattern.
 pub const VARIABLE_PATTERN_TARGET: Rule = Rule::new("variable pattern target");
 
 impl Visit for VariablePattern {
@@ -14,9 +12,9 @@ impl Visit for VariablePattern {
         visitor.node(parent, &self.range, |visitor, _id| {
             visitor.define_name(
                 &self.variable.source,
-                Definition::Variable {
+                Definition::Variable(VariableDefinition {
                     node: visitor.parent(),
-                },
+                }),
             );
 
             (

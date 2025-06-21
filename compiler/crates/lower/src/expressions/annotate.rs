@@ -6,10 +6,8 @@ use wipple_compiler_typecheck::{
     nodes::ConstraintNode,
 };
 
-/// A value annotated with a type.
 pub const ANNOTATED_VALUE: Rule = Rule::new("annotated value");
 
-/// A type annotating a value.
 pub const TYPE_IN_ANNOTATED_VALUE: Rule = Rule::new("type in annotated value");
 
 impl Visit for AnnotateExpression {

@@ -6,19 +6,17 @@ use wipple_compiler_typecheck::{
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
-/// A number literal.
 pub const NUMBER: Rule = Rule::new("number");
 
-/// The `Number` type isn't defined.
 pub const MISSING_NUMBER_TYPE: Rule = Rule::new("missing number type");
 
 impl Visit for NumberExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
             let number_ty = visitor.resolve_name("Number", id, |definition| match definition {
-                Definition::Type { node, .. } => Some((
+                Definition::Type(definition) => Some((
                     Ty::Named {
-                        name: *node,
+                        name: definition.node,
                         parameters: Vec::new(),
                     },
                     NUMBER,

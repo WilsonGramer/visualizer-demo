@@ -1,13 +1,14 @@
 use crate::{
-    Definition, Visit, Visitor,
+    Definition, TypeDefinition, TypeParameterDefinition, Visit, Visitor,
     attributes::{AttributeParser, TypeAttributes},
 };
 use wipple_compiler_syntax::TypeDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
-/// A type definition.
 pub const TYPE_DEFINITION: Rule = Rule::new("type definition");
+
+pub const PARAMETER_IN_TYPE_DEFINITION: Rule = Rule::new("parameter in type definition");
 
 impl Visit for TypeDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
@@ -19,14 +20,33 @@ impl Visit for TypeDefinitionStatement {
             let attributes =
                 TypeAttributes::parse(&mut AttributeParser::new(visitor, &self.attributes));
 
+            let parameters = self
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let node = visitor.placeholder_node(
+                        Some((id, PARAMETER_IN_TYPE_DEFINITION)),
+                        &parameter.range,
+                        PARAMETER_IN_TYPE_DEFINITION,
+                    );
+
+                    visitor.define_name(
+                        &parameter.source,
+                        Definition::TypeParameter(TypeParameterDefinition { node }),
+                    );
+
+                    node
+                })
+                .collect::<Vec<_>>();
+
             visitor.define_name(
                 &self.name.source,
-                Definition::Type {
+                Definition::Type(TypeDefinition {
                     node: id,
                     comments: self.comments.clone(),
                     attributes,
-                    parameters: self.parameters.clone(),
-                },
+                    parameters,
+                }),
             );
 
             (PlaceholderNode, TYPE_DEFINITION)

@@ -3,7 +3,7 @@ rule: equal
 where:
   - child:
       as: name
-      rules: [equal_operator_left, unresolved_name]
+      rules: [equal operator left, unresolved variable name]
   - child:
       as: operator
       rules: [operator]
@@ -17,7 +17,4 @@ messages:
       Couldn't find an existing variable named `{{name:source}}`.
   - node: operator
     template: |
-      The `=` operator is used to check if two existing values are equal to each other. If you want to create a new variable, replace this with `:`...
-  - node: name
-    template: |
-      ...or check the spelling of this variable name.
+      The `=` operator is used to check if two existing values are equal to each other. If you want to create a new variable, replace this with `:`.

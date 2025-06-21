@@ -1,17 +1,17 @@
 # yaml-language-server: $schema=_schema.json
 as: call
-rule: function_call
+rule: function call
 where:
   - child:
       as: number
-      rules: [function_in_function_call]
+      rules: [function in function call]
   - type:
       of: number
       as: number_type
       matches: Number
   - child:
       as: function
-      rules: [input_in_function_call]
+      rules: [input in function call]
 group: todo
 messages:
   - node: number

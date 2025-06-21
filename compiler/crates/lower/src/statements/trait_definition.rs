@@ -1,5 +1,5 @@
 use crate::{
-    Definition, Visit, Visitor,
+    Definition, TraitDefinition, TypeParameterDefinition, Visit, Visitor,
     attributes::{AttributeParser, TraitAttributes},
 };
 use wipple_compiler_syntax::TraitDefinitionStatement;
@@ -9,8 +9,9 @@ use wipple_compiler_typecheck::{
     nodes::PlaceholderNode,
 };
 
-/// A trait definition.
 pub const TRAIT_DEFINITION: Rule = Rule::new("trait definition");
+
+pub const PARAMETER_IN_TRAIT_DEFINITION: Rule = Rule::new("parameter in trait definition");
 
 impl Visit for TraitDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
@@ -18,21 +19,39 @@ impl Visit for TraitDefinitionStatement {
             let attributes =
                 TraitAttributes::parse(&mut AttributeParser::new(visitor, &self.attributes));
 
-            let ty = self.r#type.as_ref().map(|ty| {
-                visitor.with_implicit_type_parameters(|visitor| {
-                    visitor.with_target(id, |visitor| ty.visit(visitor, None))
+            let parameters = self
+                .parameters
+                .iter()
+                .map(|parameter| {
+                    let node = visitor.placeholder_node(
+                        Some((id, PARAMETER_IN_TRAIT_DEFINITION)),
+                        &parameter.range,
+                        PARAMETER_IN_TRAIT_DEFINITION,
+                    );
+
+                    visitor.define_name(
+                        &parameter.source,
+                        Definition::TypeParameter(TypeParameterDefinition { node }),
+                    );
+
+                    node
                 })
-            });
+                .collect::<Vec<_>>();
+
+            let ty = self
+                .r#type
+                .as_ref()
+                .map(|ty| visitor.with_target(id, |visitor| ty.visit(visitor, None)));
 
             visitor.define_name(
                 &self.name.source,
-                Definition::Trait {
+                Definition::Trait(TraitDefinition {
                     node: id,
                     comments: self.comments.clone(),
                     attributes,
-                    parameters: self.parameters.clone(),
+                    parameters,
                     constraints: Vec::from_iter(ty.map(|ty| Constraint::Ty(Ty::Generic(ty)))),
-                },
+                }),
             );
 
             (PlaceholderNode, TRAIT_DEFINITION)

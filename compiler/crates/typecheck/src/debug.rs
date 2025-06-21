@@ -17,10 +17,7 @@ impl Session<'_> {
     ) -> io::Result<()> {
         let node_id = |node: NodeId| format!("node{}", node.0);
 
-        writeln!(
-            w,
-            "%%{{init: {{'theme':'neutral','fontFamily':'Fira Code'}}}}%%"
-        )?;
+        writeln!(w, "%%{{init: {{'theme':'neutral'}}}}%%")?;
         writeln!(w, "flowchart LR")?;
         writeln!(
             w,
@@ -63,7 +60,7 @@ impl Session<'_> {
                 w,
                 "{}@{{ label: {:?} }}",
                 node_id(node),
-                format!("{node_span:?}\n{node_source}")
+                format!("{node_span:?}\n<pre>{node_source}</pre>")
             )?;
 
             visited.insert(node);
@@ -97,7 +94,7 @@ impl Session<'_> {
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            writeln!(w, "subgraph group{id}[\"**{description}**\"]")?;
+            writeln!(w, "subgraph group{id}[\"<code>{description}</code>\"]")?;
 
             for (node, _) in group_tys {
                 writeln!(w, "{}", node_id(node))?;

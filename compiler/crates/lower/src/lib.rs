@@ -10,7 +10,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     ops::Range,
 };
-use wipple_compiler_syntax::{Comment, SourceFile, TypeParameterName};
+use wipple_compiler_syntax::{Comment, SourceFile};
 use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
     constraints::{Bound, Constraint},
@@ -71,6 +71,7 @@ struct Visitor<'a> {
     stack: Vec<NodeId>,
     target: Option<NodeId>,
     scopes: Vec<Scope>,
+    instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
     implicit_type_parameters: bool,
 }
 
@@ -85,6 +86,7 @@ impl<'a> Visitor<'a> {
             stack: Default::default(),
             target: None,
             scopes: vec![Scope::default()],
+            instances: Default::default(),
             implicit_type_parameters: false,
         }
     }
@@ -140,6 +142,15 @@ impl<'a> Visitor<'a> {
         id
     }
 
+    fn placeholder_node(
+        &mut self,
+        parent: Option<(NodeId, Rule)>,
+        range: &Range<usize>,
+        rule: Rule,
+    ) -> NodeId {
+        self.node(parent, range, |_, _| (PlaceholderNode, rule))
+    }
+
     fn root_node<N: Node>(
         &mut self,
         range: &Range<usize>,
@@ -149,7 +160,7 @@ impl<'a> Visitor<'a> {
     }
 
     fn root_placeholder_node(&mut self, range: &Range<usize>, rule: Rule) -> NodeId {
-        self.root_node(range, |_, _| (PlaceholderNode, rule))
+        self.placeholder_node(None, range, rule)
     }
 
     fn parent(&self) -> NodeId {
@@ -179,52 +190,67 @@ struct Scope {
 
 #[derive(Debug, Clone)]
 pub enum Definition {
-    Variable {
-        node: NodeId,
-    },
-    Constant {
-        node: NodeId,
-        comments: Vec<Comment>,
-        attributes: ConstantAttributes,
-        parameters: Vec<TypeParameterName>,
-        constraints: Vec<Constraint>,
-    },
-    Type {
-        node: NodeId,
-        comments: Vec<Comment>,
-        attributes: TypeAttributes,
-        parameters: Vec<TypeParameterName>,
-        // TODO: representation
-    },
-    Trait {
-        node: NodeId,
-        comments: Vec<Comment>,
-        attributes: TraitAttributes,
-        parameters: Vec<TypeParameterName>,
-        constraints: Vec<Constraint>,
-    },
-    Instance {
-        node: NodeId,
-        comments: Vec<Comment>,
-        attributes: InstanceAttributes,
-        bound: Bound,
-        parameters: Vec<TypeParameterName>,
-        constraints: Vec<Constraint>,
-    },
-    TypeParameter {
-        node: NodeId,
-    },
+    Variable(VariableDefinition),
+    Constant(ConstantDefinition),
+    Type(TypeDefinition),
+    Trait(TraitDefinition),
+    Instance(InstanceDefinition),
+    TypeParameter(TypeParameterDefinition),
+}
+
+#[derive(Debug, Clone)]
+pub struct VariableDefinition {
+    pub node: NodeId,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConstantDefinition {
+    pub node: NodeId,
+    pub comments: Vec<Comment>,
+    pub attributes: ConstantAttributes,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeDefinition {
+    pub node: NodeId,
+    pub comments: Vec<Comment>,
+    pub attributes: TypeAttributes,
+    pub parameters: Vec<NodeId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TraitDefinition {
+    pub node: NodeId,
+    pub comments: Vec<Comment>,
+    pub attributes: TraitAttributes,
+    pub parameters: Vec<NodeId>,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InstanceDefinition {
+    pub node: NodeId,
+    pub comments: Vec<Comment>,
+    pub attributes: InstanceAttributes,
+    pub bound: Bound,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypeParameterDefinition {
+    pub node: NodeId,
 }
 
 impl Definition {
     fn source(&self) -> NodeId {
         match self {
-            Definition::Variable { node, .. }
-            | Definition::Constant { node, .. }
-            | Definition::Type { node, .. }
-            | Definition::Trait { node, .. }
-            | Definition::Instance { node, .. }
-            | Definition::TypeParameter { node, .. } => *node,
+            Definition::Variable(definition) => definition.node,
+            Definition::Constant(definition) => definition.node,
+            Definition::Type(definition) => definition.node,
+            Definition::Trait(definition) => definition.node,
+            Definition::Instance(definition) => definition.node,
+            Definition::TypeParameter(definition) => definition.node,
         }
     }
 }
@@ -283,6 +309,13 @@ impl Visitor<'_> {
             .unwrap()
             .definitions
             .entry(name.to_string())
+            .or_default()
+            .push(definition);
+    }
+
+    fn define_instance(&mut self, definition: InstanceDefinition) {
+        self.instances
+            .entry(definition.bound.tr)
             .or_default()
             .push(definition);
     }

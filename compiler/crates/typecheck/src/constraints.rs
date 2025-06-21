@@ -281,7 +281,7 @@ pub struct Group(usize);
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Bound {
     pub source: NodeId,
-    pub r#trait: NodeId,
+    pub tr: NodeId,
     pub parameters: Vec<Ty>,
 }
 

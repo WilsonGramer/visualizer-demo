@@ -3,16 +3,12 @@ use wipple_compiler_syntax::TypeNameExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{ConstraintNode, Node, PlaceholderNode};
 
-/// A type or trait name expression.
 pub const TYPE_NAME: Rule = Rule::new("type name");
 
-/// A type name that resolved to a value.
 pub const RESOLVED_TYPE_NAME: Rule = Rule::new("resolved type name");
 
-/// A trait name that resolved to a value.
 pub const RESOLVED_TRAIT_NAME: Rule = Rule::new("resolved trait name");
 
-/// A type or trait name that was not resolved to a value.
 pub const UNRESOLVED_TYPE_NAME: Rule = Rule::new("unresolved type name");
 
 impl Visit for TypeNameExpression {
@@ -22,9 +18,9 @@ impl Visit for TypeNameExpression {
 
             let constraints =
                 visitor.resolve_name(&self.r#type.source, id, |definition| match definition {
-                    Definition::Type { .. } => todo!(),
-                    Definition::Trait { constraints, .. } => {
-                        Some((constraints.clone(), RESOLVED_TRAIT_NAME))
+                    Definition::Type(_) => todo!(),
+                    Definition::Trait(definition) => {
+                        Some((definition.constraints.clone(), RESOLVED_TRAIT_NAME))
                     }
                     _ => None,
                 });

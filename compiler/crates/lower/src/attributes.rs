@@ -48,19 +48,14 @@ impl InstanceAttributes {
     }
 }
 
-/// An unknown attribute.
 pub const UNKNOWN_ATTRIBUTE: Rule = Rule::new("unknown attribute");
 
-/// A duplicate attribute.
 pub const DUPLICATE_ATTRIBUTE: Rule = Rule::new("duplicate attribute");
 
-/// The attribute is missing a value.
 pub const MISSING_ATTRIBUTE_VALUE: Rule = Rule::new("missing attribute value");
 
-/// The attribute shouldn't have a value.
 pub const EXTRA_ATTRIBUTE_VALUE: Rule = Rule::new("extra attribute value");
 
-/// The attribute value is a different type than required.
 pub const MISMATCHED_ATTRIBUTE_VALUE: Rule = Rule::new("mismatched attribute value");
 
 pub struct AttributeParser<'a, 'v> {

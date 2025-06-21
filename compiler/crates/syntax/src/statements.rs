@@ -125,7 +125,7 @@ pub struct InstanceDefinitionStatement {
     pub comments: Vec<Comment>,
     pub attributes: Vec<Attribute>,
     pub r#trait: TypeName,
-    pub parameter: Type,
+    pub parameters: Vec<Type>,
     pub constraints: Vec<Constraint>,
     pub value: Option<Expression>,
 }

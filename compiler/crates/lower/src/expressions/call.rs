@@ -3,22 +3,16 @@ use wipple_compiler_syntax::{CallExpression, Expression};
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode};
 
-/// A function call.
 pub const FUNCTION_CALL: Rule = Rule::new("function call");
 
-/// The function in a function call.
 pub const FUNCTION_IN_FUNCTION_CALL: Rule = Rule::new("function in function call");
 
-/// An input in a function call.
 pub const INPUT_IN_FUNCTION_CALL: Rule = Rule::new("input in function call");
 
-/// A number with a unit.
 pub const UNIT_CALL: Rule = Rule::new("unit call");
 
-/// The number component.
 pub const NUMBER_IN_UNIT_CALL: Rule = Rule::new("number in unit call");
 
-/// The unit component.
 pub const UNIT_IN_UNIT_CALL: Rule = Rule::new("unit in unit call");
 
 impl Visit for CallExpression {
@@ -36,17 +30,16 @@ impl Visit for CallExpression {
             if let Some((unit_range, unit_name)) = unit {
                 if let Some((definition, attributes, constraints)) =
                     visitor.peek_name(unit_name, |definition| match definition {
-                        Definition::Constant {
-                            node: definition,
-                            attributes,
-                            constraints,
-                            ..
-                        } => Some((definition, attributes, constraints)),
+                        Definition::Constant(definition) => Some((
+                            definition.node,
+                            &definition.attributes,
+                            &definition.constraints,
+                        )),
                         _ => None,
                     })
                 {
                     if attributes.unit {
-                        let definition = *definition;
+                        let definition = definition;
                         let constraints = constraints.clone();
 
                         let function = visitor.typed_node(

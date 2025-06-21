@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=_schema.json
 as: node
-rule: incomplete_type
+rule: incomplete type
 where:
   - type:
       as: ty
