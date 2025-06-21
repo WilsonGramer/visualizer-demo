@@ -6,7 +6,7 @@ use wipple_compiler_typecheck::nodes::PlaceholderNode;
 pub const PLACEHOLDER: Rule = Rule::new("placeholder");
 
 impl Visit for PlaceholderExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.typed_node(parent, &self.range, |_visitor, _id| {
             (PlaceholderNode, PLACEHOLDER)
         })

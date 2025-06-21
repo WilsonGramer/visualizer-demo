@@ -1,7 +1,10 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::VariableNameExpression;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{DefinitionNode, Node, PlaceholderNode};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    nodes::{ConstraintNode, Node, PlaceholderNode},
+};
 
 pub const VARIABLE_NAME: Rule = Rule::new("variable name");
 
@@ -12,7 +15,7 @@ pub const RESOLVED_CONSTANT_NAME: Rule = Rule::new("resolved constant name");
 pub const UNRESOLVED_VARIABLE_NAME: Rule = Rule::new("unresolved variable name");
 
 impl Visit for VariableNameExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
             if let Some(((definition, constraints), rule)) =
                 visitor.resolve_name(&self.variable.source, id, |definition| match definition {
@@ -27,9 +30,12 @@ impl Visit for VariableNameExpression {
                 })
             {
                 (
-                    DefinitionNode {
-                        definition,
-                        constraints,
+                    ConstraintNode {
+                        value: id,
+                        constraints: vec![Constraint::Ty(Ty::Of(definition))]
+                            .into_iter()
+                            .chain(constraints)
+                            .collect(),
                     }
                     .boxed(),
                     rule,

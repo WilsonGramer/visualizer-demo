@@ -10,13 +10,11 @@ pub const TUPLE_PATTERN_TARGET: Rule = Rule::new("tuple pattern target");
 pub const TUPLE_PATTERN_ELEMENT: Rule = Rule::new("tuple pattern element");
 
 impl Visit for TuplePattern {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             for (index, element) in self.elements.iter().enumerate() {
-                let target = visitor.node(
-                    Some((id, TUPLE_PATTERN_TARGET)),
-                    &self.range,
-                    |visitor, _id| {
+                let target =
+                    visitor.node((id, TUPLE_PATTERN_TARGET), &self.range, |visitor, _id| {
                         (
                             TupleElementNode {
                                 index,
@@ -25,10 +23,9 @@ impl Visit for TuplePattern {
                             },
                             TUPLE_PATTERN_TARGET,
                         )
-                    },
-                );
+                    });
 
-                element.visit(visitor, Some((target, TUPLE_PATTERN_ELEMENT)));
+                element.visit(visitor, (target, TUPLE_PATTERN_ELEMENT));
             }
 
             (PlaceholderNode, TUPLE_PATTERN)

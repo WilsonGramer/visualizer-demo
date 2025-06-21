@@ -64,45 +64,11 @@ pub fn compile(
 
     let lowered = wipple_compiler_lower::visit(&source_file, make_span);
 
-    let typecheck_ctx = wipple_compiler_typecheck::context::Context {
-        nodes: lowered
-            .nodes
-            .iter()
-            .map(|(&id, (node, rule))| (id, (node.as_ref(), *rule)))
-            .collect(),
-    };
-
-    let mut typechecker = typecheck_ctx
-        .typechecker_from_constraints_where(|node| lowered.typed_nodes.contains(&node));
-
-    typechecker.run();
-
-    // Ensure all expressions are typed (TODO: Put this in its own function)
-    let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
-    for &node in lowered.nodes.keys() {
-        if !(typechecker.filter)(node) {
-            continue;
-        }
-
-        if let Some(tys) = typechecker.constraints.tys.get(&node) {
-            for (ty, _) in tys {
-                if ty.is_incomplete() {
-                    extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
-                }
-            }
-        } else {
-            extras.entry(node).or_default().insert(UNKNOWN_TYPE);
-        }
-    }
-
     let feedback_nodes = lowered
         .nodes
         .iter()
-        .map(|(&id, &(_, rule))| {
-            let extras = extras.get(&id).cloned().unwrap_or_default();
-            (id, extras.into_iter().chain([rule]).collect())
-        })
-        .collect();
+        .map(|(&id, &(_, rule))| (id, HashSet::from([rule])))
+        .collect::<BTreeMap<_, _>>();
 
     let get_span_source = |node| {
         let span = lowered.spans.get(&node).unwrap();
@@ -113,9 +79,56 @@ pub fn compile(
     let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
         &feedback_nodes,
         &lowered.relations,
-        &typechecker.constraints.tys,
         get_span_source,
     );
+
+    let typecheck_ctx = wipple_compiler_typecheck::context::Context {
+        nodes: lowered
+            .nodes
+            .iter()
+            .map(|(&id, (node, rule))| (id, (node.as_ref(), *rule)))
+            .collect(),
+    };
+
+    for &node in lowered.nodes.keys() {
+        let (span, source) = provider.node_span_source(node);
+        eprint!("{node:?} ==> {span:?}: {source}");
+
+        if lowered.typed_nodes.contains(&node) {
+            eprintln!(" (typed)");
+        }
+
+        eprintln!();
+    }
+
+    let filter = |node| lowered.typed_nodes.contains(&node);
+
+    let constraints = typecheck_ctx.typechecker_from_constraints_by(filter).run();
+
+    let mut buf = Vec::new();
+    constraints
+        .write_debug_graph(&mut buf, &lowered.relations, &provider, filter)
+        .unwrap();
+
+    display_graph(String::from_utf8(buf).unwrap());
+
+    // Ensure all expressions are typed (TODO: Put this in its own function)
+    let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
+    for &node in lowered.nodes.keys() {
+        if !lowered.typed_nodes.contains(&node) {
+            continue;
+        }
+
+        if let Some(tys) = constraints.tys.get(&node) {
+            for (ty, _) in tys {
+                if ty.is_incomplete() {
+                    extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
+                }
+            }
+        } else {
+            extras.entry(node).or_default().insert(UNKNOWN_TYPE);
+        }
+    }
 
     // Display feedback
 
@@ -124,7 +137,7 @@ pub fn compile(
         &feedback_nodes,
         &lowered.spans,
         &lowered.relations,
-        &typechecker.constraints.tys,
+        &constraints.tys,
     );
 
     let feedback = feedback_ctx.collect_feedback();
@@ -136,23 +149,9 @@ pub fn compile(
             .collect::<String>(),
     );
 
-    // Display type graph
-
-    let mut buf = Vec::new();
-    typechecker
-        .write_debug_graph(
-            &mut buf,
-            &lowered.definitions.keys().copied().collect(),
-            &lowered.relations,
-            &provider,
-        )
-        .unwrap();
-
-    display_graph(String::from_utf8(buf).unwrap());
-
     // Display type table
 
-    let mut displayed_tys = Vec::from_iter(&typechecker.constraints.tys);
+    let mut displayed_tys = Vec::from_iter(&constraints.tys);
     displayed_tys.sort_by_key(|(node, _)| {
         let span = lowered.spans.get(node).unwrap();
         (span.range.start, span.range.end)
@@ -170,6 +169,7 @@ pub fn compile(
         let node_related_rules = lowered
             .relations
             .neighbors_directed(node, Direction::Incoming)
+            .filter(|node| lowered.typed_nodes.contains(node))
             .map(|related| {
                 let rule = lowered.relations.edge_weight(related, node).unwrap();
                 format!(

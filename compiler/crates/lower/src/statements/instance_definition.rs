@@ -5,21 +5,25 @@ use crate::{
 use wipple_compiler_syntax::InstanceDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
-    constraints::{Bound, Ty},
-    nodes::{DefinitionNode, Node, PlaceholderNode},
+    constraints::{Bound, Constraint, Ty},
+    nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
 pub const INSTANCE_DEFINITION: Rule = Rule::new("instance definition");
 
 pub const TRAIT_IN_INSTANCE_DEFINITION: Rule = Rule::new("trait in instance definition");
 
+pub const PARAMETER_IN_INSTANCE_DEFINITION: Rule = Rule::new("parameter in instance definition");
+
+pub const VALUE_IN_INSTANCE_DEFINITION: Rule = Rule::new("value in instance definition");
+
 pub const UNRESOLVED_TRAIT_NAME: Rule = Rule::new("unresolved trait name in instance definition");
 
 impl Visit for InstanceDefinitionStatement {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let attributes =
-                InstanceAttributes::parse(&mut AttributeParser::new(visitor, &self.attributes));
+                InstanceAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
             let Some(((trait_node, trait_parameters), _)) =
                 visitor.resolve_name(&self.r#trait.source, id, |definition| match definition {
@@ -40,7 +44,9 @@ impl Visit for InstanceDefinitionStatement {
                 .iter()
                 .map(|ty| {
                     visitor.with_implicit_type_parameters(|visitor| {
-                        visitor.with_target(id, |visitor| ty.visit(visitor, None))
+                        visitor.with_target(id, |visitor| {
+                            ty.visit(visitor, (id, PARAMETER_IN_INSTANCE_DEFINITION))
+                        })
                     })
                 })
                 .map(Ty::Of)
@@ -63,15 +69,17 @@ impl Visit for InstanceDefinitionStatement {
             let value = self
                 .value
                 .as_ref()
-                .map(|value| visitor.with_target(id, |visitor| value.visit(visitor, None)))
+                .map(|value| {
+                    visitor.with_target(id, |visitor| {
+                        value.visit(visitor, (id, VALUE_IN_INSTANCE_DEFINITION))
+                    })
+                })
                 .map_or_else(
                     || PlaceholderNode.boxed(),
                     |node| {
-                        DefinitionNode {
-                            definition: node,
-                            // Constraints will be checked on the instance
-                            // itself
-                            constraints: Vec::new(),
+                        ConstraintNode {
+                            value: id,
+                            constraints: vec![Constraint::Ty(Ty::Of(node))],
                         }
                         .boxed()
                     },

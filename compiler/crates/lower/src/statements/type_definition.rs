@@ -11,24 +11,21 @@ pub const TYPE_DEFINITION: Rule = Rule::new("type definition");
 pub const PARAMETER_IN_TYPE_DEFINITION: Rule = Rule::new("parameter in type definition");
 
 impl Visit for TypeDefinitionStatement {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.node(parent, &self.name.range, |visitor, id| {
             if self.representation.is_some() {
                 todo!();
             }
 
             let attributes =
-                TypeAttributes::parse(&mut AttributeParser::new(visitor, &self.attributes));
+                TypeAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
             let parameters = self
                 .parameters
                 .iter()
                 .map(|parameter| {
-                    let node = visitor.placeholder_node(
-                        Some((id, PARAMETER_IN_TYPE_DEFINITION)),
-                        &parameter.range,
-                        PARAMETER_IN_TYPE_DEFINITION,
-                    );
+                    let node = visitor
+                        .placeholder_node((id, PARAMETER_IN_TYPE_DEFINITION), &parameter.range);
 
                     visitor.define_name(
                         &parameter.source,

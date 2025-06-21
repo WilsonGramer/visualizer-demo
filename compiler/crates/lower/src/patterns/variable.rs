@@ -1,15 +1,18 @@
 use crate::{Definition, VariableDefinition, Visit, Visitor};
 use wipple_compiler_syntax::VariablePattern;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::DefinitionNode;
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    nodes::ConstraintNode,
+};
 
 pub const VARIABLE_PATTERN: Rule = Rule::new("variable pattern");
 
 pub const VARIABLE_PATTERN_TARGET: Rule = Rule::new("variable pattern target");
 
 impl Visit for VariablePattern {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, _id| {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
+        visitor.node(parent, &self.range, |visitor, id| {
             visitor.define_name(
                 &self.variable.source,
                 Definition::Variable(VariableDefinition {
@@ -18,9 +21,9 @@ impl Visit for VariablePattern {
             );
 
             (
-                DefinitionNode {
-                    definition: visitor.parent(),
-                    constraints: Vec::new(),
+                ConstraintNode {
+                    value: id,
+                    constraints: vec![Constraint::Ty(Ty::Of(visitor.parent()))],
                 },
                 VARIABLE_PATTERN,
             )

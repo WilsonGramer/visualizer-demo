@@ -2,7 +2,7 @@ use crate::{Definition, TypeParameterDefinition, Visit, Visitor};
 use wipple_compiler_syntax::ParameterType;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
+    constraints::Constraint,
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
@@ -11,7 +11,7 @@ pub const PARAMETER_TYPE: Rule = Rule::new("parameter type");
 pub const UNRESOLVED_PARAMETER_TYPE: Rule = Rule::new("unresolved parameter type");
 
 impl Visit for ParameterType {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let existing =
                 visitor.resolve_name(&self.name.source, id, |definition| match definition {
@@ -25,7 +25,7 @@ impl Visit for ParameterType {
                 Some((node, rule)) => (
                     ConstraintNode {
                         value: visitor.target(),
-                        constraints: vec![Constraint::Ty(Ty::Generic(node))],
+                        constraints: vec![Constraint::Generic(node)],
                     }
                     .boxed(),
                     rule,
@@ -40,7 +40,7 @@ impl Visit for ParameterType {
                         (
                             ConstraintNode {
                                 value: visitor.target(),
-                                constraints: vec![Constraint::Ty(Ty::Generic(id))],
+                                constraints: vec![Constraint::Generic(id)],
                             }
                             .boxed(),
                             PARAMETER_TYPE,

@@ -8,14 +8,14 @@ pub const BLOCK: Rule = Rule::new("block");
 pub const BLOCK_STATEMENT: Rule = Rule::new("block statement");
 
 impl Visit for BlockExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
             visitor.push_scope(id);
 
             let statements = self
                 .statements
                 .iter()
-                .map(|statement| statement.visit(visitor, Some((id, BLOCK_STATEMENT))))
+                .map(|statement| statement.visit(visitor, (id, BLOCK_STATEMENT)))
                 .collect::<Vec<_>>();
 
             visitor.pop_scope();

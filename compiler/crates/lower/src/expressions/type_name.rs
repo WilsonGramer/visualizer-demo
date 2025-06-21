@@ -12,7 +12,7 @@ pub const RESOLVED_TRAIT_NAME: Rule = Rule::new("resolved trait name");
 pub const UNRESOLVED_TYPE_NAME: Rule = Rule::new("unresolved type name");
 
 impl Visit for TypeNameExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
             visitor.push_scope(id);
 

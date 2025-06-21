@@ -1,4 +1,4 @@
-use crate::{context::FeedbackProvider, typechecker::Typechecker};
+use crate::{constraints::Constraints, context::FeedbackProvider};
 use itertools::Itertools;
 use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
@@ -7,13 +7,13 @@ use std::{
 };
 use wipple_compiler_trace::{NodeId, Rule};
 
-impl Typechecker<'_> {
+impl Constraints {
     pub fn write_debug_graph(
         &self,
         w: &mut dyn Write,
-        definitions: &BTreeSet<NodeId>,
         relations: &DiGraphMap<NodeId, Rule>,
         provider: &FeedbackProvider<'_>,
+        filter: impl Fn(NodeId) -> bool,
     ) -> io::Result<()> {
         let node_id = |node: NodeId| format!("node{}", node.0);
 
@@ -30,8 +30,8 @@ impl Typechecker<'_> {
 
         let mut visited = BTreeSet::new();
 
-        for &node in self.constraints.tys.keys().chain(definitions) {
-            if !(self.filter)(node) && !definitions.contains(&node) {
+        for &node in self.tys.keys() {
+            if !(filter)(node) {
                 continue;
             }
 
@@ -39,7 +39,7 @@ impl Typechecker<'_> {
 
             // Also link related nodes
             for parent in relations.neighbors_directed(node, Direction::Incoming) {
-                if !(self.filter)(parent) && !definitions.contains(&parent) {
+                if !filter(parent) {
                     continue;
                 }
 
@@ -67,7 +67,6 @@ impl Typechecker<'_> {
         }
 
         let groups = self
-            .constraints
             .tys
             .iter()
             .flat_map(|(&node, tys)| tys.iter().map(move |(ty, group)| (node, ty, *group)))
@@ -77,7 +76,7 @@ impl Typechecker<'_> {
         for (id, group_tys) in groups {
             let group_tys = group_tys
                 .into_iter()
-                .filter(|&(node, _)| visited.contains(&node) && !definitions.contains(&node))
+                .filter(|&(node, _)| visited.contains(&node))
                 .collect::<Vec<_>>();
 
             if group_tys.is_empty() {

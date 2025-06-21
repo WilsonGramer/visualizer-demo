@@ -15,7 +15,7 @@ use wipple_compiler_syntax::Pattern;
 use wipple_compiler_trace::{NodeId, Rule};
 
 impl Visit for Pattern {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         match self {
             Pattern::Unit(pattern) => pattern.visit(visitor, parent),
             Pattern::Wildcard(pattern) => pattern.visit(visitor, parent),

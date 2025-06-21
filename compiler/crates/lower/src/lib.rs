@@ -17,6 +17,10 @@ use wipple_compiler_typecheck::{
     nodes::{Node, PlaceholderNode},
 };
 
+pub const SOURCE_FILE: Rule = Rule::new("source file");
+
+pub const STATEMENT_IN_SOURCE_FILE: Rule = Rule::new("statement in source file");
+
 #[derive(Debug)]
 pub struct Result {
     pub nodes: BTreeMap<NodeId, (Box<dyn Node>, Rule)>,
@@ -29,15 +33,22 @@ pub struct Result {
 pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Result {
     let mut visitor = Visitor::new(make_span);
 
-    for statement in &file.statements {
-        statement.visit_root(&mut visitor);
-    }
+    let source_file = visitor.node_inner(None, &file.range, |visitor, id| {
+        for statement in &file.statements {
+            statement.visit(visitor, (id, STATEMENT_IN_SOURCE_FILE));
+        }
+
+        (PlaceholderNode, SOURCE_FILE)
+    });
+
+    visitor.nodes.remove(&source_file);
+    visitor.relations.remove_node(source_file);
 
     Result {
         nodes: visitor
             .nodes
             .into_iter()
-            .map(|(id, node)| (id, node.unwrap()))
+            .filter_map(|(id, node)| Some((id, node?)))
             .collect(),
         typed_nodes: visitor.typed_nodes,
         spans: visitor.spans,
@@ -55,11 +66,7 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Res
 }
 
 trait Visit {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId;
-
-    fn visit_root<'a>(&'a self, visitor: &mut Visitor<'a>) -> NodeId {
-        self.visit(visitor, None)
-    }
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId;
 }
 
 struct Visitor<'a> {
@@ -93,20 +100,20 @@ impl<'a> Visitor<'a> {
 
     fn node<N: Node>(
         &mut self,
-        parent: Option<(NodeId, Rule)>,
+        parent: (NodeId, Rule),
         range: &Range<usize>,
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
-        self.node_inner(parent, range, f)
+        self.node_inner(Some(parent), range, f)
     }
 
     fn typed_node<N: Node>(
         &mut self,
-        parent: Option<(NodeId, Rule)>,
+        parent: (NodeId, Rule),
         range: &Range<usize>,
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
-        let id = self.node_inner(parent, range, f);
+        let id = self.node_inner(Some(parent), range, f);
         self.typed_nodes.insert(id);
         id
     }
@@ -142,25 +149,12 @@ impl<'a> Visitor<'a> {
         id
     }
 
-    fn placeholder_node(
-        &mut self,
-        parent: Option<(NodeId, Rule)>,
-        range: &Range<usize>,
-        rule: Rule,
-    ) -> NodeId {
-        self.node(parent, range, |_, _| (PlaceholderNode, rule))
-    }
+    fn placeholder_node(&mut self, parent: (NodeId, Rule), range: &Range<usize>) -> NodeId {
+        let (parent_id, parent_rule) = parent;
 
-    fn root_node<N: Node>(
-        &mut self,
-        range: &Range<usize>,
-        f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
-    ) -> NodeId {
-        self.node(None, range, f)
-    }
-
-    fn root_placeholder_node(&mut self, range: &Range<usize>, rule: Rule) -> NodeId {
-        self.placeholder_node(None, range, rule)
+        self.node((parent_id, parent_rule), range, |_, _| {
+            (PlaceholderNode, parent_rule)
+        })
     }
 
     fn parent(&self) -> NodeId {
@@ -184,7 +178,6 @@ impl<'a> Visitor<'a> {
 
 #[derive(Debug, Clone, Default)]
 struct Scope {
-    source: Option<NodeId>,
     definitions: HashMap<String, Vec<Definition>>,
 }
 
@@ -256,19 +249,14 @@ impl Definition {
 }
 
 impl Visitor<'_> {
-    fn push_scope(&mut self, definition: NodeId) {
+    fn push_scope(&mut self, _definition: NodeId) {
         self.scopes.push(Scope {
-            source: Some(definition),
             definitions: HashMap::new(),
         });
     }
 
     fn pop_scope(&mut self) {
         self.scopes.pop();
-    }
-
-    fn definition(&self) -> NodeId {
-        self.scopes.last().unwrap().source.unwrap()
     }
 
     fn resolve_name<'a, T: 'a>(

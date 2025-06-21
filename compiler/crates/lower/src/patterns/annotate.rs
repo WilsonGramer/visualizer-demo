@@ -11,15 +11,15 @@ pub const ANNOTATED_PATTERN: Rule = Rule::new("annotated pattern");
 pub const TYPE_IN_ANNOTATED_PATTERN: Rule = Rule::new("type in annotated pattern");
 
 impl Visit for AnnotatePattern {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let pattern = self
                 .left
-                .visit(visitor, Some((visitor.parent(), ANNOTATED_PATTERN)));
+                .visit(visitor, (visitor.parent(), ANNOTATED_PATTERN));
 
             let ty = self
                 .right
-                .visit(visitor, Some((id, TYPE_IN_ANNOTATED_PATTERN)));
+                .visit(visitor, (id, TYPE_IN_ANNOTATED_PATTERN));
 
             (
                 ConstraintNode {

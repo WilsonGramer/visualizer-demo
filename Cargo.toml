@@ -10,5 +10,6 @@ elided_lifetimes_in_paths = "deny"
 
 [workspace.lints.clippy]
 new_without_default = "allow"
+result_large_err = "allow"
 too_many_arguments = "allow"
 type_complexity = "allow"

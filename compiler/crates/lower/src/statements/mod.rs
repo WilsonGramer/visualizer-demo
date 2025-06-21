@@ -10,7 +10,7 @@ use wipple_compiler_syntax::Statement;
 use wipple_compiler_trace::{NodeId, Rule};
 
 impl Visit for Statement {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         match self {
             Statement::ConstantDefinition(statement) => statement.visit(visitor, parent),
             Statement::Expression(statement) => statement.visit(visitor, parent),

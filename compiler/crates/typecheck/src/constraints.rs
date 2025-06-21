@@ -12,11 +12,13 @@ use std::{
 use wipple_compiler_trace::NodeId;
 
 pub type TyConstraints = BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>;
+pub type GenericConstraints = BTreeMap<NodeId, NodeId>;
 pub type BoundConstraints = BTreeMap<NodeId, Vec<Bound>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct Constraints {
     pub tys: TyConstraints,
+    pub generic_tys: GenericConstraints,
     pub bounds: BoundConstraints,
 }
 
@@ -27,6 +29,10 @@ impl Constraints {
 
     pub fn insert_ty(&mut self, node: NodeId, ty: Ty) {
         self.tys.entry(node).or_default().push((ty, None));
+    }
+
+    pub fn insert_generic(&mut self, node: NodeId, definition: NodeId) {
+        self.generic_tys.insert(node, definition);
     }
 
     pub fn insert_bound(&mut self, node: NodeId, bound: Bound) {
@@ -53,6 +59,7 @@ impl Constraints {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
     Ty(Ty),
+    Generic(NodeId),
     Bound(Bound),
 }
 
@@ -61,6 +68,7 @@ impl Constraints {
         for constraint in iter {
             match constraint {
                 Constraint::Ty(ty) => self.insert_ty(node, ty),
+                Constraint::Generic(definition) => self.insert_generic(node, definition),
                 Constraint::Bound(bound) => self.insert_bound(node, bound),
             }
         }
@@ -71,6 +79,9 @@ impl Constraint {
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
             Constraint::Ty(ty) => ty.to_debug_string(provider),
+            Constraint::Generic(definition) => {
+                format!("?(generic {})", provider.node_span_source(*definition).1)
+            }
             Constraint::Bound(bound) => bound.to_debug_string(provider),
         }
     }
@@ -141,7 +152,6 @@ impl<'a> ToConstraintsContext<'a> {
 pub enum Ty {
     Unknown,
     Of(NodeId),
-    Generic(NodeId),
     Group(usize),
     Named { name: NodeId, parameters: Vec<Ty> },
     Function { inputs: Vec<Ty>, output: Box<Ty> },
@@ -159,7 +169,7 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Generic { .. } => {}
+            Ty::Group(_) | Ty::Unknown | Ty::Of(..) => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters {
                     parameter.traverse(f);
@@ -184,7 +194,7 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Generic { .. } => {}
+            Ty::Group(_) | Ty::Unknown | Ty::Of(..) => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters {
                     parameter.traverse_mut(f);
@@ -205,37 +215,15 @@ impl Ty {
         }
     }
 
-    pub fn is_generic(&self) -> bool {
-        let mut generic = false;
-        self.traverse(&mut |ty| {
-            if matches!(ty, Ty::Generic(_)) {
-                generic = true;
-            }
-        });
-
-        generic
-    }
-
     pub fn is_incomplete(&self) -> bool {
         let mut incomplete = false;
         self.traverse(&mut |ty| {
-            if matches!(
-                ty,
-                Ty::Group(_) | Ty::Unknown | Ty::Of(..) | Ty::Generic { .. }
-            ) {
+            if matches!(ty, Ty::Group(_) | Ty::Unknown | Ty::Of(..)) {
                 incomplete = true;
             }
         });
 
         incomplete
-    }
-
-    pub fn relative_ordering(&self) -> usize {
-        match self {
-            Ty::Generic { .. } => 0,
-            Ty::Unknown | Ty::Of(..) | Ty::Group(_) => 1,
-            _ => 2,
-        }
     }
 }
 
@@ -244,7 +232,7 @@ impl Ty {
         match self {
             Ty::Group(var) => format!("?{var}"),
             Ty::Unknown => String::from("_"),
-            Ty::Of(node) | Ty::Generic(node) => {
+            Ty::Of(node) => {
                 format!("?({})", provider.node_span_source(*node).1)
             }
             Ty::Named { name, parameters } => format!(

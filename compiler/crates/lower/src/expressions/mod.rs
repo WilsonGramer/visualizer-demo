@@ -25,7 +25,7 @@ use wipple_compiler_syntax::Expression;
 use wipple_compiler_trace::{NodeId, Rule};
 
 impl Visit for Expression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         match self {
             Expression::Placeholder(expression) => expression.visit(visitor, parent),
             Expression::VariableName(expression) => expression.visit(visitor, parent),

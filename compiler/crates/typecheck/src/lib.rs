@@ -8,9 +8,9 @@ use crate::{constraints::ToConstraintsContext, context::Context, typechecker::Ty
 use wipple_compiler_trace::NodeId;
 
 impl Context<'_> {
-    pub fn typechecker_from_constraints_where<'a>(
+    pub fn typechecker_from_constraints_by<'a>(
         &'a self,
-        filter: impl Fn(NodeId) -> bool + 'a,
+        filter: impl Fn(NodeId) -> bool,
     ) -> Typechecker<'a> {
         let mut ctx = ToConstraintsContext::new(self);
         ctx.register_all();
@@ -19,11 +19,12 @@ impl Context<'_> {
             .nodes
             .keys()
             .copied()
+            .filter(|&node| filter(node))
             .inspect(|&node| {
                 ctx.visit(node);
             })
             .collect::<Vec<_>>();
 
-        Typechecker::from_constraints(nodes, ctx.into_constraints(), filter)
+        Typechecker::from_constraints(nodes, ctx.into_constraints())
     }
 }

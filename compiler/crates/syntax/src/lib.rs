@@ -15,9 +15,11 @@ pub use tokens::*;
 pub use types::*;
 
 use derive_tree_sitter::FromNode;
+use std::ops::Range;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, FromNode)]
 pub struct SourceFile {
+    pub range: Range<usize>,
     pub source: String,
     pub statements: Vec<Statement>,
 }

@@ -1,6 +1,6 @@
 .vscode/
 .task/
-test.wipple
+test*.wipple
 
 # Created by https://www.toptal.com/developers/gitignore/api/macos,linux,rust,node
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,linux,rust,node

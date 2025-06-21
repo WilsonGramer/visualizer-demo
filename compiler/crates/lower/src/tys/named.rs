@@ -15,7 +15,7 @@ pub const NAME_IN_NAMED_TYPE: Rule = Rule::new("name in named type");
 pub const PARAMETER_IN_NAMED_TYPE: Rule = Rule::new("parameter in named type");
 
 impl Visit for NamedType {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
             let Some(((type_node, type_parameters), rule)) =
                 visitor.resolve_name(&self.name.source, id, |definition| match definition {
@@ -34,14 +34,7 @@ impl Visit for NamedType {
             let parameters = self
                 .parameters
                 .iter()
-                .map(|ty| {
-                    let input_target =
-                        visitor.root_placeholder_node(ty.range(), PARAMETER_IN_NAMED_TYPE);
-
-                    visitor.with_target(input_target, |visitor| {
-                        Ty::Of(ty.visit(visitor, Some((id, PARAMETER_IN_NAMED_TYPE))))
-                    })
-                })
+                .map(|ty| Ty::Of(ty.visit(visitor, (id, PARAMETER_IN_NAMED_TYPE))))
                 .collect();
 
             (

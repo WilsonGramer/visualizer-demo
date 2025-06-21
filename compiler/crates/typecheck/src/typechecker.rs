@@ -1,15 +1,36 @@
-use crate::constraints::{Constraints, Ty, TyConstraints};
+use crate::constraints::{Constraints, Ty};
 use petgraph::prelude::UnGraphMap;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    mem,
+};
 use wipple_compiler_trace::NodeId;
 
 pub struct Typechecker<'a> {
     pub constraints: Constraints,
-    pub filter: Box<dyn Fn(NodeId) -> bool + 'a>,
-    groups: Vec<Group>,
+    groups: Groups,
+    instantiated: BTreeMap<(NodeId, NodeId), usize>,
+    _temp: std::marker::PhantomData<&'a ()>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
+struct Groups(Vec<Group>);
+
+impl std::ops::Deref for Groups {
+    type Target = Vec<Group>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for Groups {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct Group {
     ty: Option<Ty>,
     nodes: BTreeSet<NodeId>,
@@ -28,15 +49,10 @@ impl<'a> Typechecker<'a> {
     pub fn from_constraints(
         nodes: impl IntoIterator<Item = NodeId>,
         constraints: Constraints,
-        filter: impl Fn(NodeId) -> bool + 'a,
     ) -> Self {
         // Form initial groups based on nodes that directly relate to each other
         let mut directly_related = UnGraphMap::<NodeId, ()>::new();
         for (&node, tys) in &constraints.tys {
-            if !filter(node) {
-                continue;
-            }
-
             for (ty, _) in tys {
                 // We don't need to deeply traverse the type because all types
                 // here represent the top-level type of a node. For example, if
@@ -58,10 +74,6 @@ impl<'a> Typechecker<'a> {
 
         // Put nodes with no relations into their own groups to start with
         for node in nodes {
-            if !filter(node) {
-                continue;
-            }
-
             if !directly_related.contains_node(node) {
                 groups.push(Group::new([node]));
             }
@@ -69,23 +81,143 @@ impl<'a> Typechecker<'a> {
 
         Typechecker {
             constraints,
-            groups,
-            filter: Box::new(filter),
+            groups: Groups(groups),
+            instantiated: Default::default(),
+            _temp: std::marker::PhantomData,
         }
     }
 
-    pub fn run(&mut self) -> TyConstraints {
-        self.last().unwrap_or_default()
+    pub fn run(self) -> Constraints {
+        self.run_until(None).unwrap_or_else(|_| unreachable!())
+    }
+
+    pub fn run_until(mut self, limit: impl Into<Option<usize>>) -> Result<Constraints, Self> {
+        let limit = limit.into();
+
+        let mut counter = 0;
+        while limit.is_none_or(|limit| counter < limit) {
+            counter += 1;
+
+            if self.iterate_tys() {
+                continue;
+            }
+
+            // TODO: If no progress, apply bounds; still no progress, apply
+            // defaults; etc.
+
+            return Ok(self.constraints);
+        }
+
+        // Reached limit
+        Err(self)
     }
 }
 
 impl Typechecker<'_> {
-    fn refine_index(&mut self, index: &mut usize) {
+    fn iterate_tys(&mut self) -> bool {
+        let mut tys = self.constraints.tys.clone();
+
+        let mut queue = VecDeque::from_iter(0..self.groups.len());
+
+        // Unify types within groups
+        let mut results = BTreeMap::<_, Vec<_>>::new();
+        while let Some(mut index) = queue.pop_front() {
+            let nodes_snapshot = self.groups[index].nodes.clone();
+
+            let mut others = BTreeMap::new();
+            for node in nodes_snapshot {
+                for (mut ty, _) in tys.remove(&node).unwrap_or_default() {
+                    self.groups.replace_of_with_group(&mut ty);
+
+                    let mut success = true;
+                    let mut groups_snapshot = self.groups.clone();
+
+                    let mut merge_group = |_from_index, to_index| {
+                        queue.push_back(to_index);
+                    };
+
+                    Ty::Group(index).unify_with(
+                        &ty,
+                        &mut groups_snapshot,
+                        &mut success,
+                        &mut merge_group,
+                    );
+
+                    if success {
+                        self.groups = groups_snapshot;
+                    } else {
+                        // No need to generate a diagnostic here; feedback
+                        // is generated whenever an expression has multiple
+                        // types
+                        others.insert(node, ty);
+                    }
+                }
+            }
+
+            self.groups.apply_index(&mut index);
+
+            // Share the group's final type with every node in the group
+
+            let group_ty: Option<Ty> = self.groups[index].ty.clone();
+
+            for &node in &self.groups[index].nodes {
+                if let Some(group_ty) = &group_ty {
+                    results
+                        .entry(node)
+                        .or_default()
+                        .push((group_ty.clone(), Some(index)));
+                }
+
+                if let Some(other) = others.remove(&node) {
+                    results.entry(node).or_default().push((other, Some(index)));
+                }
+            }
+        }
+
+        // Any remaining constraints weren't part of groups
+        for (&node, constraints) in &mut tys {
+            for (ty, _) in constraints {
+                self.groups.replace_of_with_group(ty);
+                results.entry(node).or_default().push((ty.clone(), None));
+            }
+        }
+
+        // Apply all types
+        for tys in results.values_mut() {
+            for (ty, index) in tys {
+                ty.apply(&mut self.groups);
+
+                if let Some(index) = index {
+                    self.groups.apply_index(index);
+                } else {
+                    // Will be added to a group next time
+                }
+            }
+        }
+
+        // TODO: Set to `true` when a specific change is made rather than
+        // checking everything
+        let progress = self.constraints.tys != results;
+
+        self.constraints.tys = results;
+
+        progress
+    }
+}
+
+impl Groups {
+    fn apply_index(&mut self, index: &mut usize) {
+        let mut seen = vec![*index];
         loop {
             let mut found = false;
-            for (other_index, group) in self.groups.iter().enumerate() {
-                if group.ty == Some(Ty::Group(*index)) && *index != other_index {
+            for (other_index, group) in self.iter().enumerate() {
+                if seen.contains(&other_index) {
+                    continue;
+                }
+
+                if group.ty == Some(Ty::Group(*index)) {
                     *index = other_index;
+                    seen.push(other_index);
                     found = true;
                     break;
                 }
@@ -98,25 +230,32 @@ impl Typechecker<'_> {
     }
 
     fn new_index(&mut self, node: Option<NodeId>) -> usize {
-        let index = self.groups.len();
-        self.groups.push(Group::new(node));
+        let index = self.len();
+        self.push(Group::new(node));
         index
     }
 
-    fn index_of(&self, node: NodeId) -> Option<usize> {
-        self.groups
+    fn try_index_for(&self, node: NodeId) -> Option<usize> {
+        let candidates = self
             .iter()
-            .position(|group| group.nodes.contains(&node))
+            .enumerate()
+            .filter(|(_, group)| group.nodes.contains(&node))
+            .collect::<Vec<_>>();
+
+        match candidates.as_slice() {
+            [] => None,
+            [(index, _)] => Some(*index),
+            _ => panic!("node {node:?}, belongs to multiple groups: {candidates:?}"),
+        }
     }
 
     fn index_for(&mut self, node: Option<NodeId>) -> usize {
-        let mut index = node
-            .and_then(|node| self.index_of(node))
-            .unwrap_or_else(|| self.new_index(node));
-
-        self.refine_index(&mut index);
-
-        index
+        node.and_then(|node| {
+            let mut index = self.try_index_for(node)?;
+            self.apply_index(&mut index);
+            Some(index)
+        })
+        .unwrap_or_else(|| self.new_index(node))
     }
 
     fn replace_of_with_group(&mut self, ty: &mut Ty) {
@@ -130,160 +269,53 @@ impl Typechecker<'_> {
     }
 }
 
-impl Iterator for Typechecker<'_> {
-    type Item = TyConstraints;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut tys = self.constraints.tys.clone();
-
-        let mut groups_snapshot = self
-            .groups
-            .iter()
-            .cloned()
-            .enumerate() // must be done before sorting
-            .collect::<Vec<_>>();
-
-        // Form better groups by applying groups containing incomplete types first
-        groups_snapshot.sort_by_key(|(_, group)| {
-            group
-                .nodes
-                .iter()
-                .flat_map(|node| {
-                    tys.get(node)
-                        .into_iter()
-                        .flatten()
-                        .map(|(ty, _)| {
-                            let mut ty = ty.clone();
-                            ty.apply(self);
-                            ty.relative_ordering()
-                        })
-                        .min()
-                })
-                .min()
-        });
-
-        // Unify types within groups
-        let mut results = BTreeMap::<_, Vec<_>>::new();
-        for &(index, ref group) in &groups_snapshot {
-            let tys = group
-                .nodes
-                .iter()
-                .filter_map(|&node| Some(tys.get(&node)?.iter().cloned().map(move |ty| (node, ty))))
-                .flatten()
-                .collect::<Vec<_>>();
-
-            // Fold each type in the group into a single type
-            let mut others = Vec::new();
-            for (_node, (mut ty, _)) in tys {
-                // Skip generic types until they have been instantiated
-                if ty.is_generic() {
-                    others.push(ty);
-                    continue;
-                }
-
-                self.replace_of_with_group(&mut ty);
-
-                let mut success = true;
-                Ty::Group(index).unify_with(&ty, self, &mut success);
-
-                if !success {
-                    // No need to generate a diagnostic here; feedback
-                    // is generated whenever an expression has multiple
-                    // types
-                    others.push(ty);
-                }
-            }
-
-            // Share the result with every node in the group
-
-            let result_tys = [Ty::Group(index)]
-                .into_iter()
-                .chain(others.clone())
-                .map(|ty| (ty, Some(index)))
-                .collect::<Vec<_>>();
-
-            for &node in &group.nodes {
-                results.entry(node).or_default().extend(result_tys.clone());
-            }
-        }
-
-        // Any remaining constraints weren't part of groups
-        for (node, constraints) in &mut tys {
-            for (ty, _) in constraints {
-                if ty.is_generic() {
-                    continue;
-                }
-
-                self.replace_of_with_group(ty);
-                results.entry(*node).or_default().push((ty.clone(), None));
-            }
-        }
-
-        // Apply all types and instantiate generics as needed
-        for tys in results.values_mut() {
-            for (ty, index) in tys.iter_mut() {
-                ty.apply(self);
-                ty.instantiate(self);
-
-                if let Some(index) = index {
-                    self.refine_index(index);
-                }
-            }
-
-            *tys = Vec::from_iter(tys.drain(..).fold(
-                HashMap::<Ty, Option<usize>>::new(),
-                |mut tys, (ty, index)| {
-                    let entry = tys.entry(ty).or_default();
-                    if let Some(index) = index {
-                        entry.get_or_insert(index);
-                    }
-
-                    tys
-                },
-            ));
-        }
-
-        // TODO: Set to `true` when a specific change is made
-        let progress = self.constraints.tys != results;
-
-        // TODO: If no progress, apply bounds; still no progress, apply
-        // defaults; etc.
-
-        let result = progress.then(|| results.clone());
-        self.constraints.tys = results;
-
-        result
-    }
-}
-
 impl Ty {
-    fn unify_with(&mut self, other: &Ty, typechecker: &mut Typechecker<'_>, success: &mut bool) {
-        self.apply(typechecker);
+    fn unify_with(
+        &mut self,
+        other: &Ty,
+        groups: &mut Groups,
+        success: &mut bool,
+        merge_group: &mut impl FnMut(usize, usize),
+    ) {
+        self.apply(groups);
 
         match (self, other) {
             (Ty::Unknown, _) | (_, Ty::Unknown) => {}
             (_, Ty::Of(..)) | (Ty::Of(..), _) => {
                 unreachable!("`Ty::Of` should be replaced with `Ty::Group`")
             }
-            (_, Ty::Generic(..)) | (Ty::Generic(..), _) => {
-                // Skip; these are treated as opaque until instantiated
+            (Ty::Group(index), Ty::Group(other_index)) => {
+                let Ok([group, other_group]) = groups.get_disjoint_mut([*index, *other_index])
+                else {
+                    // Indices are the same; do nothing
+                    return;
+                };
+
+                // We don't need to unify the other group's type with the
+                // current group's, because if this arm is reached, neither
+                // group actually has a type yet (since types are applied
+                // beforehand).
+                assert!(group.ty.is_none());
+                assert!(other_group.ty.is_none());
+
+                group.nodes.extend(mem::take(&mut other_group.nodes));
+                merge_group(*index, *other_index);
             }
             (ty @ &mut Ty::Group(index), other) => {
                 let mut other = other.clone();
-                other.apply(typechecker);
-                typechecker.groups[index].ty = Some(other.clone());
-                *ty = other;
-                ty.apply(typechecker);
+                other.apply(groups);
+
+                assert!(groups[index].ty.is_none());
+                groups[index].ty = Some(other.clone());
+
+                ty.apply(groups);
             }
-            (other, &Ty::Group(index)) => match typechecker.groups[index].ty.clone() {
-                Some(group_ty) => {
-                    other.unify_with(&group_ty, typechecker, success);
-                }
-                None => {
-                    other.apply(typechecker);
-                    typechecker.groups[index].ty = Some(other.clone());
-                }
-            },
+            (other, &Ty::Group(index)) => {
+                other.apply(groups);
+
+                assert!(groups[index].ty.is_none());
+                groups[index].ty = Some(other.clone());
+            }
             (
                 Ty::Named { name, parameters },
                 Ty::Named {
@@ -292,7 +324,7 @@ impl Ty {
                 },
             ) if name == other_name => {
                 for (parameter, other) in parameters.iter_mut().zip(other_parameters) {
-                    parameter.unify_with(other, typechecker, success);
+                    parameter.unify_with(other, groups, success, merge_group);
                 }
             }
             (
@@ -303,10 +335,10 @@ impl Ty {
                 },
             ) if inputs.len() == other_inputs.len() => {
                 for (input, other) in inputs.iter_mut().zip(other_inputs) {
-                    input.unify_with(other, typechecker, success);
+                    input.unify_with(other, groups, success, merge_group);
                 }
 
-                output.unify_with(other_output, typechecker, success);
+                output.unify_with(other_output, groups, success, merge_group);
             }
             (
                 Ty::Tuple { elements },
@@ -315,97 +347,46 @@ impl Ty {
                 },
             ) if elements.len() == other_elements.len() => {
                 for (element, other) in elements.iter_mut().zip(other_elements) {
-                    element.unify_with(other, typechecker, success);
+                    element.unify_with(other, groups, success, merge_group);
                 }
             }
             _ => *success = false,
         }
     }
 
-    fn apply(&mut self, typechecker: &Typechecker<'_>) {
-        self.apply_inner(typechecker, &mut Vec::new());
+    fn apply(&mut self, groups: &mut Groups) {
+        self.apply_inner(groups, &mut Vec::new());
     }
 
-    fn apply_inner(&mut self, typechecker: &Typechecker<'_>, stack: &mut Vec<usize>) {
+    fn apply_inner(&mut self, groups: &mut Groups, stack: &mut Vec<usize>) {
         self.traverse_mut(&mut |ty| {
-            if let Ty::Group(index) = *ty {
+            if let Ty::Group(mut index) = *ty {
+                groups.apply_index(&mut index);
+
                 if stack.contains(&index) {
-                    return;
+                    panic!(
+                        "cycle detected: {}{}",
+                        stack
+                            .iter()
+                            .map(|index| format!("{index} -> "))
+                            .collect::<String>(),
+                        index
+                    );
                 }
 
-                stack.push(index);
+                if let Some(group_ty) = &groups[index].ty {
+                    stack.push(index);
 
-                if let Some(group_ty) = &typechecker.groups[index].ty {
                     *ty = group_ty.clone();
-                    ty.apply_inner(typechecker, stack);
-                }
+                    ty.apply_inner(groups, stack);
 
-                stack.pop();
+                    stack.pop();
+                }
             }
         });
     }
 
-    fn instantiate(&mut self, typechecker: &mut Typechecker<'_>) {
-        self.traverse_mut(&mut |ty| {
-            if let Ty::Generic(node) = *ty {
-                let mut groups = BTreeMap::new();
-
-                let get_definition_ty = |typechecker: &mut Typechecker<'_>, node: NodeId| {
-                    let tys = typechecker.constraints.tys.get(&node)?;
-
-                    if tys.len() != 1 {
-                        panic!("definition has multiple types: {node:?}");
-                    }
-
-                    let mut ty = tys.iter().next().unwrap().0.clone();
-                    ty.apply(typechecker);
-
-                    Some(ty)
-                };
-
-                // Replace all variables in the definition with fresh ones and
-                // collect other constraints (eg. bounds)
-                let mut definition_ty = Ty::Of(node);
-                loop {
-                    let mut progress = false;
-
-                    definition_ty.apply(typechecker);
-                    definition_ty.traverse_mut(&mut |ty| {
-                        match *ty {
-                            Ty::Of(node) => {
-                                if let Some(definition_ty) = get_definition_ty(typechecker, node) {
-                                    *ty = definition_ty.clone();
-                                    progress = true;
-
-                                    // TODO: Also add bounds and other constraints here
-                                }
-                            }
-                            Ty::Generic(node) => {
-                                // Found a type parameter; replace it with a
-                                // fresh group (or cached locally)
-                                let index = *groups
-                                    .entry(node)
-                                    .or_insert_with(|| typechecker.index_for(None));
-
-                                *ty = Ty::Group(index);
-                                progress = true;
-                            }
-                            _ => {}
-                        }
-                    });
-
-                    if !progress {
-                        break;
-                    }
-                }
-
-                // Add the type to a fresh group
-                let index = typechecker.index_for(None);
-                typechecker.groups[index].ty = Some(definition_ty.clone());
-
-                *ty = Ty::Group(index);
-                ty.apply(typechecker);
-            }
-        });
-    }
+    // fn instantiate(&mut self, node: NodeId, definition: NodeId, typechecker: &mut Typechecker<'_>) {
+    //     *self = Ty::Of(definition);
+    // }
 }

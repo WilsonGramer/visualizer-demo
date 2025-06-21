@@ -10,14 +10,14 @@ pub const ASSIGNMENT_PATTERN: Rule = Rule::new("assignment_pattern");
 pub const ASSIGNMENT: Rule = Rule::new("assignment");
 
 impl Visit for AssignmentStatement {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.node(parent, &self.range, |visitor, id| {
-            let value = self.value.visit(visitor, Some((id, ASSIGNMENT_VALUE)));
+            let value = self.value.visit(visitor, (id, ASSIGNMENT_VALUE));
 
             // The typechecker doesn't need to see the pattern, since visiting
             // it here will add the relevant constraints
-            self.pattern
-                .visit(visitor, Some((value, ASSIGNMENT_PATTERN)));
+
+            self.pattern.visit(visitor, (value, ASSIGNMENT_PATTERN));
 
             (PlaceholderNode, ASSIGNMENT)
         })

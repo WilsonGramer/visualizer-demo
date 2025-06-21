@@ -12,7 +12,7 @@ pub const TEXT: Rule = Rule::new("text");
 pub const MISSING_TEXT_TYPE: Rule = Rule::new("missing text type");
 
 impl Visit for TextExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
             let text_ty = visitor.resolve_name("Text", id, |definition| match definition {
                 Definition::Type(definition) => Some((

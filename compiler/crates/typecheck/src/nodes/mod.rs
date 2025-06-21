@@ -30,7 +30,6 @@ register_nodes! {
     mod block => BlockNode;
     mod call => CallNode;
     mod constraint => ConstraintNode;
-    mod definition => DefinitionNode;
     mod function => FunctionNode;
     mod placeholder => PlaceholderNode;
     mod tuple_element => TupleElementNode;

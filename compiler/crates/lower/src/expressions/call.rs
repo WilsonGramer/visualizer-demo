@@ -1,7 +1,10 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::{CallExpression, Expression};
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{CallNode, DefinitionNode};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    nodes::{CallNode, ConstraintNode},
+};
 
 pub const FUNCTION_CALL: Rule = Rule::new("function call");
 
@@ -16,7 +19,7 @@ pub const NUMBER_IN_UNIT_CALL: Rule = Rule::new("number in unit call");
 pub const UNIT_IN_UNIT_CALL: Rule = Rule::new("unit in unit call");
 
 impl Visit for CallExpression {
-    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: Option<(NodeId, Rule)>) -> NodeId {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
             let unit = match self.inputs.as_slice() {
                 [Expression::VariableName(input)] => {
@@ -39,26 +42,26 @@ impl Visit for CallExpression {
                     })
                 {
                     if attributes.unit {
-                        let definition = definition;
                         let constraints = constraints.clone();
 
                         let function = visitor.typed_node(
-                            Some((id, UNIT_IN_UNIT_CALL)),
+                            (id, UNIT_IN_UNIT_CALL),
                             unit_range,
-                            |_visitor, _id| {
+                            |_visitor, id| {
                                 (
-                                    DefinitionNode {
-                                        definition,
-                                        constraints,
+                                    ConstraintNode {
+                                        value: id,
+                                        constraints: vec![Constraint::Ty(Ty::Of(definition))]
+                                            .into_iter()
+                                            .chain(constraints)
+                                            .collect(),
                                     },
                                     UNIT_IN_UNIT_CALL,
                                 )
                             },
                         );
 
-                        let input = self
-                            .function
-                            .visit(visitor, Some((id, NUMBER_IN_UNIT_CALL)));
+                        let input = self.function.visit(visitor, (id, NUMBER_IN_UNIT_CALL));
 
                         return (
                             CallNode {
@@ -75,11 +78,11 @@ impl Visit for CallExpression {
                 CallNode {
                     function: self
                         .function
-                        .visit(visitor, Some((id, FUNCTION_IN_FUNCTION_CALL))),
+                        .visit(visitor, (id, FUNCTION_IN_FUNCTION_CALL)),
                     inputs: self
                         .inputs
                         .iter()
-                        .map(|input| input.visit(visitor, Some((id, INPUT_IN_FUNCTION_CALL))))
+                        .map(|input| input.visit(visitor, (id, INPUT_IN_FUNCTION_CALL)))
                         .collect::<Vec<_>>(),
                 },
                 FUNCTION_CALL,
