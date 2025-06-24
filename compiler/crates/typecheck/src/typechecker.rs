@@ -158,15 +158,13 @@ impl Typechecker<'_> {
 
             // Share the group's final type with every node in the group
 
-            let group_ty: Option<Ty> = self.groups[index].ty.clone();
+            let group_ty = self.groups[index].ty.clone().unwrap_or(Ty::Group(index));
 
             for &node in &self.groups[index].nodes {
-                if let Some(group_ty) = &group_ty {
-                    results
-                        .entry(node)
-                        .or_default()
-                        .push((group_ty.clone(), Some(index)));
-                }
+                results
+                    .entry(node)
+                    .or_default()
+                    .push((group_ty.clone(), Some(index)));
 
                 if let Some(other) = others.remove(&node) {
                     results.entry(node).or_default().push((other, Some(index)));
