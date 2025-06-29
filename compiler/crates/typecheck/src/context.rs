@@ -13,8 +13,13 @@ pub struct Context<'a> {
 
 impl<'a> Context<'a> {
     pub fn insert(&mut self, value: &'a impl Node, rule: Rule) -> NodeId {
-        let node = NodeId(self.nodes.len());
+        let node = NodeId {
+            namespace: None,
+            index: self.nodes.len() as u32,
+        };
+
         self.nodes.insert(node, (value, rule));
+
         node
     }
 

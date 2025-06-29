@@ -91,15 +91,29 @@ pub fn compile(
             .collect(),
     };
 
-    let filter = |node| lowered.typed_nodes.contains(&node);
+    let constraints = typecheck_ctx.as_constraints();
 
-    let constraints = typecheck_ctx.as_constraints(filter);
+    let mut typechecker = Typechecker::new();
 
-    let typechecker = Typechecker::new();
-    let ty_groups = typechecker.run_with(constraints);
+    typechecker.insert_nodes(lowered.typed_nodes.clone());
+
+    typechecker.insert_tys(&constraints.tys);
+
+    typechecker.insert_generics(&constraints.generic_tys, |definition| {
+        lowered.definitions.get(&definition).unwrap().constraints()
+    });
+
+    let ty_groups = typechecker.run();
 
     let mut buf = Vec::new();
-    debug::write_graph(&mut buf, &ty_groups, &lowered.relations, &provider, filter).unwrap();
+    debug::write_graph(
+        &mut buf,
+        &ty_groups,
+        &lowered.relations,
+        &provider,
+        |node| lowered.typed_nodes.contains(&node),
+    )
+    .unwrap();
 
     display_graph(String::from_utf8(buf).unwrap());
 

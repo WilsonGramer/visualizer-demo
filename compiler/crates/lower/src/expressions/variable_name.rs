@@ -17,25 +17,22 @@ pub const UNRESOLVED_VARIABLE_NAME: Rule = Rule::new("unresolved variable name")
 impl Visit for VariableNameExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.typed_node(parent, &self.range, |visitor, id| {
-            if let Some(((definition, constraints), rule)) =
+            if let Some((constraint, rule)) =
                 visitor.resolve_name(&self.variable.source, id, |definition| match definition {
-                    Definition::Variable(definition) => {
-                        Some(((definition.node, Vec::new()), RESOLVED_VARIABLE_NAME))
-                    }
-                    Definition::Constant(definition) => Some((
-                        (definition.node, definition.constraints.clone()),
-                        RESOLVED_CONSTANT_NAME,
+                    Definition::Variable(definition) => Some((
+                        Constraint::Ty(Ty::Of(definition.node)),
+                        RESOLVED_VARIABLE_NAME,
                     )),
+                    Definition::Constant(definition) => {
+                        Some((Constraint::Generic(definition.node), RESOLVED_CONSTANT_NAME))
+                    }
                     _ => None,
                 })
             {
                 (
                     ConstraintNode {
                         value: id,
-                        constraints: vec![Constraint::Ty(Ty::Of(definition))]
-                            .into_iter()
-                            .chain(constraints)
-                            .collect(),
+                        constraints: vec![constraint],
                     }
                     .boxed(),
                     rule,

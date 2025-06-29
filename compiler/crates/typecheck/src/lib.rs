@@ -9,10 +9,9 @@ use crate::{
     context::Context,
 };
 use std::collections::BTreeSet;
-use wipple_compiler_trace::NodeId;
 
 impl Context<'_> {
-    pub fn as_constraints(&self, filter: impl Fn(NodeId) -> bool) -> Constraints {
+    pub fn as_constraints(&self) -> Constraints {
         let mut ctx = ToConstraintsContext::new(self);
         ctx.register_all();
 
@@ -20,10 +19,7 @@ impl Context<'_> {
             .nodes
             .keys()
             .copied()
-            .filter(|&node| filter(node))
-            .inspect(|&node| {
-                ctx.visit(node);
-            })
+            .inspect(|&node| ctx.visit(node))
             .collect::<BTreeSet<_>>();
 
         let mut constraints = ctx.into_constraints();

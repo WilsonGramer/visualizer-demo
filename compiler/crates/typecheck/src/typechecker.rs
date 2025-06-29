@@ -1,4 +1,4 @@
-use crate::constraints::{Constraints, Ty, TyConstraints};
+use crate::constraints::{Constraint, Constraints, GenericConstraints, Ty, TyConstraints};
 use ena::unify::InPlaceUnificationTable;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -8,34 +8,34 @@ use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone, Default)]
 pub struct TyGroups {
-    indices: BTreeMap<NodeId, usize>,
+    indices: BTreeMap<NodeId, u32>,
     tys: Vec<Vec<Ty>>,
 }
 
 impl TyGroups {
-    pub fn insert_group(&mut self, ty: Ty) -> usize {
-        let index = self.tys.len();
+    pub fn insert_group(&mut self, ty: Ty) -> u32 {
+        let index = self.tys.len() as u32;
         self.tys.push(vec![ty]);
         index
     }
 
-    pub fn assign_node_to_index(&mut self, node: NodeId, index: usize) {
+    pub fn assign_node_to_index(&mut self, node: NodeId, index: u32) {
         self.indices.insert(node, index);
     }
 
-    pub fn index_of(&self, node: NodeId) -> Option<usize> {
+    pub fn index_of(&self, node: NodeId) -> Option<u32> {
         self.indices.get(&node).copied()
     }
 
-    pub fn tys_at(&self, index: usize) -> &[Ty] {
-        &self.tys[index]
+    pub fn tys_at(&self, index: u32) -> &[Ty] {
+        &self.tys[index as usize]
     }
 
-    pub fn tys_at_mut(&mut self, index: usize) -> &mut Vec<Ty> {
-        &mut self.tys[index]
+    pub fn tys_at_mut(&mut self, index: u32) -> &mut Vec<Ty> {
+        &mut self.tys[index as usize]
     }
 
-    pub fn nodes_in_group(&self, index: usize) -> impl Iterator<Item = NodeId> {
+    pub fn nodes_in_group(&self, index: u32) -> impl Iterator<Item = NodeId> {
         self.indices
             .iter()
             .filter_map(move |(&node, &i)| (i == index).then_some(node))
@@ -45,20 +45,22 @@ impl TyGroups {
         self.indices.keys().copied()
     }
 
-    pub fn groups(&self) -> impl Iterator<Item = (usize, &[Ty])> {
+    pub fn groups(&self) -> impl Iterator<Item = (u32, &[Ty])> {
         self.tys
             .iter()
             .enumerate()
-            .map(|(index, tys)| (index, tys.as_slice()))
+            .map(|(index, tys)| (index as u32, tys.as_slice()))
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Typechecker {
+    nodes: BTreeSet<NodeId>,
     keys: GroupKeys,
     unify: InPlaceUnificationTable<GroupKey>,
     groups: BTreeMap<GroupKey, Ty>,    // types that unified
     others: BTreeMap<NodeId, Vec<Ty>>, // types that failed to unify
+    queue: Vec<(NodeId, Constraint)>,  // ordered
     progress: Progress,
 }
 
@@ -67,16 +69,81 @@ impl Typechecker {
         Default::default()
     }
 
-    pub fn run_with(self, constraints: Constraints) -> TyGroups {
-        self.run_with_until(constraints, None)
-            .unwrap_or_else(|_| unreachable!())
+    pub fn insert_nodes(&mut self, nodes: impl IntoIterator<Item = NodeId>) {
+        self.nodes.extend(nodes);
     }
 
-    pub fn run_with_until(
-        mut self,
-        mut constraints: Constraints,
-        limit: impl Into<Option<usize>>,
-    ) -> Result<TyGroups, Self> {
+    pub fn insert_tys(&mut self, constraints: &TyConstraints) {
+        // Form better groups by first adding constraints that reference other
+        // nodes directly, followed by other incomplete types
+
+        let mut of = Vec::new();
+        let mut incomplete = Vec::new();
+        let mut complete = Vec::new();
+        for (&node, tys) in constraints {
+            for ty in tys {
+                if let Ty::Of(_) = ty {
+                    of.push((node, ty.clone()))
+                } else if ty.is_incomplete() {
+                    incomplete.push((node, ty.clone()))
+                } else {
+                    complete.push((node, ty.clone()))
+                }
+            }
+        }
+
+        for (node, ty) in [of, incomplete, complete].into_iter().flatten() {
+            self.queue.push((node, Constraint::Ty(ty)));
+        }
+    }
+
+    pub fn insert_generics(
+        &mut self,
+        constraints: &GenericConstraints,
+        mut lookup: impl FnMut(NodeId) -> Vec<Constraint>,
+    ) {
+        let mut instantiated = BTreeMap::new();
+        let mut instantiate =
+            move |typechecker: &mut Self, node: NodeId, mut definition: NodeId| {
+                *instantiated.entry(node).or_insert_with(|| {
+                    let key = typechecker.key_for_node(node);
+
+                    let existing_namespace = definition.namespace.replace(key.0);
+                    assert!(existing_namespace.is_none());
+
+                    definition
+                })
+            };
+
+        // Make instantiated copies of the definition's constraints
+        for &(node, definition) in constraints {
+            let constraints = Constraints::from_iter(definition, lookup(definition));
+
+            // Resolve the definition's type on its own...
+            let mut definition_typechecker = self.clone();
+            definition_typechecker.insert_tys(&constraints.tys);
+            let _ = definition_typechecker.run_tys();
+            let mut definition_ty = Ty::Of(definition);
+
+            // ...and then make an instantiated copy to use in `self`
+            definition_typechecker.apply(&mut definition_ty);
+            definition_ty.traverse_mut(&mut |ty| {
+                if let Ty::Of(definition) = ty {
+                    *definition = instantiate(self, node, *definition);
+                }
+            });
+
+            self.queue.push((node, Constraint::Ty(definition_ty)));
+        }
+    }
+}
+
+impl Typechecker {
+    pub fn run(mut self) -> TyGroups {
+        self.run_until(None).unwrap_or_else(|_| unreachable!())
+    }
+
+    pub fn run_until(&mut self, limit: impl Into<Option<usize>>) -> Result<TyGroups, ()> {
         let limit = limit.into();
 
         let mut counter = 0;
@@ -85,29 +152,38 @@ impl Typechecker {
 
             // TODO: If no progress, apply bounds; still no progress, apply
             // defaults; etc., using `and_then(..)`
-            match self.add_tys(mem::take(&mut constraints.tys)) {
+            let progress = self.run_tys();
+
+            match progress {
                 Progress::Progressed => continue,
-                Progress::NoProgress => return Ok(self.to_ty_groups(constraints.nodes)),
+                Progress::NoProgress => return Ok(self.to_ty_groups()),
             }
         }
 
         // Reached limit
-        Err(self)
+        Err(())
     }
 
-    fn add_tys(&mut self, constraints: TyConstraints) -> Progress {
-        // Form better groups by first adding constraints that reference other
-        // nodes directly
-        let (of, others): (Vec<_>, Vec<_>) = constraints
+    fn run_tys(&mut self) -> Progress {
+        let mut tys = Vec::new();
+        self.queue = mem::take(&mut self.queue)
             .into_iter()
-            .flat_map(|(node, tys)| tys.into_iter().map(move |ty| (node, ty)))
-            .partition(|(_, ty)| matches!(ty, Ty::Of(_)));
+            .filter_map(|(node, constraint)| match constraint {
+                Constraint::Ty(ty) => {
+                    tys.push((node, ty));
+                    None
+                }
+                _ => Some((node, constraint)),
+            })
+            .collect();
 
-        let (incomplete, complete): (Vec<_>, Vec<_>) =
-            others.into_iter().partition(|(_, ty)| ty.is_incomplete());
+        for (node, mut ty) in tys {
+            // `Ty::Of(node)` will resolve to the representative for `node`, so
+            // this effectively unifies the node's type with the other types in
+            // the node's group
+            let result = self.unify(&mut Ty::Of(node), &mut ty);
 
-        for (node, mut ty) in [of, incomplete, complete].into_iter().flatten() {
-            if self.unify(&mut Ty::Of(node), &mut ty).is_err() {
+            if result.is_err() {
                 // No need to generate a diagnostic here; feedback is
                 // generated whenever an expression has multiple types
                 self.others.entry(node).or_default().push(ty);
@@ -117,7 +193,7 @@ impl Typechecker {
         self.progress.take()
     }
 
-    fn to_ty_groups(&self, nodes: impl IntoIterator<Item = NodeId>) -> TyGroups {
+    fn to_ty_groups(&self) -> TyGroups {
         let mut ty_groups = TyGroups::default();
 
         let mut unify = self.unify.clone();
@@ -148,11 +224,23 @@ impl Typechecker {
         }
 
         // Any remaining nodes have unknown types
-        for node in nodes {
+        for &node in &self.nodes {
             if ty_groups.index_of(node).is_none() {
                 let index = ty_groups.insert_group(Ty::Unknown);
                 ty_groups.assign_node_to_index(node, index);
             }
+        }
+
+        // Remove namespaces from all node IDs
+        ty_groups.indices.retain(|node, _| node.namespace.is_none());
+
+        // Replace unresolved `Ty::Of` types with `Ty::Unknown`
+        for ty in ty_groups.tys.iter_mut().flatten() {
+            ty.traverse_mut(&mut |ty| {
+                if let Ty::Of(_) = *ty {
+                    *ty = Ty::Unknown;
+                }
+            });
         }
 
         ty_groups
@@ -342,7 +430,7 @@ impl ena::unify::UnifyValue for Group {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 struct GroupKeys {
     keys: BTreeMap<NodeId, GroupKey>,
     nodes: BTreeMap<GroupKey, NodeId>,
@@ -376,6 +464,7 @@ impl GroupKeys {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
+#[must_use]
 enum Progress {
     #[default]
     NoProgress,
@@ -383,12 +472,12 @@ enum Progress {
 }
 
 impl Progress {
-    fn and_then(self, f: impl FnOnce() -> Self) -> Self {
+    fn or_else(self, f: impl FnOnce() -> Self) -> Self {
         use Progress::*;
 
         match self {
-            NoProgress => NoProgress,
-            Progressed => f(),
+            NoProgress => f(),
+            Progressed => Progressed,
         }
     }
 

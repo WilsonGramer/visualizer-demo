@@ -14,7 +14,7 @@ pub fn write_graph(
     provider: &FeedbackProvider<'_>,
     filter: impl Fn(NodeId) -> bool,
 ) -> io::Result<()> {
-    let node_id = |node: NodeId| format!("node{}", node.0);
+    let node_id = |node: NodeId| format!("node{}", node.index);
 
     writeln!(w, "%%{{init: {{'theme':'neutral'}}}}%%")?;
     writeln!(w, "flowchart LR")?;
@@ -66,6 +66,11 @@ pub fn write_graph(
     }
 
     for (index, group_tys) in ty_groups.groups() {
+        let nodes = ty_groups.nodes_in_group(index).collect::<Vec<_>>();
+        if nodes.iter().all(|node| !visited.contains(node)) {
+            continue;
+        }
+
         let error = !group_tys.iter().all_equal();
 
         let description = group_tys
@@ -77,7 +82,7 @@ pub fn write_graph(
 
         writeln!(w, "subgraph group{index}[\"<code>{description}</code>\"]")?;
 
-        for node in ty_groups.nodes_in_group(index) {
+        for node in nodes {
             if visited.contains(&node) {
                 writeln!(w, "{}", node_id(node))?;
             }

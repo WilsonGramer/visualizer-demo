@@ -2,7 +2,7 @@ use crate::{Definition, TypeParameterDefinition, Visit, Visitor};
 use wipple_compiler_syntax::ParameterType;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
-    constraints::Constraint,
+    constraints::{Constraint, Ty},
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
@@ -25,7 +25,7 @@ impl Visit for ParameterType {
                 Some((node, rule)) => (
                     ConstraintNode {
                         value: visitor.target(),
-                        constraints: vec![Constraint::Generic(node)],
+                        constraints: vec![Constraint::Ty(Ty::Of(node))],
                     }
                     .boxed(),
                     rule,
@@ -40,7 +40,7 @@ impl Visit for ParameterType {
                         (
                             ConstraintNode {
                                 value: visitor.target(),
-                                constraints: vec![Constraint::Generic(id)],
+                                constraints: vec![Constraint::Ty(Ty::Of(id))],
                             }
                             .boxed(),
                             PARAMETER_TYPE,

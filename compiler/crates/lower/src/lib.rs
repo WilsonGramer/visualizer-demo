@@ -122,7 +122,11 @@ impl<'a> Visitor<'a> {
         range: &Range<usize>,
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
-        let id = NodeId(self.nodes.len());
+        let id = NodeId {
+            namespace: None,
+            index: self.nodes.len() as u32,
+        };
+
         self.nodes.insert(id, None);
 
         if let Some((parent, rule)) = parent {
@@ -225,7 +229,7 @@ pub struct TypeParameterDefinition {
 }
 
 impl Definition {
-    fn source(&self) -> NodeId {
+    pub fn source(&self) -> NodeId {
         match self {
             Definition::Variable(definition) => definition.node,
             Definition::Constant(definition) => definition.node,
@@ -233,6 +237,17 @@ impl Definition {
             Definition::Trait(definition) => definition.node,
             Definition::Instance(definition) => definition.node,
             Definition::TypeParameter(definition) => definition.node,
+        }
+    }
+
+    pub fn constraints(&self) -> Vec<Constraint> {
+        match self {
+            Definition::Variable(_) => Vec::new(),
+            Definition::Constant(definition) => definition.constraints.clone(),
+            Definition::Type(definition) => todo!(),
+            Definition::Trait(definition) => definition.constraints.clone(),
+            Definition::Instance(definition) => definition.constraints.clone(),
+            Definition::TypeParameter(_) => Vec::new(),
         }
     }
 }

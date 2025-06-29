@@ -36,21 +36,15 @@ impl Visit for BinaryExpression {
                     visitor.typed_node((id, OPERATOR), &self.operator.range, |visitor, id| {
                         let equal_function =
                             visitor.resolve_name("Equal", id, |definition| match definition {
-                                Definition::Trait(definition) => Some((
-                                    (definition.node, definition.constraints.clone()),
-                                    OPERATOR,
-                                )),
+                                Definition::Trait(definition) => Some((definition.node, OPERATOR)),
                                 _ => None,
                             });
 
                         match equal_function {
-                            Some(((equal_function, constraints), rule)) => (
+                            Some((equal_function, rule)) => (
                                 ConstraintNode {
                                     value: id,
-                                    constraints: vec![Constraint::Ty(Ty::Of(equal_function))]
-                                        .into_iter()
-                                        .chain(constraints)
-                                        .collect(),
+                                    constraints: vec![Constraint::Generic(equal_function)],
                                 }
                                 .boxed(),
                                 rule,

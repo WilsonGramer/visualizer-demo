@@ -12,7 +12,7 @@ use std::{
 use wipple_compiler_trace::NodeId;
 
 pub type TyConstraints = BTreeMap<NodeId, Vec<Ty>>;
-pub type GenericConstraints = BTreeMap<NodeId, NodeId>;
+pub type GenericConstraints = Vec<(NodeId, NodeId)>;
 pub type BoundConstraints = BTreeMap<NodeId, Vec<Bound>>;
 
 #[derive(Debug, Clone, Default)]
@@ -33,7 +33,7 @@ impl Constraints {
     }
 
     pub fn insert_generic(&mut self, node: NodeId, definition: NodeId) {
-        self.generic_tys.insert(node, definition);
+        self.generic_tys.push((node, definition));
     }
 
     pub fn insert_bound(&mut self, node: NodeId, bound: Bound) {
@@ -65,6 +65,13 @@ pub enum Constraint {
 }
 
 impl Constraints {
+    pub fn from_iter(node: NodeId, iter: impl IntoIterator<Item = Constraint>) -> Self {
+        let mut constraints = Constraints::new();
+        constraints.nodes.insert(node);
+        constraints.extend(node, iter);
+        constraints
+    }
+
     pub fn extend(&mut self, node: NodeId, iter: impl IntoIterator<Item = Constraint>) {
         for constraint in iter {
             match constraint {

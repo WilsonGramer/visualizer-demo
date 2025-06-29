@@ -34,7 +34,21 @@ impl Visit for NamedType {
             let parameters = self
                 .parameters
                 .iter()
-                .map(|ty| Ty::Of(ty.visit(visitor, (id, PARAMETER_IN_NAMED_TYPE))))
+                .map(|ty| {
+                    let node = visitor.node(
+                        (id, PARAMETER_IN_NAMED_TYPE),
+                        ty.range(),
+                        |visitor, target| {
+                            visitor.with_target(target, |visitor| {
+                                Ty::Of(ty.visit(visitor, (id, PARAMETER_IN_NAMED_TYPE)))
+                            });
+
+                            (PlaceholderNode, PARAMETER_IN_NAMED_TYPE)
+                        },
+                    );
+
+                    Ty::Of(node)
+                })
                 .collect();
 
             (

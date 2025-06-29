@@ -3,7 +3,7 @@ use wipple_compiler_syntax::FunctionType;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
     constraints::{Constraint, Ty},
-    nodes::ConstraintNode,
+    nodes::{ConstraintNode, PlaceholderNode},
 };
 
 pub const FUNCTION_TYPE: Rule = Rule::new("function type");
@@ -18,17 +18,41 @@ impl Visit for FunctionType {
             let inputs = self
                 .inputs
                 .iter()
-                .map(|input| Ty::Of(input.visit(visitor, (id, FUNCTION_TYPE_INPUT))))
+                .map(|input| {
+                    let node = visitor.node(
+                        (id, FUNCTION_TYPE_INPUT),
+                        input.range(),
+                        |visitor, target| {
+                            visitor.with_target(target, |visitor| {
+                                Ty::Of(input.visit(visitor, (id, FUNCTION_TYPE_INPUT)))
+                            });
+
+                            (PlaceholderNode, FUNCTION_TYPE_INPUT)
+                        },
+                    );
+
+                    Ty::Of(node)
+                })
                 .collect::<Vec<_>>();
 
-            let output = Ty::Of(self.output.visit(visitor, (id, FUNCTION_TYPE_OUTPUT)));
+            let output = visitor.node(
+                (id, FUNCTION_TYPE_OUTPUT),
+                self.output.range(),
+                |visitor, target| {
+                    visitor.with_target(target, |visitor| {
+                        Ty::Of(self.output.visit(visitor, (id, FUNCTION_TYPE_OUTPUT)))
+                    });
+
+                    (PlaceholderNode, FUNCTION_TYPE_OUTPUT)
+                },
+            );
 
             (
                 ConstraintNode {
                     value: visitor.target(),
                     constraints: vec![Constraint::Ty(Ty::Function {
                         inputs,
-                        output: Box::new(output),
+                        output: Box::new(Ty::Of(output)),
                     })],
                 },
                 FUNCTION_TYPE,
