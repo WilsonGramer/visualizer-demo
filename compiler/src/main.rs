@@ -53,12 +53,13 @@ static HIGHLIGHT: LazyLock<Box<dyn Fn(&str) + Send + Sync>> = LazyLock::new(|| {
         }
 
         println!("\x1b[0m"); // reset color
+
+        std::io::stdout().flush().unwrap();
     })
 });
 
 fn print_highlighted(source: impl AsRef<str>) {
     (HIGHLIGHT)(source.as_ref());
-    io::stdout().flush().unwrap();
 }
 
 fn run(path: &str, source: &str) {
@@ -82,6 +83,8 @@ fn run(path: &str, source: &str) {
             .unwrap();
 
         process.wait().unwrap();
+
+        std::io::stdout().flush().unwrap();
     };
 
     let display_tys = |tys| println!("{tys}");

@@ -134,11 +134,15 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                     .and_then(|node| self.nodes.get(node))
                     .unwrap_or(&self.root);
 
-                let tys = self.ctx.tys.get(&term.node).ok_or(())?;
+                let Some(index) = self.ctx.ty_groups.index_of(term.node) else {
+                    return Err(());
+                };
 
-                let (ty, group_id) = tys
+                let tys = self.ctx.ty_groups.tys_at(index);
+
+                let ty = tys
                     .iter()
-                    .find(|(ty, _)| !self.visited_tys.contains(ty))
+                    .find(|ty| !self.visited_tys.contains(ty))
                     .cloned()
                     .ok_or(())?;
 
@@ -153,19 +157,11 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                 //     return Err(());
                 // }
 
-                let mut related = group_id
-                    .map(|id| {
-                        self.ctx
-                            .tys
-                            .iter()
-                            .filter_map(|(&node, tys)| {
-                                tys.iter()
-                                    .any(|(_, group)| group.is_some_and(|group| group == id))
-                                    .then_some(node)
-                            })
-                            .collect::<BTreeSet<_>>()
-                    })
-                    .unwrap_or_default();
+                let mut related = self
+                    .ctx
+                    .ty_groups
+                    .nodes_in_group(index)
+                    .collect::<BTreeSet<_>>();
 
                 related.remove(&term.node);
 

@@ -16,8 +16,9 @@ impl Visit for AssignmentStatement {
 
             // The typechecker doesn't need to see the pattern, since visiting
             // it here will add the relevant constraints
-
-            self.pattern.visit(visitor, (value, ASSIGNMENT_PATTERN));
+            visitor.with_target(value, |visitor| {
+                self.pattern.visit(visitor, (value, ASSIGNMENT_PATTERN));
+            });
 
             (PlaceholderNode, ASSIGNMENT)
         })

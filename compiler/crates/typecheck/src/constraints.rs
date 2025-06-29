@@ -5,18 +5,19 @@ use crate::{
 use std::{
     any::TypeId,
     cell::{RefCell, RefMut},
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     ops::Deref,
 };
 use wipple_compiler_trace::NodeId;
 
-pub type TyConstraints = BTreeMap<NodeId, Vec<(Ty, Option<usize>)>>;
+pub type TyConstraints = BTreeMap<NodeId, Vec<Ty>>;
 pub type GenericConstraints = BTreeMap<NodeId, NodeId>;
 pub type BoundConstraints = BTreeMap<NodeId, Vec<Bound>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct Constraints {
+    pub nodes: BTreeSet<NodeId>,
     pub tys: TyConstraints,
     pub generic_tys: GenericConstraints,
     pub bounds: BoundConstraints,
@@ -28,7 +29,7 @@ impl Constraints {
     }
 
     pub fn insert_ty(&mut self, node: NodeId, ty: Ty) {
-        self.tys.entry(node).or_default().push((ty, None));
+        self.tys.entry(node).or_default().push(ty);
     }
 
     pub fn insert_generic(&mut self, node: NodeId, definition: NodeId) {
@@ -44,7 +45,7 @@ impl Constraints {
             .tys
             .get(node)
             .into_iter()
-            .flat_map(|tys| tys.iter().map(|(ty, _)| Constraint::Ty(ty.clone())));
+            .flat_map(|tys| tys.iter().map(|ty| Constraint::Ty(ty.clone())));
 
         let bounds = self
             .bounds
@@ -152,7 +153,6 @@ impl<'a> ToConstraintsContext<'a> {
 pub enum Ty {
     Unknown,
     Of(NodeId),
-    Group(usize),
     Named { name: NodeId, parameters: Vec<Ty> },
     Function { inputs: Vec<Ty>, output: Box<Ty> },
     Tuple { elements: Vec<Ty> },
@@ -169,7 +169,7 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Group(_) | Ty::Unknown | Ty::Of(..) => {}
+            Ty::Unknown | Ty::Of(..) => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters {
                     parameter.traverse(f);
@@ -194,7 +194,7 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Group(_) | Ty::Unknown | Ty::Of(..) => {}
+            Ty::Unknown | Ty::Of(..) => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters {
                     parameter.traverse_mut(f);
@@ -218,7 +218,7 @@ impl Ty {
     pub fn is_incomplete(&self) -> bool {
         let mut incomplete = false;
         self.traverse(&mut |ty| {
-            if matches!(ty, Ty::Group(_) | Ty::Unknown | Ty::Of(..)) {
+            if matches!(ty, Ty::Unknown | Ty::Of(..)) {
                 incomplete = true;
             }
         });
@@ -230,11 +230,8 @@ impl Ty {
 impl Ty {
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
-            Ty::Group(var) => format!("?{var}"),
             Ty::Unknown => String::from("_"),
-            Ty::Of(node) => {
-                format!("?({})", provider.node_span_source(*node).1)
-            }
+            Ty::Of(node) => format!("?({})", provider.node_span_source(*node).1),
             Ty::Named { name, parameters } => format!(
                 "{}{}",
                 provider.node_span_source(*name).1,
@@ -262,9 +259,6 @@ impl Ty {
         }
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Group(usize);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Bound {

@@ -13,7 +13,7 @@ impl Visit for UnitPattern {
         visitor.node(parent, &self.range, |visitor, _id| {
             (
                 ConstraintNode {
-                    value: visitor.parent(),
+                    value: visitor.target(),
                     constraints: vec![Constraint::Ty(Ty::unit())],
                 },
                 UNIT_PATTERN,

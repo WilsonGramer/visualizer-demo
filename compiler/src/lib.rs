@@ -6,6 +6,7 @@ use std::{
 };
 use wasm_bindgen::prelude::*;
 use wipple_compiler_trace::{NodeId, Rule, Span};
+use wipple_compiler_typecheck::{debug, typechecker::Typechecker};
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {
@@ -90,25 +91,15 @@ pub fn compile(
             .collect(),
     };
 
-    for &node in lowered.nodes.keys() {
-        let (span, source) = provider.node_span_source(node);
-        eprint!("{node:?} ==> {span:?}: {source}");
-
-        if lowered.typed_nodes.contains(&node) {
-            eprintln!(" (typed)");
-        }
-
-        eprintln!();
-    }
-
     let filter = |node| lowered.typed_nodes.contains(&node);
 
-    let constraints = typecheck_ctx.typechecker_from_constraints_by(filter).run();
+    let constraints = typecheck_ctx.as_constraints(filter);
+
+    let typechecker = Typechecker::new();
+    let ty_groups = typechecker.run_with(constraints);
 
     let mut buf = Vec::new();
-    constraints
-        .write_debug_graph(&mut buf, &lowered.relations, &provider, filter)
-        .unwrap();
+    debug::write_graph(&mut buf, &ty_groups, &lowered.relations, &provider, filter).unwrap();
 
     display_graph(String::from_utf8(buf).unwrap());
 
@@ -119,14 +110,19 @@ pub fn compile(
             continue;
         }
 
-        if let Some(tys) = constraints.tys.get(&node) {
-            for (ty, _) in tys {
+        let tys = ty_groups
+            .index_of(node)
+            .map(|index| ty_groups.tys_at(index))
+            .unwrap_or_default();
+
+        if tys.is_empty() {
+            extras.entry(node).or_default().insert(UNKNOWN_TYPE);
+        } else {
+            for ty in tys {
                 if ty.is_incomplete() {
                     extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
                 }
             }
-        } else {
-            extras.entry(node).or_default().insert(UNKNOWN_TYPE);
         }
     }
 
@@ -137,7 +133,7 @@ pub fn compile(
         &feedback_nodes,
         &lowered.spans,
         &lowered.relations,
-        &constraints.tys,
+        &ty_groups,
     );
 
     let feedback = feedback_ctx.collect_feedback();
@@ -151,18 +147,21 @@ pub fn compile(
 
     // Display type table
 
-    let mut displayed_tys = Vec::from_iter(&constraints.tys);
-    displayed_tys.sort_by_key(|(node, _)| {
+    let mut displayed_tys = Vec::from_iter(ty_groups.nodes());
+    displayed_tys.sort_by_key(|node| {
         let span = lowered.spans.get(node).unwrap();
         (span.range.start, span.range.end)
     });
 
     let mut rows = Vec::new();
 
-    for (&node, tys) in displayed_tys {
+    for node in displayed_tys {
         if !lowered.typed_nodes.contains(&node) {
             continue;
         }
+
+        let index = ty_groups.index_of(node).unwrap();
+        let tys = ty_groups.tys_at(index);
 
         let (node_span, node_debug) = provider.node_span_source(node);
 
@@ -189,7 +188,7 @@ pub fn compile(
             ),
             node_debug.to_string(),
             tys.iter()
-                .map(|(ty, _)| ty.to_debug_string(&provider).blue().to_string())
+                .map(|ty| ty.to_debug_string(&provider).blue().to_string())
                 .collect::<Vec<_>>()
                 .join(&" or ".bright_red().to_string()),
         ]);

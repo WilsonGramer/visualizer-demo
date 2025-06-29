@@ -8,22 +8,18 @@ use wipple_compiler_typecheck::{
 
 pub const VARIABLE_PATTERN: Rule = Rule::new("variable pattern");
 
-pub const VARIABLE_PATTERN_TARGET: Rule = Rule::new("variable pattern target");
-
 impl Visit for VariablePattern {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, id| {
+        visitor.typed_node(parent, &self.range, |visitor, id| {
             visitor.define_name(
                 &self.variable.source,
-                Definition::Variable(VariableDefinition {
-                    node: visitor.parent(),
-                }),
+                Definition::Variable(VariableDefinition { node: id }),
             );
 
             (
                 ConstraintNode {
                     value: id,
-                    constraints: vec![Constraint::Ty(Ty::Of(visitor.parent()))],
+                    constraints: vec![Constraint::Ty(Ty::Of(visitor.target()))],
                 },
                 VARIABLE_PATTERN,
             )

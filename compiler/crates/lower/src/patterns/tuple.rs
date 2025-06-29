@@ -19,13 +19,15 @@ impl Visit for TuplePattern {
                             TupleElementNode {
                                 index,
                                 count: self.elements.len(),
-                                target: visitor.parent(),
+                                target: visitor.target(),
                             },
                             TUPLE_PATTERN_TARGET,
                         )
                     });
 
-                element.visit(visitor, (target, TUPLE_PATTERN_ELEMENT));
+                visitor.with_target(target, |visitor| {
+                    element.visit(visitor, (id, TUPLE_PATTERN_ELEMENT))
+                });
             }
 
             (PlaceholderNode, TUPLE_PATTERN)

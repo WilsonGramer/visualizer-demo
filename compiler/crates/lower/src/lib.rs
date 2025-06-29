@@ -75,7 +75,6 @@ struct Visitor<'a> {
     typed_nodes: BTreeSet<NodeId>,
     spans: BTreeMap<NodeId, Span>,
     relations: DiGraphMap<NodeId, Rule>,
-    stack: Vec<NodeId>,
     target: Option<NodeId>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
@@ -90,7 +89,6 @@ impl<'a> Visitor<'a> {
             typed_nodes: Default::default(),
             spans: Default::default(),
             relations: Default::default(),
-            stack: Default::default(),
             target: None,
             scopes: vec![Scope::default()],
             instances: Default::default(),
@@ -129,14 +127,9 @@ impl<'a> Visitor<'a> {
 
         if let Some((parent, rule)) = parent {
             self.relations.add_edge(parent, id, rule);
-            self.stack.push(parent);
         }
 
         let (node, rule) = f(self, id);
-
-        if parent.is_some() {
-            self.stack.pop();
-        }
 
         self.nodes.insert(
             id,
@@ -155,10 +148,6 @@ impl<'a> Visitor<'a> {
         self.node((parent_id, parent_rule), range, |_, _| {
             (PlaceholderNode, parent_rule)
         })
-    }
-
-    fn parent(&self) -> NodeId {
-        *self.stack.last().expect("no parent")
     }
 
     fn target(&self) -> NodeId {

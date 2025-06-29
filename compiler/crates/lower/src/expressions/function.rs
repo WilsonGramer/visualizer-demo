@@ -19,7 +19,10 @@ impl Visit for FunctionExpression {
                 .iter()
                 .map(|input| {
                     let target = visitor.placeholder_node((id, FUNCTION_INPUT), input.range());
-                    input.visit(visitor, (target, FUNCTION_INPUT))
+
+                    visitor.with_target(target, |visitor| {
+                        input.visit(visitor, (target, FUNCTION_INPUT))
+                    })
                 })
                 .collect::<Vec<_>>();
 

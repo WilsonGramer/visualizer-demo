@@ -1,390 +1,402 @@
-use crate::constraints::{Constraints, Ty};
-use petgraph::prelude::UnGraphMap;
+use crate::constraints::{Constraints, Ty, TyConstraints};
+use ena::unify::InPlaceUnificationTable;
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     mem,
 };
 use wipple_compiler_trace::NodeId;
 
-pub struct Typechecker<'a> {
-    pub constraints: Constraints,
-    groups: Groups,
-    instantiated: BTreeMap<(NodeId, NodeId), usize>,
-    _temp: std::marker::PhantomData<&'a ()>,
+#[derive(Debug, Clone, Default)]
+pub struct TyGroups {
+    indices: BTreeMap<NodeId, usize>,
+    tys: Vec<Vec<Ty>>,
 }
 
-#[derive(Debug, Clone)]
-struct Groups(Vec<Group>);
+impl TyGroups {
+    pub fn insert_group(&mut self, ty: Ty) -> usize {
+        let index = self.tys.len();
+        self.tys.push(vec![ty]);
+        index
+    }
 
-impl std::ops::Deref for Groups {
-    type Target = Vec<Group>;
+    pub fn assign_node_to_index(&mut self, node: NodeId, index: usize) {
+        self.indices.insert(node, index);
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    pub fn index_of(&self, node: NodeId) -> Option<usize> {
+        self.indices.get(&node).copied()
+    }
+
+    pub fn tys_at(&self, index: usize) -> &[Ty] {
+        &self.tys[index]
+    }
+
+    pub fn tys_at_mut(&mut self, index: usize) -> &mut Vec<Ty> {
+        &mut self.tys[index]
+    }
+
+    pub fn nodes_in_group(&self, index: usize) -> impl Iterator<Item = NodeId> {
+        self.indices
+            .iter()
+            .filter_map(move |(&node, &i)| (i == index).then_some(node))
+    }
+
+    pub fn nodes(&self) -> impl Iterator<Item = NodeId> {
+        self.indices.keys().copied()
+    }
+
+    pub fn groups(&self) -> impl Iterator<Item = (usize, &[Ty])> {
+        self.tys
+            .iter()
+            .enumerate()
+            .map(|(index, tys)| (index, tys.as_slice()))
     }
 }
 
-impl std::ops::DerefMut for Groups {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
+#[derive(Debug, Default)]
+pub struct Typechecker {
+    keys: GroupKeys,
+    unify: InPlaceUnificationTable<GroupKey>,
+    groups: BTreeMap<GroupKey, Ty>,    // types that unified
+    others: BTreeMap<NodeId, Vec<Ty>>, // types that failed to unify
+    progress: Progress,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct Group {
-    ty: Option<Ty>,
-    nodes: BTreeSet<NodeId>,
-}
-
-impl Group {
-    fn new(nodes: impl IntoIterator<Item = NodeId>) -> Self {
-        Group {
-            ty: None,
-            nodes: BTreeSet::from_iter(nodes),
-        }
-    }
-}
-
-impl<'a> Typechecker<'a> {
-    pub fn from_constraints(
-        nodes: impl IntoIterator<Item = NodeId>,
-        constraints: Constraints,
-    ) -> Self {
-        // Form initial groups based on nodes that directly relate to each other
-        let mut directly_related = UnGraphMap::<NodeId, ()>::new();
-        for (&node, tys) in &constraints.tys {
-            for (ty, _) in tys {
-                // We don't need to deeply traverse the type because all types
-                // here represent the top-level type of a node. For example, if
-                // we have `x :: (1) -> _` and `y :: (1) -> _`, then at this
-                // point the (1) must be attached to another specific node in
-                // the AST (which will be handled in another iteration), or it
-                // won't influence other nodes anyway.
-                if let Ty::Of(other) = *ty {
-                    directly_related.add_edge(node, other, ());
-                }
-            }
-        }
-
-        // "Groups" are the connected components of the graph
-        let mut groups = petgraph::algo::tarjan_scc(&directly_related)
-            .into_iter()
-            .map(Group::new)
-            .collect::<Vec<_>>();
-
-        // Put nodes with no relations into their own groups to start with
-        for node in nodes {
-            if !directly_related.contains_node(node) {
-                groups.push(Group::new([node]));
-            }
-        }
-
-        Typechecker {
-            constraints,
-            groups: Groups(groups),
-            instantiated: Default::default(),
-            _temp: std::marker::PhantomData,
-        }
+impl Typechecker {
+    pub fn new() -> Self {
+        Default::default()
     }
 
-    pub fn run(self) -> Constraints {
-        self.run_until(None).unwrap_or_else(|_| unreachable!())
+    pub fn run_with(self, constraints: Constraints) -> TyGroups {
+        self.run_with_until(constraints, None)
+            .unwrap_or_else(|_| unreachable!())
     }
 
-    pub fn run_until(mut self, limit: impl Into<Option<usize>>) -> Result<Constraints, Self> {
+    pub fn run_with_until(
+        mut self,
+        mut constraints: Constraints,
+        limit: impl Into<Option<usize>>,
+    ) -> Result<TyGroups, Self> {
         let limit = limit.into();
 
         let mut counter = 0;
         while limit.is_none_or(|limit| counter < limit) {
             counter += 1;
 
-            if self.iterate_tys() {
-                continue;
-            }
-
             // TODO: If no progress, apply bounds; still no progress, apply
-            // defaults; etc.
-
-            return Ok(self.constraints);
+            // defaults; etc., using `and_then(..)`
+            match self.add_tys(mem::take(&mut constraints.tys)) {
+                Progress::Progressed => continue,
+                Progress::NoProgress => return Ok(self.to_ty_groups(constraints.nodes)),
+            }
         }
 
         // Reached limit
         Err(self)
     }
-}
 
-impl Typechecker<'_> {
-    fn iterate_tys(&mut self) -> bool {
-        let mut tys = self.constraints.tys.clone();
+    fn add_tys(&mut self, constraints: TyConstraints) -> Progress {
+        // Form better groups by first adding constraints that reference other
+        // nodes directly
+        let (of, others): (Vec<_>, Vec<_>) = constraints
+            .into_iter()
+            .flat_map(|(node, tys)| tys.into_iter().map(move |ty| (node, ty)))
+            .partition(|(_, ty)| matches!(ty, Ty::Of(_)));
 
-        let mut queue = VecDeque::from_iter(0..self.groups.len());
+        let (incomplete, complete): (Vec<_>, Vec<_>) =
+            others.into_iter().partition(|(_, ty)| ty.is_incomplete());
 
-        // Unify types within groups
-        let mut results = BTreeMap::<_, Vec<_>>::new();
-        while let Some(mut index) = queue.pop_front() {
-            let nodes_snapshot = self.groups[index].nodes.clone();
+        for (node, mut ty) in [of, incomplete, complete].into_iter().flatten() {
+            if self.unify(&mut Ty::Of(node), &mut ty).is_err() {
+                // No need to generate a diagnostic here; feedback is
+                // generated whenever an expression has multiple types
+                self.others.entry(node).or_default().push(ty);
+            }
+        }
 
-            let mut others = BTreeMap::new();
-            for node in nodes_snapshot {
-                for (mut ty, _) in tys.remove(&node).unwrap_or_default() {
-                    self.groups.replace_of_with_group(&mut ty);
+        self.progress.take()
+    }
 
-                    let mut success = true;
-                    let mut groups_snapshot = self.groups.clone();
+    fn to_ty_groups(&self, nodes: impl IntoIterator<Item = NodeId>) -> TyGroups {
+        let mut ty_groups = TyGroups::default();
 
-                    let mut merge_group = |_from_index, to_index| {
-                        queue.push_back(to_index);
-                    };
+        let mut unify = self.unify.clone();
 
-                    Ty::Group(index).unify_with(
-                        &ty,
-                        &mut groups_snapshot,
-                        &mut success,
-                        &mut merge_group,
-                    );
+        for (representative_key, mut ty) in self.groups.clone().into_iter() {
+            self.try_apply(&mut ty, &mut unify);
 
-                    if success {
-                        self.groups = groups_snapshot;
-                    } else {
-                        // No need to generate a diagnostic here; feedback
-                        // is generated whenever an expression has multiple
-                        // types
-                        others.insert(node, ty);
+            let index = ty_groups.insert_group(ty);
+
+            let nodes = unify.probe_value(representative_key).0;
+            for node in nodes {
+                ty_groups.assign_node_to_index(node, index);
+            }
+        }
+
+        for (&node, others) in &self.others {
+            for ty in others {
+                match ty_groups.index_of(node) {
+                    Some(index) => {
+                        ty_groups.tys_at_mut(index).push(ty.clone());
+                    }
+                    None => {
+                        let index = ty_groups.insert_group(ty.clone());
+                        ty_groups.assign_node_to_index(node, index);
                     }
                 }
             }
+        }
 
-            self.groups.apply_index(&mut index);
-
-            // Share the group's final type with every node in the group
-
-            let group_ty = self.groups[index].ty.clone().unwrap_or(Ty::Group(index));
-
-            for &node in &self.groups[index].nodes {
-                results
-                    .entry(node)
-                    .or_default()
-                    .push((group_ty.clone(), Some(index)));
-
-                if let Some(other) = others.remove(&node) {
-                    results.entry(node).or_default().push((other, Some(index)));
-                }
+        // Any remaining nodes have unknown types
+        for node in nodes {
+            if ty_groups.index_of(node).is_none() {
+                let index = ty_groups.insert_group(Ty::Unknown);
+                ty_groups.assign_node_to_index(node, index);
             }
         }
 
-        // Any remaining constraints weren't part of groups
-        for (&node, constraints) in &mut tys {
-            for (ty, _) in constraints {
-                self.groups.replace_of_with_group(ty);
-                results.entry(node).or_default().push((ty.clone(), None));
-            }
-        }
-
-        // Apply all types
-        for tys in results.values_mut() {
-            for (ty, index) in tys {
-                ty.apply(&mut self.groups);
-
-                if let Some(index) = index {
-                    self.groups.apply_index(index);
-                } else {
-                    // Will be added to a group next time
-                }
-            }
-        }
-
-        // TODO: Set to `true` when a specific change is made rather than
-        // checking everything
-        let progress = self.constraints.tys != results;
-
-        self.constraints.tys = results;
-
-        progress
+        ty_groups
     }
 }
 
-impl Groups {
-    fn apply_index(&mut self, index: &mut usize) {
-        let mut seen = vec![*index];
-        loop {
-            let mut found = false;
-            for (other_index, group) in self.iter().enumerate() {
-                if seen.contains(&other_index) {
-                    continue;
-                }
-
-                if group.ty == Some(Ty::Group(*index)) {
-                    *index = other_index;
-                    seen.push(other_index);
-                    found = true;
-                    break;
-                }
-            }
-
-            if !found {
-                break;
-            }
-        }
+impl Typechecker {
+    fn key_for_node(&mut self, node: NodeId) -> GroupKey {
+        self.keys
+            .key_for_node(node, || self.unify.new_key(Group::new(node)))
     }
 
-    fn new_index(&mut self, node: Option<NodeId>) -> usize {
-        let index = self.len();
-        self.push(Group::new(node));
-        index
+    fn try_key_for_node(&self, node: NodeId) -> Option<GroupKey> {
+        self.keys.try_key_for_node(node)
     }
 
-    fn try_index_for(&self, node: NodeId) -> Option<usize> {
-        let candidates = self
-            .iter()
-            .enumerate()
-            .filter(|(_, group)| group.nodes.contains(&node))
-            .collect::<Vec<_>>();
-
-        match candidates.as_slice() {
-            [] => None,
-            [(index, _)] => Some(*index),
-            _ => panic!("node {node:?}, belongs to multiple groups: {candidates:?}"),
-        }
+    fn node_for_key(&self, key: GroupKey) -> NodeId {
+        self.keys.node_for_key(key)
     }
+}
 
-    fn index_for(&mut self, node: Option<NodeId>) -> usize {
-        node.and_then(|node| {
-            let mut index = self.try_index_for(node)?;
-            self.apply_index(&mut index);
-            Some(index)
-        })
-        .unwrap_or_else(|| self.new_index(node))
-    }
-
-    fn replace_of_with_group(&mut self, ty: &mut Ty) {
-        ty.apply(self);
+impl Typechecker {
+    fn try_apply(&self, ty: &mut Ty, unify: &mut InPlaceUnificationTable<GroupKey>) {
         ty.traverse_mut(&mut |ty| {
             if let Ty::Of(node) = *ty {
-                *ty = Ty::Group(self.index_for(Some(node)));
-                ty.apply(self);
-            }
-        });
-    }
-}
-
-impl Ty {
-    fn unify_with(
-        &mut self,
-        other: &Ty,
-        groups: &mut Groups,
-        success: &mut bool,
-        merge_group: &mut impl FnMut(usize, usize),
-    ) {
-        self.apply(groups);
-
-        match (self, other) {
-            (Ty::Unknown, _) | (_, Ty::Unknown) => {}
-            (_, Ty::Of(..)) | (Ty::Of(..), _) => {
-                unreachable!("`Ty::Of` should be replaced with `Ty::Group`")
-            }
-            (Ty::Group(index), Ty::Group(other_index)) => {
-                let Ok([group, other_group]) = groups.get_disjoint_mut([*index, *other_index])
-                else {
-                    // Indices are the same; do nothing
+                let Some(key) = self.try_key_for_node(node) else {
+                    *ty = Ty::Unknown;
                     return;
                 };
 
-                // We don't need to unify the other group's type with the
-                // current group's, because if this arm is reached, neither
-                // group actually has a type yet (since types are applied
-                // beforehand).
-                assert!(group.ty.is_none());
-                assert!(other_group.ty.is_none());
+                let representative = unify.find(key);
 
-                group.nodes.extend(mem::take(&mut other_group.nodes));
-                merge_group(*index, *other_index);
-            }
-            (ty @ &mut Ty::Group(index), other) => {
-                let mut other = other.clone();
-                other.apply(groups);
-
-                assert!(groups[index].ty.is_none());
-                groups[index].ty = Some(other.clone());
-
-                ty.apply(groups);
-            }
-            (other, &Ty::Group(index)) => {
-                other.apply(groups);
-
-                assert!(groups[index].ty.is_none());
-                groups[index].ty = Some(other.clone());
-            }
-            (
-                Ty::Named { name, parameters },
-                Ty::Named {
-                    name: other_name,
-                    parameters: other_parameters,
-                },
-            ) if name == other_name => {
-                for (parameter, other) in parameters.iter_mut().zip(other_parameters) {
-                    parameter.unify_with(other, groups, success, merge_group);
-                }
-            }
-            (
-                Ty::Function { inputs, output },
-                Ty::Function {
-                    inputs: other_inputs,
-                    output: other_output,
-                },
-            ) if inputs.len() == other_inputs.len() => {
-                for (input, other) in inputs.iter_mut().zip(other_inputs) {
-                    input.unify_with(other, groups, success, merge_group);
-                }
-
-                output.unify_with(other_output, groups, success, merge_group);
-            }
-            (
-                Ty::Tuple { elements },
-                Ty::Tuple {
-                    elements: other_elements,
-                },
-            ) if elements.len() == other_elements.len() => {
-                for (element, other) in elements.iter_mut().zip(other_elements) {
-                    element.unify_with(other, groups, success, merge_group);
-                }
-            }
-            _ => *success = false,
-        }
-    }
-
-    fn apply(&mut self, groups: &mut Groups) {
-        self.apply_inner(groups, &mut Vec::new());
-    }
-
-    fn apply_inner(&mut self, groups: &mut Groups, stack: &mut Vec<usize>) {
-        self.traverse_mut(&mut |ty| {
-            if let Ty::Group(mut index) = *ty {
-                groups.apply_index(&mut index);
-
-                if stack.contains(&index) {
-                    panic!(
-                        "cycle detected: {}{}",
-                        stack
-                            .iter()
-                            .map(|index| format!("{index} -> "))
-                            .collect::<String>(),
-                        index
-                    );
-                }
-
-                if let Some(group_ty) = &groups[index].ty {
-                    stack.push(index);
-
-                    *ty = group_ty.clone();
-                    ty.apply_inner(groups, stack);
-
-                    stack.pop();
+                if let Some(representative) = self.groups.get(&representative) {
+                    *ty = representative.clone();
+                    self.try_apply(ty, unify);
                 }
             }
         });
     }
 
-    // fn instantiate(&mut self, node: NodeId, definition: NodeId, typechecker: &mut Typechecker<'_>) {
-    //     *self = Ty::Of(definition);
-    // }
+    fn apply(&mut self, ty: &mut Ty) {
+        ty.traverse_mut(&mut |ty| {
+            if let Ty::Of(node) = *ty {
+                let key = self.key_for_node(node);
+
+                let representative_key = self.unify.find(key);
+
+                if let Some(mut representative) = self.groups.remove(&representative_key) {
+                    self.apply(&mut representative);
+
+                    self.groups
+                        .insert(representative_key, representative.clone());
+
+                    *ty = representative;
+                }
+            }
+        });
+    }
+
+    fn unify(&mut self, left: &mut Ty, right: &mut Ty) -> Result<(), ()> {
+        self.apply(left);
+        self.apply(right);
+
+        match (&mut *left, &mut *right) {
+            (Ty::Unknown, _) | (_, Ty::Unknown) => {}
+            (Ty::Of(left_node), Ty::Of(right_node)) => {
+                let left_key = self.key_for_node(*left_node);
+                let right_key = self.key_for_node(*right_node);
+
+                self.unify
+                    .unify_var_var(left_key, right_key)
+                    .unwrap_or_else(|e| match e {});
+
+                let representative_key = self.unify.find(left_key);
+                let representative = self.node_for_key(representative_key);
+
+                // Move types from the old group to the new group
+                for key in [left_key, right_key] {
+                    if representative_key == key {
+                        continue;
+                    }
+
+                    if let Some(ty) = self.groups.remove(&key) {
+                        self.groups.insert(representative_key, ty);
+                    }
+
+                    let node = self.node_for_key(key);
+                    self.keys.update_representative(node, representative_key);
+                }
+
+                *left_node = representative;
+                *right_node = representative;
+
+                self.progress.set();
+            }
+            (other, ty @ &mut Ty::Of(node)) | (ty @ &mut Ty::Of(node), other) => {
+                let key = self.key_for_node(node);
+                let existing = self.groups.insert(key, other.clone());
+                assert!(existing.is_none());
+
+                *ty = other.clone();
+
+                self.progress.set();
+            }
+            (
+                Ty::Named {
+                    name: left_name,
+                    parameters: left_parameters,
+                },
+                Ty::Named {
+                    name: right_name,
+                    parameters: right_parameters,
+                },
+            ) if left_name == right_name && left_parameters.len() == right_parameters.len() => {
+                for (left, right) in left_parameters.iter_mut().zip(right_parameters) {
+                    self.unify(left, right)?;
+                }
+            }
+            (
+                Ty::Function {
+                    inputs: left_inputs,
+                    output: left_output,
+                },
+                Ty::Function {
+                    inputs: right_inputs,
+                    output: right_output,
+                },
+            ) if left_inputs.len() == right_inputs.len() => {
+                for (left, right) in left_inputs.iter_mut().zip(right_inputs) {
+                    self.unify(left, right)?;
+                }
+
+                self.unify(left_output, right_output)?;
+            }
+            (
+                Ty::Tuple {
+                    elements: left_elements,
+                },
+                Ty::Tuple {
+                    elements: right_elements,
+                },
+            ) if left_elements.len() == right_elements.len() => {
+                for (left, right) in left_elements.iter_mut().zip(right_elements) {
+                    self.unify(left, right)?;
+                }
+            }
+            _ => return Err(()),
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct GroupKey(u32);
+
+#[derive(Debug, Clone)]
+struct Group(BTreeSet<NodeId>);
+
+impl Group {
+    pub fn new(node: NodeId) -> Self {
+        Group(BTreeSet::from([node]))
+    }
+}
+
+impl ena::unify::UnifyKey for GroupKey {
+    type Value = Group;
+
+    fn index(&self) -> u32 {
+        self.0
+    }
+
+    fn from_index(index: u32) -> Self {
+        GroupKey(index)
+    }
+
+    fn tag() -> &'static str {
+        std::any::type_name::<Self>()
+    }
+}
+
+impl ena::unify::UnifyValue for Group {
+    type Error = std::convert::Infallible;
+
+    fn unify_values(left: &Self, right: &Self) -> Result<Self, Self::Error> {
+        Ok(Group(left.0.union(&right.0).copied().collect()))
+    }
+}
+
+#[derive(Debug, Default)]
+struct GroupKeys {
+    keys: BTreeMap<NodeId, GroupKey>,
+    nodes: BTreeMap<GroupKey, NodeId>,
+}
+
+impl GroupKeys {
+    pub fn key_for_node(&mut self, node: NodeId, init: impl FnOnce() -> GroupKey) -> GroupKey {
+        *self.keys.entry(node).or_insert_with(|| {
+            let key = init();
+            self.nodes.insert(key, node);
+            key
+        })
+    }
+
+    fn try_key_for_node(&self, node: NodeId) -> Option<GroupKey> {
+        self.keys.get(&node).copied()
+    }
+
+    pub fn update_representative(&mut self, node: NodeId, group: GroupKey) {
+        self.keys.insert(node, group);
+        self.nodes.insert(group, node);
+    }
+
+    pub fn node_for_key(&self, key: GroupKey) -> NodeId {
+        self.try_node_for_key(key).unwrap()
+    }
+
+    fn try_node_for_key(&self, key: GroupKey) -> Option<NodeId> {
+        self.nodes.get(&key).copied()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+enum Progress {
+    #[default]
+    NoProgress,
+    Progressed,
+}
+
+impl Progress {
+    fn and_then(self, f: impl FnOnce() -> Self) -> Self {
+        use Progress::*;
+
+        match self {
+            NoProgress => NoProgress,
+            Progressed => f(),
+        }
+    }
+
+    fn set(&mut self) {
+        *self = Progress::Progressed;
+    }
+
+    fn take(&mut self) -> Self {
+        mem::take(self)
+    }
 }

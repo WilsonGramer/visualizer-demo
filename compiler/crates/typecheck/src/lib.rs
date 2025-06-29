@@ -1,17 +1,18 @@
 pub mod constraints;
 pub mod context;
-mod debug;
+pub mod debug;
 pub mod nodes;
 pub mod typechecker;
 
-use crate::{constraints::ToConstraintsContext, context::Context, typechecker::Typechecker};
+use crate::{
+    constraints::{Constraints, ToConstraintsContext},
+    context::Context,
+};
+use std::collections::BTreeSet;
 use wipple_compiler_trace::NodeId;
 
 impl Context<'_> {
-    pub fn typechecker_from_constraints_by<'a>(
-        &'a self,
-        filter: impl Fn(NodeId) -> bool,
-    ) -> Typechecker<'a> {
+    pub fn as_constraints(&self, filter: impl Fn(NodeId) -> bool) -> Constraints {
         let mut ctx = ToConstraintsContext::new(self);
         ctx.register_all();
 
@@ -23,8 +24,10 @@ impl Context<'_> {
             .inspect(|&node| {
                 ctx.visit(node);
             })
-            .collect::<Vec<_>>();
+            .collect::<BTreeSet<_>>();
 
-        Typechecker::from_constraints(nodes, ctx.into_constraints())
+        let mut constraints = ctx.into_constraints();
+        constraints.nodes.extend(nodes);
+        constraints
     }
 }
