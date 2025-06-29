@@ -4,10 +4,7 @@ use crate::{
 };
 use wipple_compiler_syntax::TraitDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    nodes::PlaceholderNode,
-};
+use wipple_compiler_typecheck::nodes::PlaceholderNode;
 
 pub const TRAIT_DEFINITION: Rule = Rule::new("trait definition");
 
@@ -37,19 +34,11 @@ impl Visit for TraitDefinitionStatement {
                 })
                 .collect::<Vec<_>>();
 
-            let ty = self.r#type.as_ref().map(|ty| {
-                visitor.node(
-                    (id, TYPE_IN_TRAIT_DEFINITION),
-                    ty.range(),
-                    |visitor, node| {
-                        visitor.with_target(node, |visitor| {
-                            ty.visit(visitor, (id, TYPE_IN_TRAIT_DEFINITION))
-                        });
-
-                        (PlaceholderNode, TYPE_IN_TRAIT_DEFINITION)
-                    },
-                )
-            });
+            if let Some(ty) = &self.r#type {
+                visitor.with_target(id, |visitor| {
+                    ty.visit(visitor, (id, TYPE_IN_TRAIT_DEFINITION))
+                });
+            }
 
             visitor.define_name(
                 &self.name.source,
@@ -58,7 +47,7 @@ impl Visit for TraitDefinitionStatement {
                     comments: self.comments.clone(),
                     attributes,
                     parameters: parameters.clone(),
-                    constraints: Vec::from_iter(ty.map(|node| Constraint::Ty(Ty::Of(node)))),
+                    constraints: Vec::new(), // no additional constraints on the trait itself
                 }),
             );
 

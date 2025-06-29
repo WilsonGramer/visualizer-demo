@@ -94,16 +94,11 @@ pub fn compile(
     let constraints = typecheck_ctx.as_constraints();
 
     let mut typechecker = Typechecker::new();
-
     typechecker.insert_nodes(lowered.typed_nodes.clone());
-
     typechecker.insert_tys(&constraints.tys);
+    typechecker.insert_generics(&constraints.generic_tys);
 
-    typechecker.insert_generics(&constraints.generic_tys, |definition| {
-        lowered.definitions.get(&definition).unwrap().constraints()
-    });
-
-    let ty_groups = typechecker.run();
+    let ty_groups = typechecker.to_ty_groups();
 
     let mut buf = Vec::new();
     debug::write_graph(

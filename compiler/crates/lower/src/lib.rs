@@ -27,7 +27,7 @@ pub struct Result {
     pub typed_nodes: BTreeSet<NodeId>,
     pub spans: BTreeMap<NodeId, Span>,
     pub relations: DiGraphMap<NodeId, Rule>,
-    pub definitions: HashMap<NodeId, Definition>,
+    pub definitions: BTreeMap<NodeId, Definition>,
 }
 
 pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Result {

@@ -1,4 +1,4 @@
-use crate::constraints::{Constraint, Constraints, GenericConstraints, Ty, TyConstraints};
+use crate::constraints::{Constraint, GenericConstraints, Ty, TyConstraints};
 use ena::unify::InPlaceUnificationTable;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -76,7 +76,6 @@ impl Typechecker {
     pub fn insert_tys(&mut self, constraints: &TyConstraints) {
         // Form better groups by first adding constraints that reference other
         // nodes directly, followed by other incomplete types
-
         let mut of = Vec::new();
         let mut incomplete = Vec::new();
         let mut complete = Vec::new();
@@ -95,105 +94,34 @@ impl Typechecker {
         for (node, ty) in [of, incomplete, complete].into_iter().flatten() {
             self.queue.push((node, Constraint::Ty(ty)));
         }
+
+        self.run();
     }
 
-    pub fn insert_generics(
-        &mut self,
-        constraints: &GenericConstraints,
-        mut lookup: impl FnMut(NodeId) -> Vec<Constraint>,
-    ) {
-        let mut instantiated = BTreeMap::new();
-        let mut instantiate =
-            move |typechecker: &mut Self, node: NodeId, mut definition: NodeId| {
-                *instantiated.entry(node).or_insert_with(|| {
-                    let key = typechecker.key_for_node(node);
-
-                    let existing_namespace = definition.namespace.replace(key.0);
-                    assert!(existing_namespace.is_none());
-
-                    definition
-                })
-            };
-
+    pub fn insert_generics(&mut self, constraints: &GenericConstraints) {
         // Make instantiated copies of the definition's constraints
         for &(node, definition) in constraints {
-            let constraints = Constraints::from_iter(definition, lookup(definition));
-
             // Resolve the definition's type on its own...
             let mut definition_typechecker = self.clone();
-            definition_typechecker.insert_tys(&constraints.tys);
-            let _ = definition_typechecker.run_tys();
-            let mut definition_ty = Ty::Of(definition);
+            let key = definition_typechecker.key_for_node(node);
 
             // ...and then make an instantiated copy to use in `self`
+            let mut definition_ty = Ty::Of(definition);
             definition_typechecker.apply(&mut definition_ty);
             definition_ty.traverse_mut(&mut |ty| {
-                if let Ty::Of(definition) = ty {
-                    *definition = instantiate(self, node, *definition);
+                if let Ty::Of(other) = ty {
+                    let existing_namespace = other.namespace.replace(key.0);
+                    assert!(existing_namespace.is_none());
                 }
             });
 
             self.queue.push((node, Constraint::Ty(definition_ty)));
         }
-    }
-}
 
-impl Typechecker {
-    pub fn run(mut self) -> TyGroups {
-        self.run_until(None).unwrap_or_else(|_| unreachable!())
+        self.run();
     }
 
-    pub fn run_until(&mut self, limit: impl Into<Option<usize>>) -> Result<TyGroups, ()> {
-        let limit = limit.into();
-
-        let mut counter = 0;
-        while limit.is_none_or(|limit| counter < limit) {
-            counter += 1;
-
-            // TODO: If no progress, apply bounds; still no progress, apply
-            // defaults; etc., using `and_then(..)`
-            let progress = self.run_tys();
-
-            match progress {
-                Progress::Progressed => continue,
-                Progress::NoProgress => return Ok(self.to_ty_groups()),
-            }
-        }
-
-        // Reached limit
-        Err(())
-    }
-
-    fn run_tys(&mut self) -> Progress {
-        let mut tys = Vec::new();
-        self.queue = mem::take(&mut self.queue)
-            .into_iter()
-            .filter_map(|(node, constraint)| match constraint {
-                Constraint::Ty(ty) => {
-                    tys.push((node, ty));
-                    None
-                }
-                _ => Some((node, constraint)),
-            })
-            .collect();
-
-        for (node, mut ty) in tys {
-            // `Ty::Of(node)` will resolve to the representative for `node`, so
-            // this effectively unifies the node's type with the other types in
-            // the node's group
-            let result = self.unify(&mut Ty::Of(node), &mut ty);
-
-            if result.is_err() {
-                // No need to generate a diagnostic here; feedback is
-                // generated whenever an expression has multiple types
-                self.others.entry(node).or_default().push(ty);
-            }
-        }
-
-        self.progress.take()
-    }
-
-    fn to_ty_groups(&self) -> TyGroups {
+    pub fn to_ty_groups(&self) -> TyGroups {
         let mut ty_groups = TyGroups::default();
 
         let mut unify = self.unify.clone();
@@ -248,6 +176,50 @@ impl Typechecker {
 }
 
 impl Typechecker {
+    fn run(&mut self) {
+        loop {
+            // TODO: If no progress, apply bounds; still no progress, apply
+            // defaults; etc., using `and_then(..)`
+            let progress = self.run_tys();
+
+            match progress {
+                Progress::Progressed => continue,
+                Progress::NoProgress => break,
+            }
+        }
+    }
+
+    fn run_tys(&mut self) -> Progress {
+        let mut tys = Vec::new();
+        self.queue = mem::take(&mut self.queue)
+            .into_iter()
+            .filter_map(|(node, constraint)| match constraint {
+                Constraint::Ty(ty) => {
+                    tys.push((node, ty));
+                    None
+                }
+                _ => Some((node, constraint)),
+            })
+            .collect();
+
+        for (node, mut ty) in tys {
+            // `Ty::Of(node)` will resolve to the representative for `node`, so
+            // this effectively unifies the node's type with the other types in
+            // the node's group
+            let result = self.unify(&mut Ty::Of(node), &mut ty);
+
+            if result.is_err() {
+                // No need to generate a diagnostic here; feedback is
+                // generated whenever an expression has multiple types
+                self.others.entry(node).or_default().push(ty);
+            }
+        }
+
+        self.progress.take()
+    }
+}
+
+impl Typechecker {
     fn key_for_node(&mut self, node: NodeId) -> GroupKey {
         self.keys
             .key_for_node(node, || self.unify.new_key(Group::new(node)))
@@ -287,14 +259,17 @@ impl Typechecker {
                 let key = self.key_for_node(node);
 
                 let representative_key = self.unify.find(key);
+                let representative = self.node_for_key(representative_key);
 
-                if let Some(mut representative) = self.groups.remove(&representative_key) {
-                    self.apply(&mut representative);
+                if let Some(mut representative_ty) = self.groups.remove(&representative_key) {
+                    self.apply(&mut representative_ty);
 
                     self.groups
-                        .insert(representative_key, representative.clone());
+                        .insert(representative_key, representative_ty.clone());
 
-                    *ty = representative;
+                    *ty = representative_ty;
+                } else {
+                    *ty = Ty::Of(representative);
                 }
             }
         });
