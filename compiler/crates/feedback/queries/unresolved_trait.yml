@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=_schema.json
+as: node
+where:
+  - type:
+      as: ty
+rule: unresolved trait
+group: todo
+messages:
+  - node: node
+    template: |
+      Could not find an instance for `{{node:source}}` with type {{ty:type}}. (TODO)

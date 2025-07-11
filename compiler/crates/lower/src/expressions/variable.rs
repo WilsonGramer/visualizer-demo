@@ -1,5 +1,5 @@
 use crate::{Definition, Visit, Visitor};
-use wipple_compiler_syntax::VariableNameExpression;
+use wipple_compiler_syntax::VariableExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
     constraints::{Constraint, Ty},
@@ -14,11 +14,11 @@ pub const RESOLVED_CONSTANT_NAME: Rule = Rule::new("resolved constant name");
 
 pub const UNRESOLVED_VARIABLE_NAME: Rule = Rule::new("unresolved variable name");
 
-impl Visit for VariableNameExpression {
+impl Visit for VariableExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, &self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             if let Some((constraint, rule)) =
-                visitor.resolve_name(&self.variable.source, id, |definition| match definition {
+                visitor.resolve_name(&self.variable.value, id, |definition| match definition {
                     Definition::Variable(definition) => Some((
                         Constraint::Ty(Ty::Of(definition.node)),
                         RESOLVED_VARIABLE_NAME,

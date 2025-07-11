@@ -84,6 +84,30 @@ impl Constraints {
 }
 
 impl Constraint {
+    pub fn traverse(&self, f: &mut impl FnMut(&Ty)) {
+        match self {
+            Constraint::Ty(ty) => ty.traverse(f),
+            Constraint::Generic(_) => {}
+            Constraint::Bound(bound) => {
+                for parameter in &bound.parameters {
+                    parameter.traverse(f);
+                }
+            }
+        }
+    }
+
+    pub fn traverse_mut(&mut self, f: &mut impl FnMut(&mut Ty)) {
+        match self {
+            Constraint::Ty(ty) => ty.traverse_mut(f),
+            Constraint::Generic(_) => {}
+            Constraint::Bound(bound) => {
+                for parameter in &mut bound.parameters {
+                    parameter.traverse_mut(f);
+                }
+            }
+        }
+    }
+
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
             Constraint::Ty(ty) => ty.to_debug_string(provider),

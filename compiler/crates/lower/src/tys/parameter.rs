@@ -12,9 +12,9 @@ pub const UNRESOLVED_PARAMETER_TYPE: Rule = Rule::new("unresolved parameter type
 
 impl Visit for ParameterType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, id| {
+        visitor.node(parent, self.range, |visitor, id| {
             let existing =
-                visitor.resolve_name(&self.name.source, id, |definition| match definition {
+                visitor.resolve_name(&self.name.value, id, |definition| match definition {
                     Definition::TypeParameter(definition) => {
                         Some((definition.node, PARAMETER_TYPE))
                     }
@@ -33,7 +33,7 @@ impl Visit for ParameterType {
                 None => {
                     if visitor.implicit_type_parameters {
                         visitor.define_name(
-                            &self.name.source,
+                            &self.name.value,
                             Definition::TypeParameter(TypeParameterDefinition { node: id }),
                         );
 

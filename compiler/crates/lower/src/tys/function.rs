@@ -14,9 +14,10 @@ pub const FUNCTION_TYPE_OUTPUT: Rule = Rule::new("function type output");
 
 impl Visit for FunctionType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, id| {
+        visitor.node(parent, self.range, |visitor, id| {
             let inputs = self
                 .inputs
+                .0
                 .iter()
                 .map(|input| {
                     let node = visitor.node(

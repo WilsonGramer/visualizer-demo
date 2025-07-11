@@ -10,7 +10,7 @@ pub const UNIT_TYPE: Rule = Rule::new("unit type");
 
 impl Visit for UnitType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, _id| {
+        visitor.node(parent, self.range, |visitor, _id| {
             (
                 ConstraintNode {
                     value: visitor.target(),

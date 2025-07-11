@@ -11,11 +11,12 @@ pub const FUNCTION_OUTPUT: Rule = Rule::new("function output");
 
 impl Visit for FunctionExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, &self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             visitor.push_scope(id);
 
             let inputs = self
                 .inputs
+                .0
                 .iter()
                 .map(|input| {
                     let target = visitor.placeholder_node((id, FUNCTION_INPUT), input.range());

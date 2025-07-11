@@ -9,11 +9,12 @@ pub const BLOCK_STATEMENT: Rule = Rule::new("block statement");
 
 impl Visit for BlockExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, &self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             visitor.push_scope(id);
 
             let statements = self
                 .statements
+                .0
                 .iter()
                 .map(|statement| statement.visit(visitor, (id, BLOCK_STATEMENT)))
                 .collect::<Vec<_>>();

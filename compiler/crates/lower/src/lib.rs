@@ -6,14 +6,11 @@ mod tys;
 
 use crate::attributes::{ConstantAttributes, InstanceAttributes, TraitAttributes, TypeAttributes};
 use petgraph::prelude::DiGraphMap;
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    ops::Range,
-};
-use wipple_compiler_syntax::{Comment, SourceFile};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use wipple_compiler_syntax::{Comment, Range, SourceFile};
 use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
-    constraints::{Bound, Constraint},
+    constraints::Constraint,
     nodes::{Node, PlaceholderNode},
 };
 
@@ -28,14 +25,17 @@ pub struct Result {
     pub spans: BTreeMap<NodeId, Span>,
     pub relations: DiGraphMap<NodeId, Rule>,
     pub definitions: BTreeMap<NodeId, Definition>,
+    pub instances: BTreeMap<NodeId, Vec<NodeId>>,
 }
 
-pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Result {
+pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     let mut visitor = Visitor::new(make_span);
 
-    let source_file = visitor.node_inner(None, &file.range, |visitor, id| {
-        for statement in &file.statements {
-            statement.visit(visitor, (id, STATEMENT_IN_SOURCE_FILE));
+    let source_file = visitor.node_inner(None, file.range, |visitor, id| {
+        if let Some(statements) = &file.statements {
+            for statement in &statements.0 {
+                statement.visit(visitor, (id, STATEMENT_IN_SOURCE_FILE));
+            }
         }
 
         (PlaceholderNode, SOURCE_FILE)
@@ -44,24 +44,41 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range<usize>) -> Span) -> Res
     visitor.nodes.remove(&source_file);
     visitor.relations.remove_node(source_file);
 
+    let nodes = visitor
+        .nodes
+        .into_iter()
+        .filter_map(|(id, node)| Some((id, node?)))
+        .collect();
+
+    let mut definitions = visitor
+        .scopes
+        .pop()
+        .unwrap()
+        .definitions
+        .into_values()
+        .flatten()
+        .map(|definition| (definition.source(), definition))
+        .collect::<BTreeMap<_, _>>();
+
+    let mut instance_ids = BTreeMap::<_, Vec<_>>::new();
+    for (tr, instances) in visitor.instances {
+        for instance in instances {
+            definitions.insert(instance.node, Definition::Instance(instance.clone()));
+
+            instance_ids.entry(tr).or_default().push(NodeId {
+                namespace: None,
+                index: instance.node.index,
+            });
+        }
+    }
+
     Result {
-        nodes: visitor
-            .nodes
-            .into_iter()
-            .filter_map(|(id, node)| Some((id, node?)))
-            .collect(),
+        nodes,
         typed_nodes: visitor.typed_nodes,
         spans: visitor.spans,
         relations: visitor.relations,
-        definitions: visitor
-            .scopes
-            .pop()
-            .unwrap()
-            .definitions
-            .into_values()
-            .flatten()
-            .map(|definition| (definition.source(), definition))
-            .collect(),
+        definitions,
+        instances: instance_ids,
     }
 }
 
@@ -70,7 +87,7 @@ trait Visit {
 }
 
 struct Visitor<'a> {
-    make_span: Box<dyn Fn(Range<usize>) -> Span + 'a>,
+    make_span: Box<dyn Fn(Range) -> Span + 'a>,
     nodes: BTreeMap<NodeId, Option<(Box<dyn Node>, Rule)>>,
     typed_nodes: BTreeSet<NodeId>,
     spans: BTreeMap<NodeId, Span>,
@@ -82,7 +99,7 @@ struct Visitor<'a> {
 }
 
 impl<'a> Visitor<'a> {
-    fn new(make_span: impl Fn(Range<usize>) -> Span + 'a) -> Self {
+    fn new(make_span: impl Fn(Range) -> Span + 'a) -> Self {
         Visitor {
             make_span: Box::new(make_span),
             nodes: Default::default(),
@@ -99,7 +116,7 @@ impl<'a> Visitor<'a> {
     fn node<N: Node>(
         &mut self,
         parent: (NodeId, Rule),
-        range: &Range<usize>,
+        range: Range,
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
         self.node_inner(Some(parent), range, f)
@@ -108,7 +125,7 @@ impl<'a> Visitor<'a> {
     fn typed_node<N: Node>(
         &mut self,
         parent: (NodeId, Rule),
-        range: &Range<usize>,
+        range: Range,
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
         let id = self.node_inner(Some(parent), range, f);
@@ -119,7 +136,7 @@ impl<'a> Visitor<'a> {
     fn node_inner<N: Node>(
         &mut self,
         parent: Option<(NodeId, Rule)>,
-        range: &Range<usize>,
+        range: Range,
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
         let id = NodeId {
@@ -141,12 +158,12 @@ impl<'a> Visitor<'a> {
             Some((node.boxed(), rule)),
         );
 
-        self.spans.insert(id, (self.make_span)(range.clone()));
+        self.spans.insert(id, (self.make_span)(range));
 
         id
     }
 
-    fn placeholder_node(&mut self, parent: (NodeId, Rule), range: &Range<usize>) -> NodeId {
+    fn placeholder_node(&mut self, parent: (NodeId, Rule), range: Range) -> NodeId {
         let (parent_id, parent_rule) = parent;
 
         self.node((parent_id, parent_rule), range, |_, _| {
@@ -219,7 +236,8 @@ pub struct InstanceDefinition {
     pub node: NodeId,
     pub comments: Vec<Comment>,
     pub attributes: InstanceAttributes,
-    pub bound: Bound,
+    pub tr: NodeId,
+    pub parameters: Vec<NodeId>,
     pub constraints: Vec<Constraint>,
 }
 
@@ -307,7 +325,7 @@ impl Visitor<'_> {
 
     fn define_instance(&mut self, definition: InstanceDefinition) {
         self.instances
-            .entry(definition.bound.tr)
+            .entry(definition.tr)
             .or_default()
             .push(definition);
     }

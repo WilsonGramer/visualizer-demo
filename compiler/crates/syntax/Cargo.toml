@@ -4,5 +4,7 @@ version = "0.0.0"
 edition = "2024"
 
 [dependencies]
-derive-tree-sitter = { git = "https://github.com/WilsonGramer/derive-tree-sitter" }
-tree-sitter-wipple = { path = "grammar" }
+from-pest = "0.3"
+pest = "2"
+pest_derive = "2"
+pest-ast = "0.3"

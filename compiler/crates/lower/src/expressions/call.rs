@@ -20,11 +20,9 @@ pub const UNIT_IN_UNIT_CALL: Rule = Rule::new("unit in unit call");
 
 impl Visit for CallExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, &self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             let unit = match self.inputs.as_slice() {
-                [Expression::VariableName(input)] => {
-                    Some((&input.range, input.variable.source.as_str()))
-                }
+                [Expression::Variable(input)] => Some((input.range, input.variable.value.as_str())),
                 _ => None,
             };
 

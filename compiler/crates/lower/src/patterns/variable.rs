@@ -10,9 +10,9 @@ pub const VARIABLE_PATTERN: Rule = Rule::new("variable pattern");
 
 impl Visit for VariablePattern {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, &self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             visitor.define_name(
-                &self.variable.source,
+                &self.variable.value,
                 Definition::Variable(VariableDefinition { node: id }),
             );
 

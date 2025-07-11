@@ -2,6 +2,7 @@ mod block;
 mod function;
 mod named;
 mod parameter;
+mod parameterized;
 mod placeholder;
 mod tuple;
 mod unit;
@@ -16,6 +17,7 @@ impl Visit for Type {
             Type::Placeholder(ty) => ty.visit(visitor, parent),
             Type::Unit(ty) => ty.visit(visitor, parent),
             Type::Named(ty) => ty.visit(visitor, parent),
+            Type::Parameterized(ty) => ty.visit(visitor, parent),
             Type::Block(ty) => ty.visit(visitor, parent),
             Type::Function(ty) => ty.visit(visitor, parent),
             Type::Parameter(ty) => ty.visit(visitor, parent),

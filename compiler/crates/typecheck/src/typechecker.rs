@@ -1,8 +1,11 @@
 use crate::constraints::{Constraint, GenericConstraints, Ty, TyConstraints};
 use ena::unify::InPlaceUnificationTable;
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
     mem,
+    rc::Rc,
 };
 use wipple_compiler_trace::NodeId;
 
@@ -53,8 +56,43 @@ impl TyGroups {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Typechecker {
+#[derive(Debug, Clone)]
+pub struct Instance {
+    pub id: NodeId,
+    pub parameters: Vec<NodeId>,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Clone)]
+pub struct TypeProvider<'a> {
+    get_constraints: Rc<RefCell<dyn FnMut(NodeId) -> Vec<Constraint> + 'a>>,
+    get_instances: Rc<RefCell<dyn FnMut(NodeId) -> Vec<NodeId> + 'a>>,
+    flag_unresolved_trait: Rc<RefCell<dyn FnMut(NodeId) + 'a>>,
+}
+
+impl<'a> TypeProvider<'a> {
+    pub fn new(
+        get_constraints: impl FnMut(NodeId) -> Vec<Constraint> + 'a,
+        get_instances: impl FnMut(NodeId) -> Vec<NodeId> + 'a,
+        flag_unresolved_trait: impl FnMut(NodeId) + 'a,
+    ) -> Self {
+        TypeProvider {
+            get_constraints: Rc::new(RefCell::new(get_constraints)),
+            get_instances: Rc::new(RefCell::new(get_instances)),
+            flag_unresolved_trait: Rc::new(RefCell::new(flag_unresolved_trait)),
+        }
+    }
+}
+
+impl Debug for TypeProvider<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TypeProvider").finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Typechecker<'a> {
+    provider: TypeProvider<'a>,
     nodes: BTreeSet<NodeId>,
     keys: GroupKeys,
     unify: InPlaceUnificationTable<GroupKey>,
@@ -62,11 +100,22 @@ pub struct Typechecker {
     others: BTreeMap<NodeId, Vec<Ty>>, // types that failed to unify
     queue: Vec<(NodeId, Constraint)>,  // ordered
     progress: Progress,
+    error: bool,
 }
 
-impl Typechecker {
-    pub fn new() -> Self {
-        Default::default()
+impl<'a> Typechecker<'a> {
+    pub fn with_provider(provider: TypeProvider<'a>) -> Self {
+        Typechecker {
+            provider,
+            nodes: Default::default(),
+            keys: Default::default(),
+            unify: Default::default(),
+            groups: Default::default(),
+            others: Default::default(),
+            queue: Default::default(),
+            progress: Default::default(),
+            error: false,
+        }
     }
 
     pub fn insert_nodes(&mut self, nodes: impl IntoIterator<Item = NodeId>) {
@@ -101,21 +150,28 @@ impl Typechecker {
     pub fn insert_generics(&mut self, constraints: &GenericConstraints) {
         // Make instantiated copies of the definition's constraints
         for &(node, definition) in constraints {
-            // Resolve the definition's type on its own...
+            let mut constraints = self.provider.get_constraints.borrow_mut()(definition);
+            constraints.push(Constraint::Ty(Ty::Of(definition)));
+
+            // Make instantiated copies of the constraints using a copy of the
+            // typechecker, to not interfere with existing nodes
+
             let mut definition_typechecker = self.clone();
             let key = definition_typechecker.key_for_node(node);
 
-            // ...and then make an instantiated copy to use in `self`
-            let mut definition_ty = Ty::Of(definition);
-            definition_typechecker.apply(&mut definition_ty);
-            definition_ty.traverse_mut(&mut |ty| {
-                if let Ty::Of(other) = ty {
-                    let existing_namespace = other.namespace.replace(key.0);
-                    assert!(existing_namespace.is_none());
-                }
-            });
+            for constraint in &mut constraints {
+                constraint.traverse_mut(&mut |ty| {
+                    definition_typechecker.apply(ty);
 
-            self.queue.push((node, Constraint::Ty(definition_ty)));
+                    if let Ty::Of(other) = ty {
+                        let existing_namespace = other.namespace.replace(key.0);
+                        assert!(existing_namespace.is_none());
+                    }
+                });
+            }
+
+            self.queue
+                .extend(constraints.into_iter().map(|constraint| (node, constraint)));
         }
 
         self.run();
@@ -175,12 +231,11 @@ impl Typechecker {
     }
 }
 
-impl Typechecker {
+impl Typechecker<'_> {
     fn run(&mut self) {
         loop {
-            // TODO: If no progress, apply bounds; still no progress, apply
-            // defaults; etc., using `and_then(..)`
-            let progress = self.run_tys();
+            let progress = self.run_tys().or_else(|| self.run_bounds());
+            // TODO: `.or_else(|| self.run_defaults())`, etc.
 
             match progress {
                 Progress::Progressed => continue,
@@ -209,9 +264,50 @@ impl Typechecker {
             let result = self.unify(&mut Ty::Of(node), &mut ty);
 
             if result.is_err() {
-                // No need to generate a diagnostic here; feedback is
-                // generated whenever an expression has multiple types
+                self.error = true;
                 self.others.entry(node).or_default().push(ty);
+            }
+        }
+
+        self.progress.take()
+    }
+
+    fn run_bounds(&mut self) -> Progress {
+        let mut bounds = Vec::new();
+        self.queue = mem::take(&mut self.queue)
+            .into_iter()
+            .filter_map(|(node, constraint)| match constraint {
+                Constraint::Bound(bound) => {
+                    bounds.push((node, bound));
+                    None
+                }
+                _ => Some((node, constraint)),
+            })
+            .collect();
+
+        for (node, bound) in dbg!(bounds) {
+            let instances = self.provider.get_instances.borrow_mut()(bound.tr);
+
+            let mut error = true;
+            for instance in instances {
+                let mut instance_typechecker = self.clone();
+                instance_typechecker.error = false;
+                instance_typechecker.insert_generics(&vec![(node, instance)]);
+
+                // This will resolve bounds recursively
+                instance_typechecker.run();
+
+                if !instance_typechecker.error {
+                    // Apply the resolved types
+                    *self = instance_typechecker;
+
+                    error = false;
+                    break;
+                }
+            }
+
+            if error {
+                self.provider.flag_unresolved_trait.borrow_mut()(node);
             }
         }
 
@@ -219,7 +315,7 @@ impl Typechecker {
     }
 }
 
-impl Typechecker {
+impl Typechecker<'_> {
     fn key_for_node(&mut self, node: NodeId) -> GroupKey {
         self.keys
             .key_for_node(node, || self.unify.new_key(Group::new(node)))
@@ -234,7 +330,7 @@ impl Typechecker {
     }
 }
 
-impl Typechecker {
+impl Typechecker<'_> {
     fn try_apply(&self, ty: &mut Ty, unify: &mut InPlaceUnificationTable<GroupKey>) {
         ty.traverse_mut(&mut |ty| {
             if let Ty::Of(node) = *ty {

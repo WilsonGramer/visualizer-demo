@@ -5,7 +5,7 @@ use crate::{
 use wipple_compiler_syntax::InstanceDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
-    constraints::{Bound, Constraint, Ty},
+    constraints::{Constraint, Ty},
     nodes::{ConstraintNode, Node, PlaceholderNode},
 };
 
@@ -21,17 +21,19 @@ pub const UNRESOLVED_TRAIT_NAME: Rule = Rule::new("unresolved trait name in inst
 
 impl Visit for InstanceDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, id| {
+        visitor.node(parent, self.range, |visitor, id| {
             let attributes =
                 InstanceAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
             let Some(((trait_node, trait_parameters), _)) =
-                visitor.resolve_name(&self.r#trait.source, id, |definition| match definition {
-                    Definition::Trait(definition) => Some((
-                        (definition.node, definition.parameters.clone()),
-                        TRAIT_IN_INSTANCE_DEFINITION,
-                    )),
-                    _ => None,
+                visitor.resolve_name(&self.constraints.bound.r#trait.value, id, |definition| {
+                    match definition {
+                        Definition::Trait(definition) => Some((
+                            (definition.node, definition.parameters.clone()),
+                            TRAIT_IN_INSTANCE_DEFINITION,
+                        )),
+                        _ => None,
+                    }
                 })
             else {
                 return (PlaceholderNode.boxed(), UNRESOLVED_TRAIT_NAME);
@@ -40,6 +42,8 @@ impl Visit for InstanceDefinitionStatement {
             // TODO: Ensure `parameters` and `trait_parameters` have the same
             // length
             let parameters = self
+                .constraints
+                .bound
                 .parameters
                 .iter()
                 .map(|ty| {
@@ -49,43 +53,38 @@ impl Visit for InstanceDefinitionStatement {
                         })
                     })
                 })
-                .map(Ty::Of)
                 .collect::<Vec<_>>();
 
             // TODO
-            let constraints = self.constraints.iter().map(|_| todo!()).collect::<Vec<_>>();
+            let constraints = self
+                .constraints
+                .constraints
+                .iter()
+                .map(|_| todo!())
+                .collect::<Vec<_>>();
 
             visitor.define_instance(InstanceDefinition {
                 node: id,
                 comments: Vec::new(),
                 attributes,
-                bound: Bound {
-                    tr: trait_node,
-                    parameters,
-                },
+                tr: trait_node,
+                parameters,
                 constraints,
             });
 
-            let value = self
-                .value
-                .as_ref()
-                .map(|value| {
-                    visitor.with_target(id, |visitor| {
-                        value.visit(visitor, (id, VALUE_IN_INSTANCE_DEFINITION))
-                    })
-                })
-                .map_or_else(
-                    || PlaceholderNode.boxed(),
-                    |node| {
-                        ConstraintNode {
-                            value: id,
-                            constraints: vec![Constraint::Ty(Ty::Of(node))],
-                        }
-                        .boxed()
-                    },
-                );
+            let value = visitor.with_target(id, |visitor| {
+                self.value
+                    .visit(visitor, (id, VALUE_IN_INSTANCE_DEFINITION))
+            });
 
-            (value, INSTANCE_DEFINITION)
+            (
+                ConstraintNode {
+                    value: id,
+                    constraints: vec![Constraint::Ty(Ty::Of(value))],
+                }
+                .boxed(),
+                INSTANCE_DEFINITION,
+            )
         })
     }
 }

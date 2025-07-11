@@ -1,12 +1,13 @@
 use colored::Colorize;
 use petgraph::Direction;
-use std::{
-    collections::{BTreeMap, HashSet},
-    ops::Range,
-};
+use std::collections::{BTreeMap, HashSet};
 use wasm_bindgen::prelude::*;
+use wipple_compiler_syntax::{Parse, Range};
 use wipple_compiler_trace::{NodeId, Rule, Span};
-use wipple_compiler_typecheck::{debug, typechecker::Typechecker};
+use wipple_compiler_typecheck::{
+    debug,
+    typechecker::{TypeProvider, Typechecker},
+};
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {
@@ -38,6 +39,8 @@ pub const UNKNOWN_TYPE: Rule = Rule::new("unknown type");
 
 pub const INCOMPLETE_TYPE: Rule = Rule::new("incomplete type");
 
+pub const UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
+
 pub fn compile(
     path: &str,
     source: &str,
@@ -46,7 +49,7 @@ pub fn compile(
     mut display_tys: impl FnMut(String),
     mut display_feedback: impl FnMut(String),
 ) {
-    let source_file = match wipple_compiler_syntax::parse(source) {
+    let source_file = match wipple_compiler_syntax::SourceFile::parse(source) {
         Ok(source_file) => source_file,
         Err(error) => {
             display_syntax_error(format!("{error:?}"));
@@ -56,32 +59,22 @@ pub fn compile(
 
     let line_col = line_col::LineColLookup::new(source);
 
-    let make_span = |range: Range<usize>| Span {
-        path: path.to_string(),
-        range: range.clone(),
-        start_line_col: line_col.get(range.start),
-        end_line_col: line_col.get(range.end),
+    let make_span = |range: Range| {
+        let Range::Some(start, end) = range else {
+            panic!("node has no range");
+        };
+
+        Span {
+            path: path.to_string(),
+            range: start..end,
+            start_line_col: line_col.get(start),
+            end_line_col: line_col.get(end),
+        }
     };
+
+    let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
 
     let lowered = wipple_compiler_lower::visit(&source_file, make_span);
-
-    let feedback_nodes = lowered
-        .nodes
-        .iter()
-        .map(|(&id, &(_, rule))| (id, HashSet::from([rule])))
-        .collect::<BTreeMap<_, _>>();
-
-    let get_span_source = |node| {
-        let span = lowered.spans.get(&node).unwrap();
-        let source = &source[span.range.clone()];
-        (span.clone(), source.to_string())
-    };
-
-    let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
-        &feedback_nodes,
-        &lowered.relations,
-        get_span_source,
-    );
 
     let typecheck_ctx = wipple_compiler_typecheck::context::Context {
         nodes: lowered
@@ -93,27 +86,36 @@ pub fn compile(
 
     let constraints = typecheck_ctx.as_constraints();
 
-    let mut typechecker = Typechecker::new();
+    let type_provider = TypeProvider::new(
+        |definition_id| {
+            lowered
+                .definitions
+                .get(&definition_id)
+                .unwrap()
+                .constraints()
+        },
+        |trait_id| {
+            lowered
+                .instances
+                .get(&trait_id)
+                .cloned()
+                .unwrap_or_default()
+        },
+        |node| {
+            extras.entry(node).or_default().insert(UNRESOLVED_TRAIT);
+        },
+    );
+
+    let mut typechecker = Typechecker::with_provider(type_provider);
     typechecker.insert_nodes(lowered.typed_nodes.clone());
     typechecker.insert_tys(&constraints.tys);
     typechecker.insert_generics(&constraints.generic_tys);
 
     let ty_groups = typechecker.to_ty_groups();
 
-    let mut buf = Vec::new();
-    debug::write_graph(
-        &mut buf,
-        &ty_groups,
-        &lowered.relations,
-        &provider,
-        |node| lowered.typed_nodes.contains(&node),
-    )
-    .unwrap();
-
-    display_graph(String::from_utf8(buf).unwrap());
+    drop(typechecker);
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
-    let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
     for &node in lowered.nodes.keys() {
         if !lowered.typed_nodes.contains(&node) {
             continue;
@@ -134,6 +136,39 @@ pub fn compile(
             }
         }
     }
+
+    let get_span_source = |node| {
+        let span = lowered.spans.get(&node).unwrap();
+        let source = &source[span.range.clone()];
+        (span.clone(), source.to_string())
+    };
+
+    let feedback_nodes = lowered
+        .nodes
+        .iter()
+        .map(|(&id, &(_, rule))| (id, HashSet::from([rule])))
+        .chain(extras)
+        .collect::<BTreeMap<_, _>>();
+
+    let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
+        &feedback_nodes,
+        &lowered.relations,
+        get_span_source,
+    );
+
+    // Display type graph
+
+    let mut buf = Vec::new();
+    debug::write_graph(
+        &mut buf,
+        &ty_groups,
+        &lowered.relations,
+        &provider,
+        |node| lowered.typed_nodes.contains(&node),
+    )
+    .unwrap();
+
+    display_graph(String::from_utf8(buf).unwrap());
 
     // Display feedback
 

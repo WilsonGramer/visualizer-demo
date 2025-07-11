@@ -12,7 +12,7 @@ pub const MISSING_NUMBER_TYPE: Rule = Rule::new("missing number type");
 
 impl Visit for NumberExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, &self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             let number_ty = visitor.resolve_name("Number", id, |definition| match definition {
                 Definition::Type(definition) => Some((
                     Ty::Named {

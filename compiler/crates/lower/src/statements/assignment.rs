@@ -11,7 +11,7 @@ pub const ASSIGNMENT: Rule = Rule::new("assignment");
 
 impl Visit for AssignmentStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, &self.range, |visitor, id| {
+        visitor.node(parent, self.range, |visitor, id| {
             let value = self.value.visit(visitor, (id, ASSIGNMENT_VALUE));
 
             // The typechecker doesn't need to see the pattern, since visiting

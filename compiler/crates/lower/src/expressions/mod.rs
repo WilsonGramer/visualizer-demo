@@ -1,5 +1,4 @@
 mod annotate;
-mod apply;
 mod r#as;
 mod binary;
 mod block;
@@ -14,10 +13,10 @@ mod number;
 mod placeholder;
 mod structure;
 mod text;
+mod r#trait;
 mod tuple;
-mod type_name;
 mod unit;
-mod variable_name;
+mod variable;
 mod when;
 
 use crate::{Visit, Visitor};
@@ -28,8 +27,8 @@ impl Visit for Expression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         match self {
             Expression::Placeholder(expression) => expression.visit(visitor, parent),
-            Expression::VariableName(expression) => expression.visit(visitor, parent),
-            Expression::TypeName(expression) => expression.visit(visitor, parent),
+            Expression::Variable(expression) => expression.visit(visitor, parent),
+            Expression::Trait(expression) => expression.visit(visitor, parent),
             Expression::Number(expression) => expression.visit(visitor, parent),
             Expression::Text(expression) => expression.visit(visitor, parent),
             Expression::FormattedText(expression) => expression.visit(visitor, parent),
@@ -40,26 +39,10 @@ impl Visit for Expression {
             Expression::Do(expression) => expression.visit(visitor, parent),
             Expression::When(expression) => expression.visit(visitor, parent),
             Expression::Intrinsic(expression) => expression.visit(visitor, parent),
+            Expression::Binary(expression) => expression.visit(visitor, parent),
             Expression::Annotate(expression) => expression.visit(visitor, parent),
             Expression::As(expression) => expression.visit(visitor, parent),
-            Expression::To(expression) => expression.visit(visitor, parent),
-            Expression::By(expression) => expression.visit(visitor, parent),
-            Expression::Power(expression) => expression.visit(visitor, parent),
-            Expression::Multiply(expression) => expression.visit(visitor, parent),
-            Expression::Divide(expression) => expression.visit(visitor, parent),
-            Expression::Remainder(expression) => expression.visit(visitor, parent),
-            Expression::Add(expression) => expression.visit(visitor, parent),
-            Expression::Subtract(expression) => expression.visit(visitor, parent),
-            Expression::LessThan(expression) => expression.visit(visitor, parent),
-            Expression::LessThanOrEqual(expression) => expression.visit(visitor, parent),
-            Expression::GreaterThan(expression) => expression.visit(visitor, parent),
-            Expression::GreaterThanOrEqual(expression) => expression.visit(visitor, parent),
-            Expression::Equal(expression) => expression.visit(visitor, parent),
-            Expression::NotEqual(expression) => expression.visit(visitor, parent),
             Expression::Is(expression) => expression.visit(visitor, parent),
-            Expression::And(expression) => expression.visit(visitor, parent),
-            Expression::Or(expression) => expression.visit(visitor, parent),
-            Expression::Apply(expression) => expression.visit(visitor, parent),
             Expression::Tuple(expression) => expression.visit(visitor, parent),
             Expression::Collection(expression) => expression.visit(visitor, parent),
             Expression::Function(expression) => expression.visit(visitor, parent),

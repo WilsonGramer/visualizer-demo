@@ -4,7 +4,10 @@ use crate::{
 };
 use wipple_compiler_syntax::TraitDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::PlaceholderNode;
+use wipple_compiler_typecheck::{
+    constraints::{Bound, Constraint, Ty},
+    nodes::PlaceholderNode,
+};
 
 pub const TRAIT_DEFINITION: Rule = Rule::new("trait definition");
 
@@ -14,19 +17,22 @@ pub const TYPE_IN_TRAIT_DEFINITION: Rule = Rule::new("type in trait definition")
 
 impl Visit for TraitDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, &self.name.range, |visitor, id| {
+        visitor.node(parent, self.name.range, |visitor, id| {
             let attributes =
                 TraitAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
             let parameters = self
                 .parameters
+                .as_ref()
+                .map(|parameters| parameters.0.as_slice())
+                .unwrap_or_default()
                 .iter()
                 .map(|parameter| {
                     let node = visitor
-                        .placeholder_node((id, PARAMETER_IN_TRAIT_DEFINITION), &parameter.range);
+                        .placeholder_node((id, PARAMETER_IN_TRAIT_DEFINITION), parameter.range);
 
                     visitor.define_name(
-                        &parameter.source,
+                        &parameter.value,
                         Definition::TypeParameter(TypeParameterDefinition { node }),
                     );
 
@@ -34,20 +40,26 @@ impl Visit for TraitDefinitionStatement {
                 })
                 .collect::<Vec<_>>();
 
-            if let Some(ty) = &self.r#type {
-                visitor.with_target(id, |visitor| {
-                    ty.visit(visitor, (id, TYPE_IN_TRAIT_DEFINITION))
-                });
-            }
+            visitor.with_target(id, |visitor| {
+                self.constraints
+                    .r#type
+                    .visit(visitor, (id, TYPE_IN_TRAIT_DEFINITION))
+            });
 
             visitor.define_name(
-                &self.name.source,
+                &self.name.value,
                 Definition::Trait(TraitDefinition {
                     node: id,
                     comments: self.comments.clone(),
                     attributes,
                     parameters: parameters.clone(),
-                    constraints: Vec::new(), // no additional constraints on the trait itself
+                    constraints: vec![
+                        Constraint::Bound(Bound {
+                            tr: id,
+                            parameters: parameters.into_iter().map(Ty::Of).collect(),
+                        }),
+                        // TODO: Other constraints on `self.constraints`
+                    ],
                 }),
             );
 

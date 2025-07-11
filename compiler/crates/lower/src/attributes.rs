@@ -76,24 +76,19 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
     fn parse_name(&mut self, name: &str) -> bool {
         let mut found = false;
         for attribute in self.attributes {
-            match attribute {
-                Attribute::Name(attribute) => {
-                    if attribute.name.source == name {
-                        if found {
-                            self.visitor
-                                .placeholder_node((self.id, DUPLICATE_ATTRIBUTE), &attribute.range);
-
-                            continue;
-                        }
-
-                        found = true;
-                    }
-                }
-                Attribute::Assign(attribute) => {
-                    if attribute.name.source == name {
+            if attribute.name.value == name {
+                if attribute.value.is_some() {
+                    self.visitor
+                        .placeholder_node((self.id, EXTRA_ATTRIBUTE_VALUE), attribute.range);
+                } else {
+                    if found {
                         self.visitor
-                            .placeholder_node((self.id, EXTRA_ATTRIBUTE_VALUE), &attribute.range);
+                            .placeholder_node((self.id, DUPLICATE_ATTRIBUTE), attribute.range);
+
+                        continue;
                     }
+
+                    found = true;
                 }
             }
         }
@@ -103,7 +98,7 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
 
     fn parse_text(&mut self, name: &str) -> Option<String> {
         self.parse_assign(name, |value| match value {
-            AttributeValue::Text(text) => Some(text.source.clone()),
+            AttributeValue::Text(text) => Some(text.value.value.clone()),
             #[expect(unreachable_patterns)]
             _ => None,
         })
@@ -114,39 +109,32 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
         name: &str,
         f: impl Fn(&'a AttributeValue) -> Option<T>,
     ) -> Option<T> {
-        let mut value = None;
+        let mut result = None;
         for attribute in self.attributes {
-            match attribute {
-                Attribute::Name(attribute) => {
-                    if attribute.name.source == name {
+            if attribute.name.value == name {
+                if let Some(value) = &attribute.value {
+                    if result.is_some() {
+                        self.visitor
+                            .placeholder_node((self.id, DUPLICATE_ATTRIBUTE), attribute.range);
+
+                        continue;
+                    }
+
+                    result = f(value);
+
+                    if result.is_none() {
                         self.visitor.placeholder_node(
                             (self.id, MISMATCHED_ATTRIBUTE_VALUE),
-                            &attribute.range,
+                            attribute.range,
                         );
                     }
-                }
-                Attribute::Assign(attribute) => {
-                    if attribute.name.source == name {
-                        if value.is_some() {
-                            self.visitor
-                                .placeholder_node((self.id, DUPLICATE_ATTRIBUTE), &attribute.range);
-
-                            continue;
-                        }
-
-                        value = f(&attribute.value);
-
-                        if value.is_none() {
-                            self.visitor.placeholder_node(
-                                (self.id, MISMATCHED_ATTRIBUTE_VALUE),
-                                &attribute.range,
-                            );
-                        }
-                    }
+                } else {
+                    self.visitor
+                        .placeholder_node((self.id, MISSING_ATTRIBUTE_VALUE), attribute.range);
                 }
             }
         }
 
-        value
+        result
     }
 }
