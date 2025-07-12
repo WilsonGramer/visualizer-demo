@@ -48,8 +48,11 @@ impl Visit for InstanceDefinitionStatement {
                 .iter()
                 .map(|ty| {
                     visitor.with_implicit_type_parameters(|visitor| {
-                        visitor.with_target(id, |visitor| {
-                            ty.visit(visitor, (id, PARAMETER_IN_INSTANCE_DEFINITION))
+                        let node = visitor
+                            .placeholder_node((id, PARAMETER_IN_INSTANCE_DEFINITION), ty.range());
+
+                        visitor.with_target(node, |visitor| {
+                            ty.visit(visitor, (node, PARAMETER_IN_INSTANCE_DEFINITION))
                         })
                     })
                 })
@@ -80,7 +83,10 @@ impl Visit for InstanceDefinitionStatement {
             (
                 ConstraintNode {
                     value: id,
-                    constraints: vec![Constraint::Ty(Ty::Of(value))],
+                    constraints: vec![
+                        Constraint::Ty(Ty::Of(value)),
+                        Constraint::Generic(trait_node),
+                    ],
                 }
                 .boxed(),
                 INSTANCE_DEFINITION,

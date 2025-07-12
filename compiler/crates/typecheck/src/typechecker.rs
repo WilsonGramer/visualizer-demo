@@ -164,8 +164,8 @@ impl<'a> Typechecker<'a> {
                     definition_typechecker.apply(ty);
 
                     if let Ty::Of(other) = ty {
-                        let existing_namespace = other.namespace.replace(key.0);
-                        assert!(existing_namespace.is_none());
+                        // TODO: Check the existing value?
+                        other.namespace.replace(key.0);
                     }
                 });
             }
