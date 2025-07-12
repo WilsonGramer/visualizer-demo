@@ -22,20 +22,12 @@ pest_enum! {
     }
 }
 
-impl Parse for AttributeValue {
-    const RULE: crate::Rule = Rule::attribute_value;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::text_attribute_value))]
 pub struct TextAttributeValue {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub value: Text,
-}
-
-impl Parse for TextAttributeValue {
-    const RULE: crate::Rule = Rule::text_attribute_value;
 }
 
 #[cfg(test)]

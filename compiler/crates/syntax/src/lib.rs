@@ -39,10 +39,6 @@ impl Parse for SourceFile {
 #[pest_ast(rule(Rule::statements))]
 pub struct Statements(pub Vec<Statement>);
 
-impl Parse for Statements {
-    const RULE: crate::Rule = Rule::statements;
-}
-
 #[derive(pest_derive::Parser)]
 #[grammar = "grammar.pest"]
 pub struct Parser;

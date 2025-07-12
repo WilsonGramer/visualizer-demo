@@ -31,10 +31,6 @@ pub struct BoundConstraint {
     pub parameters: Vec<Type>,
 }
 
-impl Parse for BoundConstraint {
-    const RULE: crate::Rule = Rule::bound_constraint;
-}
-
 /// ```wipple
 /// (infer value)
 /// ```
@@ -44,10 +40,6 @@ pub struct InferConstraint {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub parameter: TypeParameterName,
-}
-
-impl Parse for InferConstraint {
-    const RULE: crate::Rule = Rule::infer_constraint;
 }
 
 /// ```wipple
@@ -60,10 +52,6 @@ pub struct DefaultConstraint {
     pub range: Range,
     pub parameter: TypeParameterName,
     pub value: Type,
-}
-
-impl Parse for DefaultConstraint {
-    const RULE: crate::Rule = Rule::default_constraint;
 }
 
 #[cfg(test)]

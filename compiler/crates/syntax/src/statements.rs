@@ -41,10 +41,6 @@ pub struct TypeDefinitionStatement {
     pub representation: TypeRepresentation,
 }
 
-impl Parse for TypeDefinitionStatement {
-    const RULE: crate::Rule = Rule::type_definition_statement;
-}
-
 pest_enum! {
     #[parenthesized = NeverParenthesized<Self>]
     #[derive(Debug, Clone, PartialEq)]
@@ -53,10 +49,6 @@ pest_enum! {
         Enumeration(EnumerationTypeRepresentation),
         Marker(MarkerTypeRepresentation),
     }
-}
-
-impl Parse for TypeRepresentation {
-    const RULE: crate::Rule = Rule::type_representation;
 }
 
 /// ```wipple
@@ -73,10 +65,6 @@ pub struct StructureTypeRepresentation {
     pub fields: Vec<FieldDefinition>,
 }
 
-impl Parse for StructureTypeRepresentation {
-    const RULE: crate::Rule = Rule::structure_type_representation;
-}
-
 /// ```wipple
 /// a :: A
 /// ```
@@ -87,10 +75,6 @@ pub struct FieldDefinition {
     pub range: Range,
     pub name: VariableName,
     pub r#type: Type,
-}
-
-impl Parse for FieldDefinition {
-    const RULE: crate::Rule = Rule::field_definition;
 }
 
 /// ```wipple
@@ -107,10 +91,6 @@ pub struct EnumerationTypeRepresentation {
     pub variants: Vec<VariantDefinition>,
 }
 
-impl Parse for EnumerationTypeRepresentation {
-    const RULE: crate::Rule = Rule::enumeration_type_representation;
-}
-
 /// ```wipple
 /// Some Number
 /// ```
@@ -123,10 +103,6 @@ pub struct VariantDefinition {
     pub elements: Vec<VariantDefinitionElement>,
 }
 
-impl Parse for VariantDefinition {
-    const RULE: crate::Rule = Rule::variant_definition;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::variant_definition_element))]
 pub struct VariantDefinitionElement(pub Type);
@@ -136,10 +112,6 @@ pub struct VariantDefinitionElement(pub Type);
 pub struct MarkerTypeRepresentation {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
-}
-
-impl Parse for MarkerTypeRepresentation {
-    const RULE: crate::Rule = Rule::marker_type_representation;
 }
 
 /// ```wipple
@@ -157,10 +129,6 @@ pub struct TraitDefinitionStatement {
     pub constraints: TraitConstraints,
 }
 
-impl Parse for TraitDefinitionStatement {
-    const RULE: crate::Rule = Rule::trait_definition_statement;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::trait_constraints))]
 pub struct TraitConstraints {
@@ -168,10 +136,6 @@ pub struct TraitConstraints {
     pub range: Range,
     pub r#type: Type,
     pub constraints: Option<Constraints>,
-}
-
-impl Parse for TraitConstraints {
-    const RULE: crate::Rule = Rule::trait_constraints;
 }
 
 /// ```wipple
@@ -188,10 +152,6 @@ pub struct ConstantDefinitionStatement {
     pub constraints: ConstantConstraints,
 }
 
-impl Parse for ConstantDefinitionStatement {
-    const RULE: crate::Rule = Rule::constant_definition_statement;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::constant_constraints))]
 pub struct ConstantConstraints {
@@ -199,10 +159,6 @@ pub struct ConstantConstraints {
     pub range: Range,
     pub r#type: Type,
     pub constraints: Option<Constraints>,
-}
-
-impl Parse for ConstantConstraints {
-    const RULE: crate::Rule = Rule::constant_constraints;
 }
 
 /// ```wipple
@@ -217,10 +173,6 @@ pub struct InstanceDefinitionStatement {
     pub attributes: Vec<Attribute>,
     pub constraints: InstanceConstraints,
     pub value: Expression,
-}
-
-impl Parse for InstanceDefinitionStatement {
-    const RULE: crate::Rule = Rule::instance_definition_statement;
 }
 
 #[derive(Debug, Clone, PartialEq, FromPest)]
@@ -244,20 +196,12 @@ pub struct AssignmentStatement {
     pub value: Expression,
 }
 
-impl Parse for AssignmentStatement {
-    const RULE: crate::Rule = Rule::assignment_statement;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::expression_statement))]
 pub struct ExpressionStatement {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub expression: Expression,
-}
-
-impl Parse for ExpressionStatement {
-    const RULE: crate::Rule = Rule::expression_statement;
 }
 
 #[derive(Debug, Clone, PartialEq, FromPest)]

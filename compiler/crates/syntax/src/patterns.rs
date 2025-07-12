@@ -58,10 +58,6 @@ pub struct WildcardPattern {
     pub range: Range,
 }
 
-impl Parse for WildcardPattern {
-    const RULE: crate::Rule = Rule::wildcard_pattern;
-}
-
 /// ```wipple
 /// x
 /// ```
@@ -73,10 +69,6 @@ pub struct VariablePattern {
     pub variable: VariableName,
 }
 
-impl Parse for VariablePattern {
-    const RULE: crate::Rule = Rule::variable_pattern;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::number_pattern))]
 pub struct NumberPattern {
@@ -85,20 +77,12 @@ pub struct NumberPattern {
     pub value: Number,
 }
 
-impl Parse for NumberPattern {
-    const RULE: crate::Rule = Rule::number_pattern;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::text_pattern))]
 pub struct TextPattern {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub value: Text,
-}
-
-impl Parse for TextPattern {
-    const RULE: crate::Rule = Rule::text_pattern;
 }
 
 /// ```wipple
@@ -112,10 +96,6 @@ pub struct DestructurePattern {
     pub fields: Vec<DestructurePatternField>,
 }
 
-impl Parse for DestructurePattern {
-    const RULE: crate::Rule = Rule::destructure_pattern;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::destructure_pattern_field))]
 pub struct DestructurePatternField {
@@ -125,19 +105,11 @@ pub struct DestructurePatternField {
     pub value: Pattern,
 }
 
-impl Parse for DestructurePatternField {
-    const RULE: crate::Rule = Rule::destructure_pattern_field;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::unit_pattern))]
 pub struct UnitPattern {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
-}
-
-impl Parse for UnitPattern {
-    const RULE: crate::Rule = Rule::unit_pattern;
 }
 
 #[derive(Debug, Clone, PartialEq, FromPest)]
@@ -146,10 +118,6 @@ pub struct TuplePattern {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub elements: Vec<Pattern>,
-}
-
-impl Parse for TuplePattern {
-    const RULE: crate::Rule = Rule::tuple_pattern;
 }
 
 /// ```wipple
@@ -163,10 +131,6 @@ pub struct OrPattern {
     pub patterns: Vec<Pattern>,
 }
 
-impl Parse for OrPattern {
-    const RULE: crate::Rule = Rule::or_pattern;
-}
-
 /// ```wipple
 /// set x
 /// ```
@@ -176,10 +140,6 @@ pub struct SetPattern {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub variable: VariableName,
-}
-
-impl Parse for SetPattern {
-    const RULE: crate::Rule = Rule::set_pattern;
 }
 
 /// ```wipple
@@ -194,17 +154,9 @@ pub struct VariantPattern {
     pub elements: Vec<VariantPatternElement>,
 }
 
-impl Parse for VariantPattern {
-    const RULE: crate::Rule = Rule::variant_pattern;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::variant_pattern_element))]
 pub struct VariantPatternElement(pub Pattern);
-
-impl Parse for VariantPatternElement {
-    const RULE: crate::Rule = Rule::variant_pattern_element;
-}
 
 /// ```wipple
 /// (x :: Number)
@@ -216,10 +168,6 @@ pub struct AnnotatePattern {
     pub range: Range,
     pub left: Box<Pattern>,
     pub right: Type,
-}
-
-impl Parse for AnnotatePattern {
-    const RULE: crate::Rule = Rule::annotate_pattern;
 }
 
 #[cfg(test)]

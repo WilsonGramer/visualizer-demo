@@ -54,10 +54,6 @@ pub struct PlaceholderExpression {
     pub range: Range,
 }
 
-impl Parse for PlaceholderExpression {
-    const RULE: crate::Rule = Rule::placeholder_expression;
-}
-
 /// ```wipple
 /// foo
 /// ```
@@ -67,10 +63,6 @@ pub struct VariableExpression {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub variable: VariableName,
-}
-
-impl Parse for VariableExpression {
-    const RULE: crate::Rule = Rule::variable_expression;
 }
 
 /// ```wipple
@@ -84,10 +76,6 @@ pub struct TraitExpression {
     pub r#type: TypeName,
 }
 
-impl Parse for TraitExpression {
-    const RULE: crate::Rule = Rule::trait_expression;
-}
-
 /// ```wipple
 /// 3.14
 /// ```
@@ -99,10 +87,6 @@ pub struct NumberExpression {
     pub value: Number,
 }
 
-impl Parse for NumberExpression {
-    const RULE: crate::Rule = Rule::number_expression;
-}
-
 /// ```wipple
 /// "abc"
 /// ```
@@ -112,10 +96,6 @@ pub struct TextExpression {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub value: Text,
-}
-
-impl Parse for TextExpression {
-    const RULE: crate::Rule = Rule::text_expression;
 }
 
 /// ```wipple
@@ -132,10 +112,6 @@ pub struct StructureExpression {
     pub fields: StructureExpressionFields,
 }
 
-impl Parse for StructureExpression {
-    const RULE: crate::Rule = Rule::structure_expression;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::structure_expression_fields))]
 pub struct StructureExpressionFields(pub Vec<StructureExpressionField>);
@@ -149,10 +125,6 @@ pub struct StructureExpressionField {
     pub value: Expression,
 }
 
-impl Parse for StructureExpressionField {
-    const RULE: crate::Rule = Rule::structure_expression_field;
-}
-
 /// ```wipple
 /// {foo}
 /// ```
@@ -164,19 +136,11 @@ pub struct BlockExpression {
     pub statements: Statements,
 }
 
-impl Parse for BlockExpression {
-    const RULE: crate::Rule = Rule::block_expression;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::unit_expression))]
 pub struct UnitExpression {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
-}
-
-impl Parse for UnitExpression {
-    const RULE: crate::Rule = Rule::unit_expression;
 }
 
 /// ```wipple
@@ -191,10 +155,6 @@ pub struct FormattedTextExpression {
     pub input: Box<Expression>,
 }
 
-impl Parse for FormattedTextExpression {
-    const RULE: crate::Rule = Rule::formatted_text_expression;
-}
-
 /// ```wipple
 /// f x y
 /// ```
@@ -207,10 +167,6 @@ pub struct CallExpression {
     pub inputs: Vec<Expression>,
 }
 
-impl Parse for CallExpression {
-    const RULE: crate::Rule = Rule::call_expression;
-}
-
 /// ```wipple
 /// do foo
 /// ```
@@ -220,10 +176,6 @@ pub struct DoExpression {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub input: Box<Expression>,
-}
-
-impl Parse for DoExpression {
-    const RULE: crate::Rule = Rule::do_expression;
 }
 
 /// ```wipple
@@ -241,17 +193,9 @@ pub struct WhenExpression {
     pub arms: Arms,
 }
 
-impl Parse for WhenExpression {
-    const RULE: crate::Rule = Rule::when_expression;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::arms))]
 pub struct Arms(pub Vec<Arm>);
-
-impl Parse for Arms {
-    const RULE: crate::Rule = Rule::arms;
-}
 
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::arm))]
@@ -260,10 +204,6 @@ pub struct Arm {
     pub range: Range,
     pub pattern: Pattern,
     pub value: Expression,
-}
-
-impl Parse for Arm {
-    const RULE: crate::Rule = Rule::arm;
 }
 
 /// ```wipple
@@ -276,10 +216,6 @@ pub struct IntrinsicExpression {
     pub range: Range,
     pub name: Text,
     pub inputs: Vec<Expression>,
-}
-
-impl Parse for IntrinsicExpression {
-    const RULE: crate::Rule = Rule::intrinsic_expression;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -433,10 +369,6 @@ pub struct TupleExpression {
     pub elements: Vec<Expression>,
 }
 
-impl Parse for TupleExpression {
-    const RULE: crate::Rule = Rule::tuple_expression;
-}
-
 /// ```wipple
 /// (
 ///     a ,
@@ -452,10 +384,6 @@ pub struct CollectionExpression {
     pub elements: Vec<Expression>,
 }
 
-impl Parse for CollectionExpression {
-    const RULE: crate::Rule = Rule::collection_expression;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::is_expression))]
 pub struct IsExpression {
@@ -463,10 +391,6 @@ pub struct IsExpression {
     pub range: Range,
     pub left: Box<Expression>,
     pub right: Pattern,
-}
-
-impl Parse for IsExpression {
-    const RULE: crate::Rule = Rule::is_expression;
 }
 
 #[derive(Debug, Clone, PartialEq, FromPest)]
@@ -478,10 +402,6 @@ pub struct AsExpression {
     pub right: Type,
 }
 
-impl Parse for AsExpression {
-    const RULE: crate::Rule = Rule::as_expression;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::annotate_expression))]
 pub struct AnnotateExpression {
@@ -489,10 +409,6 @@ pub struct AnnotateExpression {
     pub range: Range,
     pub left: Box<Expression>,
     pub right: Type,
-}
-
-impl Parse for AnnotateExpression {
-    const RULE: crate::Rule = Rule::annotate_expression;
 }
 
 /// ```wipple
@@ -507,17 +423,9 @@ pub struct FunctionExpression {
     pub output: Box<Expression>,
 }
 
-impl Parse for FunctionExpression {
-    const RULE: crate::Rule = Rule::function_expression;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::function_expression_inputs))]
 pub struct FunctionExpressionInputs(pub Vec<Pattern>);
-
-impl Parse for FunctionExpressionInputs {
-    const RULE: crate::Rule = Rule::function_expression_inputs;
-}
 
 #[cfg(test)]
 mod tests {

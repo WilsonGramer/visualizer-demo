@@ -52,10 +52,6 @@ pub struct PlaceholderType {
     pub range: Range,
 }
 
-impl Parse for PlaceholderType {
-    const RULE: crate::Rule = Rule::placeholder_type;
-}
-
 /// ```wipple
 /// value
 /// ```
@@ -67,10 +63,6 @@ pub struct ParameterType {
     pub name: TypeParameterName,
 }
 
-impl Parse for ParameterType {
-    const RULE: crate::Rule = Rule::parameter_type;
-}
-
 /// ```wipple
 /// Number
 /// ```
@@ -80,10 +72,6 @@ pub struct NamedType {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub name: TypeName,
-}
-
-impl Parse for NamedType {
-    const RULE: crate::Rule = Rule::named_type;
 }
 
 /// ```wipple
@@ -98,17 +86,9 @@ pub struct ParameterizedType {
     pub parameters: Vec<ParameterizedTypeElement>,
 }
 
-impl Parse for ParameterizedType {
-    const RULE: crate::Rule = Rule::parameterized_type;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::parameterized_type_element))]
 pub struct ParameterizedTypeElement(pub Type);
-
-impl Parse for ParameterizedTypeElement {
-    const RULE: crate::Rule = Rule::parameterized_type_element;
-}
 
 /// ```wipple
 /// (Maybe Number) Number -> ()
@@ -122,17 +102,9 @@ pub struct FunctionType {
     pub output: Box<Type>,
 }
 
-impl Parse for FunctionType {
-    const RULE: crate::Rule = Rule::function_type;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::function_type_inputs))]
 pub struct FunctionTypeInputs(pub Vec<Type>);
-
-impl Parse for FunctionTypeInputs {
-    const RULE: crate::Rule = Rule::function_type_inputs;
-}
 
 /// ```wipple
 /// {Number}
@@ -145,10 +117,6 @@ pub struct BlockType {
     pub output: Box<Type>,
 }
 
-impl Parse for BlockType {
-    const RULE: crate::Rule = Rule::block_type;
-}
-
 /// ```wipple
 /// ()
 /// ```
@@ -159,20 +127,12 @@ pub struct UnitType {
     pub range: Range,
 }
 
-impl Parse for UnitType {
-    const RULE: crate::Rule = Rule::unit_type;
-}
-
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::tuple_type))]
 pub struct TupleType {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
     pub elements: Vec<Type>,
-}
-
-impl Parse for TupleType {
-    const RULE: crate::Rule = Rule::tuple_type;
 }
 
 #[cfg(test)]
