@@ -1,14 +1,10 @@
 use crate::{Definition, TypeParameterDefinition, Visit, Visitor};
 use wipple_compiler_syntax::ParameterType;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    nodes::{ConstraintNode, Node, PlaceholderNode},
-};
+use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, EmptyNode, Node};
 
-pub const PARAMETER_TYPE: Rule = Rule::new("parameter type");
-
-pub const UNRESOLVED_PARAMETER_TYPE: Rule = Rule::new("unresolved parameter type");
+pub static PARAMETER_TYPE: Rule = Rule::new("parameter type");
+pub static UNRESOLVED_PARAMETER_TYPE: Rule = Rule::new("unresolved parameter type");
 
 impl Visit for ParameterType {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
@@ -23,9 +19,9 @@ impl Visit for ParameterType {
 
             match existing {
                 Some((node, rule)) => (
-                    ConstraintNode {
-                        value: visitor.target(),
-                        constraints: vec![Constraint::Ty(Ty::Of(node))],
+                    AnnotateNode {
+                        value: id,
+                        definition: Annotation::Node(node),
                     }
                     .boxed(),
                     rule,
@@ -37,16 +33,9 @@ impl Visit for ParameterType {
                             Definition::TypeParameter(TypeParameterDefinition { node: id }),
                         );
 
-                        (
-                            ConstraintNode {
-                                value: visitor.target(),
-                                constraints: vec![Constraint::Ty(Ty::Of(id))],
-                            }
-                            .boxed(),
-                            PARAMETER_TYPE,
-                        )
+                        (EmptyNode.boxed(), PARAMETER_TYPE)
                     } else {
-                        (PlaceholderNode.boxed(), UNRESOLVED_PARAMETER_TYPE)
+                        (EmptyNode.boxed(), UNRESOLVED_PARAMETER_TYPE)
                     }
                 }
             }

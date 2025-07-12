@@ -11,12 +11,11 @@ use wipple_compiler_syntax::{Comments, Range, SourceFile, Statement};
 use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
     constraints::Constraint,
-    nodes::{Node, PlaceholderNode},
+    nodes::{EmptyNode, Node},
 };
 
-pub const SOURCE_FILE: Rule = Rule::new("source file");
-
-pub const STATEMENT_IN_SOURCE_FILE: Rule = Rule::new("statement in source file");
+pub static SOURCE_FILE: Rule = Rule::new("source file");
+pub static STATEMENT_IN_SOURCE_FILE: Rule = Rule::new("statement in source file");
 
 #[derive(Debug)]
 pub struct Result {
@@ -40,7 +39,7 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
             }
         }
 
-        (PlaceholderNode, SOURCE_FILE)
+        (EmptyNode, SOURCE_FILE)
     });
 
     visitor.nodes.remove(&source_file);
@@ -94,7 +93,6 @@ struct Visitor<'a> {
     typed_nodes: BTreeSet<NodeId>,
     spans: BTreeMap<NodeId, Span>,
     relations: DiGraphMap<NodeId, Rule>,
-    target: Option<NodeId>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
     implicit_type_parameters: bool,
@@ -108,7 +106,6 @@ impl<'a> Visitor<'a> {
             typed_nodes: Default::default(),
             spans: Default::default(),
             relations: Default::default(),
-            target: None,
             scopes: vec![Scope::default()],
             instances: Default::default(),
             implicit_type_parameters: false,
@@ -169,22 +166,8 @@ impl<'a> Visitor<'a> {
         let (parent_id, parent_rule) = parent;
 
         self.node((parent_id, parent_rule), range, |_, _| {
-            (PlaceholderNode, parent_rule)
+            (EmptyNode, parent_rule)
         })
-    }
-
-    fn target(&self) -> NodeId {
-        self.target.expect("no target")
-    }
-
-    fn with_target<T>(&mut self, target: NodeId, f: impl FnOnce(&mut Self) -> T) -> T {
-        let old_target = self.target.take();
-
-        self.target = Some(target);
-        let result = f(self);
-        self.target = old_target;
-
-        result
     }
 }
 
@@ -222,6 +205,7 @@ pub struct TypeDefinition {
     pub comments: Comments,
     pub attributes: TypeAttributes,
     pub parameters: Vec<NodeId>,
+    pub constraints: Vec<Constraint>,
 }
 
 #[derive(Debug, Clone)]
@@ -264,7 +248,7 @@ impl Definition {
         match self {
             Definition::Variable(_) => Vec::new(),
             Definition::Constant(definition) => definition.constraints.clone(),
-            Definition::Type(definition) => todo!(),
+            Definition::Type(definition) => definition.constraints.clone(),
             Definition::Trait(definition) => definition.constraints.clone(),
             Definition::Instance(definition) => definition.constraints.clone(),
             Definition::TypeParameter(_) => Vec::new(),

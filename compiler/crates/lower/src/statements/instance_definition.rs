@@ -2,22 +2,16 @@ use crate::{
     Definition, InstanceDefinition, Visit, Visitor,
     attributes::{AttributeParser, InstanceAttributes},
 };
-use wipple_compiler_syntax::{Comments, InstanceDefinitionStatement};
+use std::collections::BTreeMap;
+use wipple_compiler_syntax::InstanceDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    nodes::{ConstraintNode, Node, PlaceholderNode},
-};
+use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, EmptyNode, Node};
 
-pub const INSTANCE_DEFINITION: Rule = Rule::new("instance definition");
-
-pub const TRAIT_IN_INSTANCE_DEFINITION: Rule = Rule::new("trait in instance definition");
-
-pub const PARAMETER_IN_INSTANCE_DEFINITION: Rule = Rule::new("parameter in instance definition");
-
-pub const VALUE_IN_INSTANCE_DEFINITION: Rule = Rule::new("value in instance definition");
-
-pub const UNRESOLVED_TRAIT_NAME: Rule = Rule::new("unresolved trait name in instance definition");
+pub static INSTANCE_DEFINITION: Rule = Rule::new("instance definition");
+pub static TRAIT_IN_INSTANCE_DEFINITION: Rule = Rule::new("trait in instance definition");
+pub static PARAMETER_IN_INSTANCE_DEFINITION: Rule = Rule::new("parameter in instance definition");
+pub static VALUE_IN_INSTANCE_DEFINITION: Rule = Rule::new("value in instance definition");
+pub static UNRESOLVED_TRAIT_NAME: Rule = Rule::new("unresolved trait name in instance definition");
 
 impl Visit for InstanceDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
@@ -36,11 +30,9 @@ impl Visit for InstanceDefinitionStatement {
                     }
                 })
             else {
-                return (PlaceholderNode.boxed(), UNRESOLVED_TRAIT_NAME);
+                return (EmptyNode.boxed(), UNRESOLVED_TRAIT_NAME);
             };
 
-            // TODO: Ensure `parameters` and `trait_parameters` have the same
-            // length
             let parameters = self
                 .constraints
                 .bound
@@ -48,12 +40,7 @@ impl Visit for InstanceDefinitionStatement {
                 .iter()
                 .map(|ty| {
                     visitor.with_implicit_type_parameters(|visitor| {
-                        let node = visitor
-                            .placeholder_node((id, PARAMETER_IN_INSTANCE_DEFINITION), ty.range());
-
-                        visitor.with_target(node, |visitor| {
-                            ty.visit(visitor, (node, PARAMETER_IN_INSTANCE_DEFINITION))
-                        })
+                        ty.visit(visitor, (id, PARAMETER_IN_INSTANCE_DEFINITION))
                     })
                 })
                 .collect::<Vec<_>>();
@@ -71,22 +58,25 @@ impl Visit for InstanceDefinitionStatement {
                 comments: self.comments.clone(),
                 attributes,
                 tr: trait_node,
-                parameters,
+                parameters: parameters.clone(),
                 constraints,
             });
 
-            let value = visitor.with_target(id, |visitor| {
-                self.value
-                    .visit(visitor, (id, VALUE_IN_INSTANCE_DEFINITION))
-            });
+            let value = self
+                .value
+                .visit(visitor, (id, VALUE_IN_INSTANCE_DEFINITION));
+
+            // TODO: Ensure `parameters` has the right length
+
+            let substitutions = trait_parameters
+                .into_iter()
+                .zip(parameters)
+                .collect::<BTreeMap<_, _>>();
 
             (
-                ConstraintNode {
-                    value: id,
-                    constraints: vec![
-                        Constraint::Ty(Ty::Of(value)),
-                        Constraint::Generic(trait_node),
-                    ],
+                AnnotateNode {
+                    value,
+                    definition: Annotation::Trait(trait_node, substitutions),
                 }
                 .boxed(),
                 INSTANCE_DEFINITION,

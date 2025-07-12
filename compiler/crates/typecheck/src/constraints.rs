@@ -9,11 +9,11 @@ use std::{
     fmt::Debug,
     ops::Deref,
 };
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_trace::{NodeId, Rule};
 
-pub type TyConstraints = BTreeMap<NodeId, Vec<Ty>>;
-pub type GenericConstraints = Vec<(NodeId, NodeId)>;
-pub type BoundConstraints = BTreeMap<NodeId, Vec<Bound>>;
+pub type TyConstraints = BTreeMap<NodeId, Vec<(Ty, Rule)>>;
+pub type GenericConstraints = Vec<(NodeId, ((NodeId, BTreeMap<NodeId, NodeId>), Rule))>;
+pub type BoundConstraints = BTreeMap<NodeId, Vec<(Bound, Rule)>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct Constraints {
@@ -28,40 +28,52 @@ impl Constraints {
         Default::default()
     }
 
-    pub fn insert_ty(&mut self, node: NodeId, ty: Ty) {
-        self.tys.entry(node).or_default().push(ty);
+    pub fn insert_ty(&mut self, node: NodeId, ty: Ty, rule: Rule) {
+        self.tys.entry(node).or_default().push((ty, rule));
     }
 
-    pub fn insert_generic(&mut self, node: NodeId, definition: NodeId) {
-        self.generic_tys.push((node, definition));
+    pub fn insert_generic(
+        &mut self,
+        node: NodeId,
+        definition: NodeId,
+        substitutions: BTreeMap<NodeId, NodeId>,
+        rule: Rule,
+    ) {
+        self.generic_tys
+            .push((node, ((definition, substitutions), rule)));
     }
 
-    pub fn insert_bound(&mut self, node: NodeId, bound: Bound) {
-        self.bounds.entry(node).or_default().push(bound);
+    pub fn insert_bound(&mut self, node: NodeId, bound: Bound, rule: Rule) {
+        self.bounds.entry(node).or_default().push((bound, rule));
     }
 
     pub fn get(&self, node: &NodeId) -> impl Iterator<Item = Constraint> {
-        let tys = self
-            .tys
-            .get(node)
-            .into_iter()
-            .flat_map(|tys| tys.iter().map(|ty| Constraint::Ty(ty.clone())));
+        let tys = self.tys.get(node).into_iter().flat_map(|tys| {
+            tys.iter()
+                .map(|(ty, rule)| Constraint::Ty(ty.clone(), *rule))
+        });
 
-        let bounds = self
-            .bounds
-            .get(node)
-            .into_iter()
-            .flat_map(|bounds| bounds.iter().map(|bound| Constraint::Bound(bound.clone())));
+        let generics = self
+            .generic_tys
+            .iter()
+            .filter(move |(n, _)| n == node)
+            .map(|(_, (bound, rule))| Constraint::Generic(bound.clone(), *rule));
 
-        tys.chain(bounds)
+        let bounds = self.bounds.get(node).into_iter().flat_map(|bounds| {
+            bounds
+                .iter()
+                .map(|(bound, rule)| Constraint::Bound(bound.clone(), *rule))
+        });
+
+        tys.chain(generics).chain(bounds)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constraint {
-    Ty(Ty),
-    Generic(NodeId),
-    Bound(Bound),
+    Ty(Ty, Rule),
+    Generic((NodeId, BTreeMap<NodeId, NodeId>), Rule),
+    Bound(Bound, Rule),
 }
 
 impl Constraints {
@@ -75,20 +87,43 @@ impl Constraints {
     pub fn extend(&mut self, node: NodeId, iter: impl IntoIterator<Item = Constraint>) {
         for constraint in iter {
             match constraint {
-                Constraint::Ty(ty) => self.insert_ty(node, ty),
-                Constraint::Generic(definition) => self.insert_generic(node, definition),
-                Constraint::Bound(bound) => self.insert_bound(node, bound),
+                Constraint::Ty(ty, rule) => self.insert_ty(node, ty, rule),
+                Constraint::Generic((definition, substitutions), rule) => {
+                    self.insert_generic(node, definition, substitutions, rule)
+                }
+                Constraint::Bound(bound, rule) => self.insert_bound(node, bound, rule),
             }
         }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (NodeId, Constraint)> {
+        let tys = self.tys.iter().flat_map(|(node, constraints)| {
+            constraints
+                .iter()
+                .map(move |(ty, rule)| (node.clone(), Constraint::Ty(ty.clone(), *rule)))
+        });
+
+        let generics = self
+            .generic_tys
+            .iter()
+            .map(|(node, (bound, rule))| (node.clone(), Constraint::Generic(bound.clone(), *rule)));
+
+        let bounds = self.bounds.iter().flat_map(|(node, constraints)| {
+            constraints
+                .iter()
+                .map(move |(bound, rule)| (node.clone(), Constraint::Bound(bound.clone(), *rule)))
+        });
+
+        tys.chain(generics).chain(bounds)
     }
 }
 
 impl Constraint {
     pub fn traverse(&self, f: &mut impl FnMut(&Ty)) {
         match self {
-            Constraint::Ty(ty) => ty.traverse(f),
-            Constraint::Generic(_) => {}
-            Constraint::Bound(bound) => {
+            Constraint::Ty(ty, _) => ty.traverse(f),
+            Constraint::Generic(_, _) => {}
+            Constraint::Bound(bound, _) => {
                 for parameter in &bound.parameters {
                     parameter.traverse(f);
                 }
@@ -98,9 +133,9 @@ impl Constraint {
 
     pub fn traverse_mut(&mut self, f: &mut impl FnMut(&mut Ty)) {
         match self {
-            Constraint::Ty(ty) => ty.traverse_mut(f),
-            Constraint::Generic(_) => {}
-            Constraint::Bound(bound) => {
+            Constraint::Ty(ty, _) => ty.traverse_mut(f),
+            Constraint::Generic(_, _) => {}
+            Constraint::Bound(bound, _) => {
                 for parameter in &mut bound.parameters {
                     parameter.traverse_mut(f);
                 }
@@ -110,11 +145,11 @@ impl Constraint {
 
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
-            Constraint::Ty(ty) => ty.to_debug_string(provider),
-            Constraint::Generic(definition) => {
+            Constraint::Ty(ty, _) => ty.to_debug_string(provider),
+            Constraint::Generic((definition, _), _) => {
                 format!("?(generic {})", provider.node_span_source(*definition).1)
             }
-            Constraint::Bound(bound) => bound.to_debug_string(provider),
+            Constraint::Bound(bound, _) => bound.to_debug_string(provider),
         }
     }
 }

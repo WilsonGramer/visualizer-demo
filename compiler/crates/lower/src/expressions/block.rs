@@ -3,9 +3,8 @@ use wipple_compiler_syntax::{BlockExpression, Statement};
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::BlockNode;
 
-pub const BLOCK: Rule = Rule::new("block");
-
-pub const BLOCK_STATEMENT: Rule = Rule::new("block statement");
+pub static BLOCK: Rule = Rule::new("block");
+pub static BLOCK_STATEMENT: Rule = Rule::new("block statement");
 
 impl Visit for BlockExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {

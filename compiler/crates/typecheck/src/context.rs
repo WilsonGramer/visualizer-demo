@@ -31,13 +31,13 @@ impl<'a> Context<'a> {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub struct Constant {
     pub id: NodeId,
     pub constraints: Vec<Constraint>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub struct Trait {
     pub instances: Vec<Constant>,
 }

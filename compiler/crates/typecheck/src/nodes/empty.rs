@@ -5,11 +5,11 @@ use crate::{
 use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone)]
-pub struct PlaceholderNode;
+pub struct EmptyNode;
 
-impl Node for PlaceholderNode {}
+impl Node for EmptyNode {}
 
-impl ToConstraints for PlaceholderNode {
+impl ToConstraints for EmptyNode {
     fn to_constraints(&self, _node: NodeId, _ctx: &ToConstraintsContext<'_>) {
         // Do nothing
     }

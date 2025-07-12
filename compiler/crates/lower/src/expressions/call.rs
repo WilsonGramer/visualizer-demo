@@ -1,22 +1,14 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::{CallExpression, Expression};
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    nodes::{CallNode, ConstraintNode},
-};
+use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, CallNode};
 
-pub const FUNCTION_CALL: Rule = Rule::new("function call");
-
-pub const FUNCTION_IN_FUNCTION_CALL: Rule = Rule::new("function in function call");
-
-pub const INPUT_IN_FUNCTION_CALL: Rule = Rule::new("input in function call");
-
-pub const UNIT_CALL: Rule = Rule::new("unit call");
-
-pub const NUMBER_IN_UNIT_CALL: Rule = Rule::new("number in unit call");
-
-pub const UNIT_IN_UNIT_CALL: Rule = Rule::new("unit in unit call");
+pub static FUNCTION_CALL: Rule = Rule::new("function call");
+pub static FUNCTION_IN_FUNCTION_CALL: Rule = Rule::new("function in function call");
+pub static INPUT_IN_FUNCTION_CALL: Rule = Rule::new("input in function call");
+pub static UNIT_CALL: Rule = Rule::new("unit call");
+pub static NUMBER_IN_UNIT_CALL: Rule = Rule::new("number in unit call");
+pub static UNIT_IN_UNIT_CALL: Rule = Rule::new("unit in unit call");
 
 impl Visit for CallExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
@@ -29,30 +21,23 @@ impl Visit for CallExpression {
             // If `inputs` has a single element with the `[unit]` attribute,
             // flip the order
             if let Some((unit_range, unit_name)) = unit {
-                if let Some((definition, attributes, constraints)) =
+                if let Some((attributes, definition)) =
                     visitor.peek_name(unit_name, |definition| match definition {
-                        Definition::Constant(definition) => Some((
-                            definition.node,
-                            &definition.attributes,
-                            &definition.constraints,
-                        )),
+                        Definition::Constant(definition) => {
+                            Some((&definition.attributes, definition.node))
+                        }
                         _ => None,
                     })
                 {
                     if attributes.unit {
-                        let constraints = constraints.clone();
-
                         let function = visitor.typed_node(
                             (id, UNIT_IN_UNIT_CALL),
                             unit_range,
                             |_visitor, id| {
                                 (
-                                    ConstraintNode {
+                                    AnnotateNode {
                                         value: id,
-                                        constraints: vec![Constraint::Ty(Ty::Of(definition))]
-                                            .into_iter()
-                                            .chain(constraints)
-                                            .collect(),
+                                        definition: Annotation::Constant(definition),
                                     },
                                     UNIT_IN_UNIT_CALL,
                                 )

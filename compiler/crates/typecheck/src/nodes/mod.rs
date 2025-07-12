@@ -27,12 +27,13 @@ impl dyn Node {
 }
 
 register_nodes! {
+    mod annotate => AnnotateNode;
     mod block => BlockNode;
     mod call => CallNode;
-    mod constraint => ConstraintNode;
+    mod empty => EmptyNode;
     mod function => FunctionNode;
-    mod placeholder => PlaceholderNode;
-    mod tuple_element => TupleElementNode;
+    mod tuple => TupleNode;
+    mod unit => UnitNode;
 }
 
 macro_rules! register_nodes {
@@ -53,3 +54,5 @@ macro_rules! register_nodes {
 }
 
 use register_nodes;
+
+pub use annotate::Annotation;

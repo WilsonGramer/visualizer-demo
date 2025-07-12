@@ -7,7 +7,7 @@ use std::{
     mem,
     rc::Rc,
 };
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_trace::{NodeId, Rule};
 
 #[derive(Debug, Clone, Default)]
 pub struct TyGroups {
@@ -66,14 +66,14 @@ pub struct Instance {
 #[derive(Clone)]
 pub struct TypeProvider<'a> {
     get_constraints: Rc<RefCell<dyn FnMut(NodeId) -> Vec<Constraint> + 'a>>,
-    get_instances: Rc<RefCell<dyn FnMut(NodeId) -> Vec<NodeId> + 'a>>,
+    get_instances: Rc<RefCell<dyn FnMut(NodeId) -> Vec<(NodeId, Rule)> + 'a>>,
     flag_unresolved_trait: Rc<RefCell<dyn FnMut(NodeId) + 'a>>,
 }
 
 impl<'a> TypeProvider<'a> {
     pub fn new(
         get_constraints: impl FnMut(NodeId) -> Vec<Constraint> + 'a,
-        get_instances: impl FnMut(NodeId) -> Vec<NodeId> + 'a,
+        get_instances: impl FnMut(NodeId) -> Vec<(NodeId, Rule)> + 'a,
         flag_unresolved_trait: impl FnMut(NodeId) + 'a,
     ) -> Self {
         TypeProvider {
@@ -129,19 +129,19 @@ impl<'a> Typechecker<'a> {
         let mut incomplete = Vec::new();
         let mut complete = Vec::new();
         for (&node, tys) in constraints {
-            for ty in tys {
+            for (ty, rule) in tys.iter().cloned() {
                 if let Ty::Of(_) = ty {
-                    of.push((node, ty.clone()))
+                    of.push((node, (ty.clone(), rule)))
                 } else if ty.is_incomplete() {
-                    incomplete.push((node, ty.clone()))
+                    incomplete.push((node, (ty.clone(), rule)))
                 } else {
-                    complete.push((node, ty.clone()))
+                    complete.push((node, (ty.clone(), rule)))
                 }
             }
         }
 
-        for (node, ty) in [of, incomplete, complete].into_iter().flatten() {
-            self.queue.push((node, Constraint::Ty(ty)));
+        for (node, (ty, rule)) in [of, incomplete, complete].into_iter().flatten() {
+            self.queue.push((node, Constraint::Ty(ty, rule)));
         }
 
         self.run();
@@ -149,9 +149,16 @@ impl<'a> Typechecker<'a> {
 
     pub fn insert_generics(&mut self, constraints: &GenericConstraints) {
         // Make instantiated copies of the definition's constraints
-        for &(node, definition) in constraints {
-            let mut constraints = self.provider.get_constraints.borrow_mut()(definition);
-            constraints.push(Constraint::Ty(Ty::Of(definition)));
+        for &(node, ((definition, ref substitutions), rule)) in constraints {
+            let mut constraints = self.provider.get_constraints.borrow_mut()(definition)
+                .into_iter()
+                .map(|constraint| (node, constraint))
+                .collect::<Vec<_>>();
+
+            constraints.push((node, Constraint::Ty(Ty::Of(definition), rule)));
+            for (&parameter, &substitution) in substitutions {
+                constraints.push((substitution, Constraint::Ty(Ty::Of(parameter), rule)));
+            }
 
             // Make instantiated copies of the constraints using a copy of the
             // typechecker, to not interfere with existing nodes
@@ -159,7 +166,7 @@ impl<'a> Typechecker<'a> {
             let mut definition_typechecker = self.clone();
             let key = definition_typechecker.key_for_node(node);
 
-            for constraint in &mut constraints {
+            for (_, constraint) in &mut constraints {
                 constraint.traverse_mut(&mut |ty| {
                     definition_typechecker.apply(ty);
 
@@ -170,8 +177,7 @@ impl<'a> Typechecker<'a> {
                 });
             }
 
-            self.queue
-                .extend(constraints.into_iter().map(|constraint| (node, constraint)));
+            self.queue.extend(constraints);
         }
 
         self.run();
@@ -254,7 +260,7 @@ impl Typechecker<'_> {
         self.queue = mem::take(&mut self.queue)
             .into_iter()
             .filter_map(|(node, constraint)| match constraint {
-                Constraint::Ty(ty) => {
+                Constraint::Ty(ty, _) => {
                     tys.push((node, ty));
                     None
                 }
@@ -282,7 +288,7 @@ impl Typechecker<'_> {
         self.queue = mem::take(&mut self.queue)
             .into_iter()
             .filter_map(|(node, constraint)| match constraint {
-                Constraint::Bound(bound) => {
+                Constraint::Bound(bound, _) => {
                     bounds.push((node, bound));
                     None
                 }
@@ -294,10 +300,11 @@ impl Typechecker<'_> {
             let instances = self.provider.get_instances.borrow_mut()(bound.tr);
 
             let mut error = true;
-            for instance in instances {
+            for (instance, rule) in instances {
                 let mut instance_typechecker = self.clone();
                 instance_typechecker.error = false;
-                instance_typechecker.insert_generics(&vec![(node, instance)]);
+                instance_typechecker
+                    .insert_generics(&vec![(node, ((instance, Default::default()), rule))]);
 
                 // This will resolve bounds recursively
                 instance_typechecker.run();

@@ -48,15 +48,11 @@ impl InstanceAttributes {
     }
 }
 
-pub const UNKNOWN_ATTRIBUTE: Rule = Rule::new("unknown attribute");
-
-pub const DUPLICATE_ATTRIBUTE: Rule = Rule::new("duplicate attribute");
-
-pub const MISSING_ATTRIBUTE_VALUE: Rule = Rule::new("missing attribute value");
-
-pub const EXTRA_ATTRIBUTE_VALUE: Rule = Rule::new("extra attribute value");
-
-pub const MISMATCHED_ATTRIBUTE_VALUE: Rule = Rule::new("mismatched attribute value");
+pub static UNKNOWN_ATTRIBUTE: Rule = Rule::new("unknown attribute");
+pub static DUPLICATE_ATTRIBUTE: Rule = Rule::new("duplicate attribute");
+pub static MISSING_ATTRIBUTE_VALUE: Rule = Rule::new("missing attribute value");
+pub static EXTRA_ATTRIBUTE_VALUE: Rule = Rule::new("extra attribute value");
+pub static MISMATCHED_ATTRIBUTE_VALUE: Rule = Rule::new("mismatched attribute value");
 
 pub struct AttributeParser<'a, 'v> {
     id: NodeId,

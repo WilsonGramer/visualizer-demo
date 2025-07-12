@@ -2,7 +2,9 @@ use crate::{
     constraints::{ToConstraints, ToConstraintsContext, Ty},
     nodes::Node,
 };
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_trace::{NodeId, Rule};
+
+pub static FUNCTION_IN_CALL: Rule = Rule::new("function in call");
 
 #[derive(Debug, Clone)]
 pub struct CallNode {
@@ -20,6 +22,7 @@ impl ToConstraints for CallNode {
                 inputs: self.inputs.iter().copied().map(Ty::Of).collect(),
                 output: Box::new(Ty::Of(node)),
             },
+            FUNCTION_IN_CALL,
         );
     }
 }

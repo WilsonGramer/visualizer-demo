@@ -1,40 +1,29 @@
 use crate::{Definition, Visit, Visitor};
-
 use wipple_compiler_syntax::TextExpression;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    nodes::{ConstraintNode, Node, PlaceholderNode},
-};
+use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, EmptyNode, Node};
 
-pub const TEXT: Rule = Rule::new("text");
-
-pub const MISSING_TEXT_TYPE: Rule = Rule::new("missing text type");
+pub static TEXT: Rule = Rule::new("text");
+pub static MISSING_TEXT_TYPE: Rule = Rule::new("missing text type");
 
 impl Visit for TextExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
         visitor.typed_node(parent, self.range, |visitor, id| {
             let text_ty = visitor.resolve_name("Text", id, |definition| match definition {
-                Definition::Type(definition) => Some((
-                    Ty::Named {
-                        name: definition.node,
-                        parameters: Vec::new(),
-                    },
-                    TEXT,
-                )),
+                Definition::Type(definition) => Some((definition.node, TEXT)),
                 _ => None,
             });
 
             match text_ty {
                 Some((text_ty, rule)) => (
-                    ConstraintNode {
+                    AnnotateNode {
                         value: id,
-                        constraints: vec![Constraint::Ty(text_ty)],
+                        definition: Annotation::Type(text_ty, Vec::new()),
                     }
                     .boxed(),
                     rule,
                 ),
-                None => (PlaceholderNode.boxed(), MISSING_TEXT_TYPE),
+                None => (EmptyNode.boxed(), MISSING_TEXT_TYPE),
             }
         })
     }

@@ -4,11 +4,10 @@ use crate::{
 };
 use wipple_compiler_syntax::TypeDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::PlaceholderNode;
+use wipple_compiler_typecheck::nodes::EmptyNode;
 
-pub const TYPE_DEFINITION: Rule = Rule::new("type definition");
-
-pub const PARAMETER_IN_TYPE_DEFINITION: Rule = Rule::new("parameter in type definition");
+pub static TYPE_DEFINITION: Rule = Rule::new("type definition");
+pub static PARAMETER_IN_TYPE_DEFINITION: Rule = Rule::new("parameter in type definition");
 
 impl Visit for TypeDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
@@ -42,10 +41,11 @@ impl Visit for TypeDefinitionStatement {
                     comments: self.comments.clone(),
                     attributes,
                     parameters,
+                    constraints: Vec::new(), // types may not have extra constraints
                 }),
             );
 
-            (PlaceholderNode, TYPE_DEFINITION)
+            (EmptyNode, TYPE_DEFINITION)
         })
     }
 }

@@ -6,14 +6,12 @@ use wipple_compiler_syntax::TraitDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
     constraints::{Bound, Constraint, Ty},
-    nodes::PlaceholderNode,
+    nodes::{AnnotateNode, Annotation},
 };
 
-pub const TRAIT_DEFINITION: Rule = Rule::new("trait definition");
-
-pub const PARAMETER_IN_TRAIT_DEFINITION: Rule = Rule::new("parameter in trait definition");
-
-pub const TYPE_IN_TRAIT_DEFINITION: Rule = Rule::new("type in trait definition");
+pub static TRAIT_DEFINITION: Rule = Rule::new("trait definition");
+pub static PARAMETER_IN_TRAIT_DEFINITION: Rule = Rule::new("parameter in trait definition");
+pub static TYPE_IN_TRAIT_DEFINITION: Rule = Rule::new("type in trait definition");
 
 impl Visit for TraitDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
@@ -40,11 +38,10 @@ impl Visit for TraitDefinitionStatement {
                 })
                 .collect::<Vec<_>>();
 
-            visitor.with_target(id, |visitor| {
-                self.constraints
-                    .r#type
-                    .visit(visitor, (id, TYPE_IN_TRAIT_DEFINITION))
-            });
+            let ty = self
+                .constraints
+                .r#type
+                .visit(visitor, (id, TYPE_IN_TRAIT_DEFINITION));
 
             visitor.define_name(
                 &self.name.value,
@@ -54,16 +51,25 @@ impl Visit for TraitDefinitionStatement {
                     attributes,
                     parameters: parameters.clone(),
                     constraints: vec![
-                        Constraint::Bound(Bound {
-                            tr: id,
-                            parameters: parameters.into_iter().map(Ty::Of).collect(),
-                        }),
+                        Constraint::Bound(
+                            Bound {
+                                tr: id,
+                                parameters: parameters.into_iter().map(Ty::Of).collect(),
+                            },
+                            TRAIT_DEFINITION,
+                        ),
                         // TODO: Other constraints on `self.constraints`
                     ],
                 }),
             );
 
-            (PlaceholderNode, TRAIT_DEFINITION)
+            (
+                AnnotateNode {
+                    value: id,
+                    definition: Annotation::Node(ty),
+                },
+                TRAIT_DEFINITION,
+            )
         })
     }
 }

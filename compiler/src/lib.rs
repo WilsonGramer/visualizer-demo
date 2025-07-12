@@ -35,11 +35,10 @@ pub fn compile_wasm(source: String) -> Vec<String> {
     ]
 }
 
-pub const UNKNOWN_TYPE: Rule = Rule::new("unknown type");
-
-pub const INCOMPLETE_TYPE: Rule = Rule::new("incomplete type");
-
-pub const UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
+pub static UNKNOWN_TYPE: Rule = Rule::new("unknown type");
+pub static INCOMPLETE_TYPE: Rule = Rule::new("incomplete type");
+pub static RESOLVED_TRAIT: Rule = Rule::new("resolved trait");
+pub static UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
 
 pub fn compile(
     path: &str,
@@ -98,8 +97,12 @@ pub fn compile(
             lowered
                 .instances
                 .get(&trait_id)
-                .cloned()
+                .map(Vec::as_slice)
                 .unwrap_or_default()
+                .iter()
+                .cloned()
+                .map(|node| (node, RESOLVED_TRAIT))
+                .collect()
         },
         |node| {
             extras.entry(node).or_default().insert(UNRESOLVED_TRAIT);
@@ -124,12 +127,8 @@ pub fn compile(
 
         if tys.is_empty() {
             extras.entry(node).or_default().insert(UNKNOWN_TYPE);
-        } else {
-            for ty in tys {
-                if ty.is_incomplete() {
-                    extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
-                }
-            }
+        } else if tys.iter().all(|ty| ty.is_incomplete()) {
+            extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
         }
     }
 

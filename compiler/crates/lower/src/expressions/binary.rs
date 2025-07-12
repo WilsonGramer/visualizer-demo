@@ -3,11 +3,9 @@ use wipple_compiler_syntax::BinaryExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::CallNode;
 
-pub const APPLY: Rule = Rule::new("apply");
-
-pub const INPUT_IN_APPLY: Rule = Rule::new("input in apply");
-
-pub const FUNCTION_IN_APPLY: Rule = Rule::new("function in apply");
+pub static APPLY: Rule = Rule::new("apply");
+pub static INPUT_IN_APPLY: Rule = Rule::new("input in apply");
+pub static FUNCTION_IN_APPLY: Rule = Rule::new("function in apply");
 
 impl Visit for BinaryExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
