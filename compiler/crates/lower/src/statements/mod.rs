@@ -18,6 +18,7 @@ impl Visit for Statement {
             Statement::TypeDefinition(statement) => statement.visit(visitor, parent),
             Statement::TraitDefinition(statement) => statement.visit(visitor, parent),
             Statement::InstanceDefinition(statement) => statement.visit(visitor, parent),
+            Statement::Empty(_) => unreachable!("empty statements should be filtered out"),
         }
     }
 }

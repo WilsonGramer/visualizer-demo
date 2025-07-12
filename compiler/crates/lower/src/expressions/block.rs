@@ -1,5 +1,5 @@
 use crate::{Visit, Visitor};
-use wipple_compiler_syntax::BlockExpression;
+use wipple_compiler_syntax::{BlockExpression, Statement};
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::BlockNode;
 
@@ -16,6 +16,7 @@ impl Visit for BlockExpression {
                 .statements
                 .0
                 .iter()
+                .filter(|statement| !matches!(statement, Statement::Empty(_)))
                 .map(|statement| statement.visit(visitor, (id, BLOCK_STATEMENT)))
                 .collect::<Vec<_>>();
 

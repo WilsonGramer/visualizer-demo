@@ -33,7 +33,7 @@ pub fn span_into_string(span: pest::Span) -> String {
 }
 
 fn trim_comment(s: String) -> String {
-    s["--".len()..].to_string()
+    s["--".len()..s.len() - 1].to_string()
 }
 
 fn trim_quotes(s: String) -> String {

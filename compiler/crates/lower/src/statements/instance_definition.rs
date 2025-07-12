@@ -2,7 +2,7 @@ use crate::{
     Definition, InstanceDefinition, Visit, Visitor,
     attributes::{AttributeParser, InstanceAttributes},
 };
-use wipple_compiler_syntax::InstanceDefinitionStatement;
+use wipple_compiler_syntax::{Comments, InstanceDefinitionStatement};
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::{
     constraints::{Constraint, Ty},
@@ -68,7 +68,7 @@ impl Visit for InstanceDefinitionStatement {
 
             visitor.define_instance(InstanceDefinition {
                 node: id,
-                comments: Vec::new(),
+                comments: self.comments.clone(),
                 attributes,
                 tr: trait_node,
                 parameters,

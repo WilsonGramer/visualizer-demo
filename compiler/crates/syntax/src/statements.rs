@@ -14,11 +14,12 @@ pest_enum! {
     #[derive(Debug, Clone, PartialEq)]
     pub enum Statement {
         ConstantDefinition(ConstantDefinitionStatement),
-        Expression(ExpressionStatement),
-        Assignment(AssignmentStatement),
         TypeDefinition(TypeDefinitionStatement),
         TraitDefinition(TraitDefinitionStatement),
         InstanceDefinition(InstanceDefinitionStatement),
+        Assignment(AssignmentStatement),
+        Expression(ExpressionStatement),
+        Empty(EmptyStatement),
     }
 }
 
@@ -34,7 +35,7 @@ impl Parse for Statement {
 pub struct TypeDefinitionStatement {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
-    pub comments: Vec<Comment>,
+    pub comments: Comments,
     pub attributes: Vec<Attribute>,
     pub name: TypeName,
     pub parameters: Option<TypeParameters>,
@@ -45,10 +46,17 @@ pest_enum! {
     #[parenthesized = NeverParenthesized<Self>]
     #[derive(Debug, Clone, PartialEq)]
     pub enum TypeRepresentation {
+        Marker(MarkerTypeRepresentation),
         Structure(StructureTypeRepresentation),
         Enumeration(EnumerationTypeRepresentation),
-        Marker(MarkerTypeRepresentation),
     }
+}
+
+#[derive(Debug, Clone, PartialEq, FromPest)]
+#[pest_ast(rule(Rule::marker_type_representation))]
+pub struct MarkerTypeRepresentation {
+    #[pest_ast(outer(with(Range::from)))]
+    pub range: Range,
 }
 
 /// ```wipple
@@ -107,13 +115,6 @@ pub struct VariantDefinition {
 #[pest_ast(rule(Rule::variant_definition_element))]
 pub struct VariantDefinitionElement(pub Type);
 
-#[derive(Debug, Clone, PartialEq, FromPest)]
-#[pest_ast(rule(Rule::marker_type_representation))]
-pub struct MarkerTypeRepresentation {
-    #[pest_ast(outer(with(Range::from)))]
-    pub range: Range,
-}
-
 /// ```wipple
 /// Foo : value => trait (value -> Number)
 /// ```
@@ -122,7 +123,7 @@ pub struct MarkerTypeRepresentation {
 pub struct TraitDefinitionStatement {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
-    pub comments: Vec<Comment>,
+    pub comments: Comments,
     pub attributes: Vec<Attribute>,
     pub name: TypeName,
     pub parameters: Option<TypeParameters>,
@@ -146,7 +147,7 @@ pub struct TraitConstraints {
 pub struct ConstantDefinitionStatement {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
-    pub comments: Vec<Comment>,
+    pub comments: Comments,
     pub attributes: Vec<Attribute>,
     pub name: VariableName,
     pub constraints: ConstantConstraints,
@@ -169,7 +170,7 @@ pub struct ConstantConstraints {
 pub struct InstanceDefinitionStatement {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
-    pub comments: Vec<Comment>,
+    pub comments: Comments,
     pub attributes: Vec<Attribute>,
     pub constraints: InstanceConstraints,
     pub value: Expression,
@@ -192,6 +193,7 @@ pub struct InstanceConstraints {
 pub struct AssignmentStatement {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
+    pub comments: Comments,
     pub pattern: Pattern,
     pub value: Expression,
 }
@@ -201,8 +203,21 @@ pub struct AssignmentStatement {
 pub struct ExpressionStatement {
     #[pest_ast(outer(with(Range::from)))]
     pub range: Range,
+    pub comments: Comments,
     pub expression: Expression,
 }
+
+#[derive(Debug, Clone, PartialEq, FromPest)]
+#[pest_ast(rule(Rule::empty_statement))]
+pub struct EmptyStatement {
+    #[pest_ast(outer(with(Range::from)))]
+    pub range: Range,
+    pub comments: Comments,
+}
+
+#[derive(Debug, Clone, PartialEq, FromPest)]
+#[pest_ast(rule(Rule::comments))]
+pub struct Comments(pub Vec<Comment>);
 
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::type_parameters))]
@@ -223,10 +238,10 @@ mod tests {
             Statement::parse("-- Documentation comment\n[foo]\nFoo : type").unwrap(),
             Statement::TypeDefinition(TypeDefinitionStatement {
                 range: Range::None,
-                comments: vec![Comment {
+                comments: Comments(vec![Comment {
                     range: Range::None,
                     value: String::from(" Documentation comment")
-                }],
+                }]),
                 attributes: vec![Attribute {
                     range: Range::None,
                     name: AttributeName {
@@ -253,7 +268,7 @@ mod tests {
             Statement::parse("Foo : value => type").unwrap(),
             Statement::TypeDefinition(TypeDefinitionStatement {
                 range: Range::None,
-                comments: Vec::new(),
+                comments: Comments(Vec::new()),
                 attributes: Vec::new(),
                 name: TypeName {
                     range: Range::None,
@@ -263,6 +278,28 @@ mod tests {
                     range: Range::None,
                     value: String::from("value")
                 }])),
+                representation: TypeRepresentation::Marker(MarkerTypeRepresentation {
+                    range: Range::None,
+                }),
+            })
+        );
+    }
+
+    #[test]
+    fn test_marker_type_definition() {
+        let src = "Foo : type";
+
+        assert_eq!(
+            Statement::parse(src).unwrap(),
+            Statement::TypeDefinition(TypeDefinitionStatement {
+                range: Range::None,
+                comments: Comments(Vec::new()),
+                attributes: Vec::new(),
+                name: TypeName {
+                    range: Range::None,
+                    value: String::from("Foo")
+                },
+                parameters: None,
                 representation: TypeRepresentation::Marker(MarkerTypeRepresentation {
                     range: Range::None,
                 }),
@@ -281,7 +318,7 @@ mod tests {
             Statement::parse(src).unwrap(),
             Statement::TypeDefinition(TypeDefinitionStatement {
                 range: Range::None,
-                comments: Vec::new(),
+                comments: Comments(Vec::new()),
                 attributes: Vec::new(),
                 name: TypeName {
                     range: Range::None,
@@ -336,7 +373,7 @@ mod tests {
             Statement::parse(src).unwrap(),
             Statement::TypeDefinition(TypeDefinitionStatement {
                 range: Range::None,
-                comments: Vec::new(),
+                comments: Comments(Vec::new()),
                 attributes: Vec::new(),
                 name: TypeName {
                     range: Range::None,
@@ -381,7 +418,7 @@ mod tests {
             Statement::parse(src).unwrap(),
             Statement::TraitDefinition(TraitDefinitionStatement {
                 range: Range::None,
-                comments: Vec::new(),
+                comments: Comments(Vec::new()),
                 attributes: Vec::new(),
                 name: TypeName {
                     range: Range::None,
@@ -410,7 +447,7 @@ mod tests {
             Statement::parse(src).unwrap(),
             Statement::TraitDefinition(TraitDefinitionStatement {
                 range: Range::None,
-                comments: Vec::new(),
+                comments: Comments(Vec::new()),
                 attributes: Vec::new(),
                 name: TypeName {
                     range: Range::None,
@@ -452,7 +489,7 @@ mod tests {
             Statement::parse(src).unwrap(),
             Statement::ConstantDefinition(ConstantDefinitionStatement {
                 range: Range::None,
-                comments: Vec::new(),
+                comments: Comments(Vec::new()),
                 attributes: Vec::new(),
                 name: VariableName {
                     range: Range::None,
@@ -503,7 +540,7 @@ mod tests {
             Statement::parse(src).unwrap(),
             Statement::InstanceDefinition(InstanceDefinitionStatement {
                 range: Range::None,
-                comments: Vec::new(),
+                comments: Comments(Vec::new()),
                 attributes: Vec::new(),
                 constraints: InstanceConstraints {
                     range: Range::None,
@@ -541,7 +578,7 @@ mod tests {
             Statement::parse(src).unwrap(),
             Statement::InstanceDefinition(InstanceDefinitionStatement {
                 range: Range::None,
-                comments: Vec::new(),
+                comments: Comments(Vec::new()),
                 attributes: Vec::new(),
                 constraints: InstanceConstraints {
                     range: Range::None,

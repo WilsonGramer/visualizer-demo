@@ -1,6 +1,6 @@
 // Statements
 
-source_file = { SOI ~ statements? ~ EOI }
+source_file = ${ SOI ~ statements? ~ EOI }
 
 statements = ${ statement ~ ((!NEWLINE ~ WHITESPACE)* ~ NEWLINE ~ WHITESPACE* ~ statement)* }
 
@@ -11,9 +11,10 @@ statement = _{
   | instance_definition_statement
   | assignment_statement
   | expression_statement
+  | empty_statement
 }
 
-type_definition_statement = !{ comment* ~ attribute* ~ type_name ~ ":" ~ type_parameters? ~ type_representation }
+type_definition_statement = !{ comments ~ attribute* ~ type_name ~ ":" ~ type_parameters? ~ type_representation }
 
 type_representation = _{
     structure_type_representation
@@ -30,18 +31,22 @@ variant_definition_element      = !{ subtype }
 
 marker_type_representation = { "type" }
 
-trait_definition_statement = !{ comment* ~ attribute* ~ type_name ~ ":" ~ type_parameters? ~ trait_constraints }
+trait_definition_statement = !{ comments ~ attribute* ~ type_name ~ ":" ~ type_parameters? ~ trait_constraints }
 trait_constraints          = ${ "trait" ~ (!NEWLINE ~ WHITESPACE)* ~ subtype ~ (!NEWLINE ~ WHITESPACE)* ~ constraints? }
 
-constant_definition_statement = !{ comment* ~ attribute* ~ variable_name ~ constant_constraints }
+constant_definition_statement = !{ comments ~ attribute* ~ variable_name ~ constant_constraints }
 constant_constraints          = ${ "::" ~ (!NEWLINE ~ WHITESPACE)* ~ type ~ (!NEWLINE ~ WHITESPACE)* ~ constraints? }
 
-instance_definition_statement = !{ comment* ~ attribute* ~ instance_constraints ~ ":" ~ expression }
+instance_definition_statement = !{ comments ~ attribute* ~ instance_constraints ~ ":" ~ expression }
 instance_constraints          = ${ "instance" ~ (!NEWLINE ~ WHITESPACE)* ~ bound_constraint ~ (!NEWLINE ~ WHITESPACE)* ~ constraints? }
 
-assignment_statement = !{ pattern ~ ":" ~ expression }
+assignment_statement = !{ comments ~ pattern ~ ":" ~ expression }
 
-expression_statement = !{ expression }
+expression_statement = !{ comments ~ expression }
+
+empty_statement = ${ comments }
+
+comments = ${ comment* }
 
 // Expressions
 
@@ -302,7 +307,7 @@ text_attribute_value = { text }
 
 // Tokens
 
-comment = @{ "--" ~ (!NEWLINE ~ ANY)* }
+comment = @{ "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
 text = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 

@@ -89,8 +89,20 @@ pub trait Parse: for<'a> FromPest<'a, Rule = Rule, FatalError: std::fmt::Debug> 
         #[cfg(test)]
         dbg!(&pairs);
 
-        Ok(Self::from_pest(&mut pairs)
-            .unwrap_or_else(|e| panic!("failed conversion from Pest: {e:?}")))
+        let span = pairs
+            .clone()
+            .next()
+            .map(|pair| pair.as_span().start_pos())
+            .unwrap_or_else(|| pest::Position::new(source, 0).unwrap());
+
+        Self::from_pest(&mut pairs).map_err(|error| {
+            pest::error::Error::new_from_pos(
+                pest::error::ErrorVariant::CustomError {
+                    message: format!("conversion to AST failed: {error:?}"),
+                },
+                span,
+            )
+        })
     }
 }
 
@@ -153,6 +165,7 @@ mod tests {
                 statements: Some(Statements(vec![Statement::Expression(
                     ExpressionStatement {
                         range: Range::None,
+                        comments: Comments(Vec::new()),
                         expression: Expression::Variable(VariableExpression {
                             range: Range::None,
                             variable: VariableName {

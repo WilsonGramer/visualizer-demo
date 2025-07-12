@@ -7,7 +7,7 @@ mod tys;
 use crate::attributes::{ConstantAttributes, InstanceAttributes, TraitAttributes, TypeAttributes};
 use petgraph::prelude::DiGraphMap;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use wipple_compiler_syntax::{Comment, Range, SourceFile};
+use wipple_compiler_syntax::{Comments, Range, SourceFile, Statement};
 use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
     constraints::Constraint,
@@ -34,7 +34,9 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     let source_file = visitor.node_inner(None, file.range, |visitor, id| {
         if let Some(statements) = &file.statements {
             for statement in &statements.0 {
-                statement.visit(visitor, (id, STATEMENT_IN_SOURCE_FILE));
+                if !matches!(statement, Statement::Empty(_)) {
+                    statement.visit(visitor, (id, STATEMENT_IN_SOURCE_FILE));
+                }
             }
         }
 
@@ -209,7 +211,7 @@ pub struct VariableDefinition {
 #[derive(Debug, Clone)]
 pub struct ConstantDefinition {
     pub node: NodeId,
-    pub comments: Vec<Comment>,
+    pub comments: Comments,
     pub attributes: ConstantAttributes,
     pub constraints: Vec<Constraint>,
 }
@@ -217,7 +219,7 @@ pub struct ConstantDefinition {
 #[derive(Debug, Clone)]
 pub struct TypeDefinition {
     pub node: NodeId,
-    pub comments: Vec<Comment>,
+    pub comments: Comments,
     pub attributes: TypeAttributes,
     pub parameters: Vec<NodeId>,
 }
@@ -225,7 +227,7 @@ pub struct TypeDefinition {
 #[derive(Debug, Clone)]
 pub struct TraitDefinition {
     pub node: NodeId,
-    pub comments: Vec<Comment>,
+    pub comments: Comments,
     pub attributes: TraitAttributes,
     pub parameters: Vec<NodeId>,
     pub constraints: Vec<Constraint>,
@@ -234,7 +236,7 @@ pub struct TraitDefinition {
 #[derive(Debug, Clone)]
 pub struct InstanceDefinition {
     pub node: NodeId,
-    pub comments: Vec<Comment>,
+    pub comments: Comments,
     pub attributes: InstanceAttributes,
     pub tr: NodeId,
     pub parameters: Vec<NodeId>,

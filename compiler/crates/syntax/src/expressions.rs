@@ -549,6 +549,7 @@ mod tests {
                 range: Range::None,
                 statements: Statements(vec![Statement::Expression(ExpressionStatement {
                     range: Range::None,
+                    comments: Comments(Vec::new()),
                     expression: Expression::Variable(VariableExpression {
                         range: Range::None,
                         variable: VariableName {
