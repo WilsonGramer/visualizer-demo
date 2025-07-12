@@ -1,6 +1,6 @@
 // Statements
 
-source_file = ${ SOI ~ statements? ~ EOI }
+source_file = ${ SOI ~ WHITESPACE* ~ statements? ~ WHITESPACE* ~ EOI }
 
 statements = ${ statement ~ ((!NEWLINE ~ WHITESPACE)* ~ NEWLINE ~ WHITESPACE* ~ statement)* }
 
