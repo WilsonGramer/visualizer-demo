@@ -134,11 +134,24 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                     .and_then(|node| self.nodes.get(node))
                     .unwrap_or(&self.root);
 
-                let Some(index) = self.ctx.ty_groups.index_of(term.node) else {
-                    return Err(());
-                };
+                let (tys, related) = self
+                    .ctx
+                    .ty_groups
+                    .index_of(term.node)
+                    .map(|index| {
+                        let tys = self.ctx.ty_groups.tys_at(index).to_vec();
 
-                let tys = self.ctx.ty_groups.tys_at(index);
+                        let mut related = self
+                            .ctx
+                            .ty_groups
+                            .nodes_in_group(index)
+                            .collect::<BTreeSet<_>>();
+
+                        related.remove(&term.node);
+
+                        (tys, related)
+                    })
+                    .unwrap_or_default();
 
                 let ty = tys
                     .iter()
@@ -156,14 +169,6 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                 // if !matches_rules(&rules) {
                 //     return Err(());
                 // }
-
-                let mut related = self
-                    .ctx
-                    .ty_groups
-                    .nodes_in_group(index)
-                    .collect::<BTreeSet<_>>();
-
-                related.remove(&term.node);
 
                 let term = TyTerm {
                     node: term.node,

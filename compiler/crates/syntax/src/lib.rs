@@ -87,7 +87,7 @@ pub trait Parse: for<'a> FromPest<'a, Rule = Rule, FatalError: std::fmt::Debug> 
         let mut pairs = Parser::parse(Self::RULE, source)?;
 
         #[cfg(test)]
-        dbg!(&pairs);
+        eprintln!("{pairs:#?}");
 
         let span = pairs
             .clone()

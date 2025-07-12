@@ -9,7 +9,7 @@ messages:
   - node: node
     template: |
       Missing information for the type of `{{node:source}}`.
-  - node: ty
+  - node: node
     template: |
       Wipple determined this code is {{ty:type}}, but it needs more information
       for the `_` placeholders.

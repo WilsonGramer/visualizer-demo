@@ -116,11 +116,7 @@ pub fn compile(
     drop(typechecker);
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
-    for &node in lowered.nodes.keys() {
-        if !lowered.typed_nodes.contains(&node) {
-            continue;
-        }
-
+    for &node in &lowered.typed_nodes {
         let tys = ty_groups
             .index_of(node)
             .map(|index| ty_groups.tys_at(index))
@@ -143,12 +139,15 @@ pub fn compile(
         (span.clone(), source.to_string())
     };
 
-    let feedback_nodes = lowered
+    let mut feedback_nodes = lowered
         .nodes
         .iter()
         .map(|(&id, &(_, rule))| (id, HashSet::from([rule])))
-        .chain(extras)
         .collect::<BTreeMap<_, _>>();
+
+    for (node, rules) in extras {
+        feedback_nodes.entry(node).or_default().extend(rules);
+    }
 
     let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
         &feedback_nodes,

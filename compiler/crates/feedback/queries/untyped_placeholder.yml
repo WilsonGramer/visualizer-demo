@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=_schema.json
+as: placeholder
+rule: placeholder
+group: todo
+messages:
+  - node: placeholder
+    template: |
+      Found a placeholder.
+  - node: placeholder
+    template: |
+      Replace this placeholder with a value before running your code.
+  - trace: ty

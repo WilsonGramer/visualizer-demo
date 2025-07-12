@@ -219,12 +219,17 @@ impl<'a> Typechecker<'a> {
         ty_groups.indices.retain(|node, _| node.namespace.is_none());
 
         // Replace unresolved `Ty::Of` types with `Ty::Unknown`
-        for ty in ty_groups.tys.iter_mut().flatten() {
-            ty.traverse_mut(&mut |ty| {
-                if let Ty::Of(_) = *ty {
-                    *ty = Ty::Unknown;
-                }
-            });
+        for tys in ty_groups.tys.iter_mut() {
+            for ty in tys.iter_mut() {
+                ty.traverse_mut(&mut |ty| {
+                    if let Ty::Of(_) = *ty {
+                        *ty = Ty::Unknown;
+                    }
+                });
+            }
+
+            // Remove unknown types
+            tys.retain(|ty| !matches!(ty, Ty::Unknown));
         }
 
         ty_groups
