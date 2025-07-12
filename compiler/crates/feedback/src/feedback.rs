@@ -215,7 +215,7 @@ impl Message {
                         })
                         .collect::<Vec<_>>();
 
-                    let last_search_source = search_sources.pop().unwrap();
+                    let last_search_source = search_sources.pop()?;
 
                     writeln!(
                         md,
