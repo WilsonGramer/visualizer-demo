@@ -98,7 +98,7 @@ pub trait Parse: for<'a> FromPest<'a, Rule = Rule, FatalError: std::fmt::Debug> 
         Self::from_pest(&mut pairs).map_err(|error| {
             pest::error::Error::new_from_pos(
                 pest::error::ErrorVariant::CustomError {
-                    message: format!("conversion to AST failed: {error:?}"),
+                    message: format!("conversion to AST failed: {error:?} (AST: {pairs:#?})"),
                 },
                 span,
             )

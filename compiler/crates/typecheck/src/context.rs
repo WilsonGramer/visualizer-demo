@@ -48,6 +48,7 @@ pub struct FeedbackProvider<'a> {
     replacements: &'a BTreeMap<NodeId, NodeId>,
     relations: &'a DiGraphMap<NodeId, Rule>,
     get_span_source: Rc<dyn Fn(NodeId) -> (Span, String) + 'a>,
+    get_comments: Rc<dyn Fn(NodeId) -> Option<String> + 'a>,
 }
 
 impl<'a> FeedbackProvider<'a> {
@@ -56,17 +57,23 @@ impl<'a> FeedbackProvider<'a> {
         replacements: &'a BTreeMap<NodeId, NodeId>,
         relations: &'a DiGraphMap<NodeId, Rule>,
         get_span_source: impl Fn(NodeId) -> (Span, String) + 'a,
+        get_comments: impl Fn(NodeId) -> Option<String> + 'a,
     ) -> Self {
         FeedbackProvider {
             nodes,
             replacements,
             relations,
             get_span_source: Rc::new(get_span_source),
+            get_comments: Rc::new(get_comments),
         }
     }
 
     pub fn node_span_source(&self, node: NodeId) -> (Span, String) {
         (self.get_span_source)(node)
+    }
+
+    pub fn comments(&self, node: NodeId) -> Option<String> {
+        (self.get_comments)(node)
     }
 
     pub fn node_rules(&self, node: NodeId) -> &HashSet<Rule> {

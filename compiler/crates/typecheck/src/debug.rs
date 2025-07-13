@@ -55,23 +55,33 @@ pub fn write_graph(
                 node_id(display_parent)
             )?;
 
-            visited.insert(parent);
+            visited.insert(display_parent);
+        }
+
+        let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>");
+
+        if let Some(comments) = provider.comments(display_node) {
+            description.push_str(&comments);
         }
 
         writeln!(
             w,
             "{}@{{ label: {:?} }}",
             node_id(display_node),
-            format!("{node_span:?}\n<pre>{node_source}</pre>")
+            description
         )?;
 
-        visited.insert(node);
+        visited.insert(display_node);
     }
 
     for (index, group_tys) in ty_groups.groups() {
-        let nodes = ty_groups.nodes_in_group(index).collect::<Vec<_>>();
+        let display_nodes = ty_groups
+            .nodes_in_group(index)
+            .map(|node| provider.replacement_node(node).unwrap_or(node))
+            .filter(|display_node| visited.contains(display_node))
+            .collect::<Vec<_>>();
 
-        if nodes.iter().all(|node| !visited.contains(node)) {
+        if display_nodes.is_empty() {
             continue;
         }
 
@@ -86,11 +96,8 @@ pub fn write_graph(
 
         writeln!(w, "subgraph group{index}[\"<code>{description}</code>\"]")?;
 
-        for node in nodes {
-            if visited.contains(&node) {
-                let display_node = provider.replacement_node(node).unwrap_or(node);
-                writeln!(w, "{}", node_id(display_node))?;
-            }
+        for display_node in display_nodes {
+            writeln!(w, "{}", node_id(display_node))?;
         }
 
         writeln!(w, "end")?;

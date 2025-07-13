@@ -44,7 +44,7 @@ pub static UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
 pub fn compile(
     path: &str,
     source: &str,
-    mut display_syntax_error: impl FnMut(String),
+    mut display_syntax: impl FnMut(String),
     mut display_graph: impl FnMut(String),
     mut display_tys: impl FnMut(String),
     mut display_feedback: impl FnMut(String),
@@ -52,7 +52,7 @@ pub fn compile(
     let source_file = match wipple_compiler_syntax::SourceFile::parse(source) {
         Ok(source_file) => source_file,
         Err(error) => {
-            display_syntax_error(format!("{error:?}"));
+            display_syntax(format!("syntax error: {error}"));
             return;
         }
     };
@@ -151,9 +151,33 @@ pub fn compile(
     }
 
     let get_span_source = |node| {
-        let span = lowered.spans.get(&node).unwrap();
-        let source = &source[span.range.clone()];
-        (span.clone(), source.to_string())
+        let span = lowered.spans.get(&node).unwrap().clone();
+
+        let mut source = source[span.range.clone()].to_string();
+
+        // HACK: Remove comments
+        source = source
+            .lines()
+            .skip_while(|line| line.starts_with("--"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        (span, source)
+    };
+
+    let get_comments = |node| {
+        lowered
+            .definitions
+            .get(&node)
+            .and_then(|definition| definition.comments())
+            .map(|comments| {
+                comments
+                    .0
+                    .iter()
+                    .map(|comment| comment.value.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
     };
 
     let mut feedback_nodes = lowered
@@ -171,6 +195,7 @@ pub fn compile(
         &replacements,
         &lowered.relations,
         get_span_source,
+        get_comments,
     );
 
     // Display type graph

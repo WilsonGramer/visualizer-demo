@@ -63,14 +63,12 @@ fn print_highlighted(source: impl AsRef<str>) {
 }
 
 fn run(path: &str, source: &str) {
-    let display_syntax_error = |error| {
-        print_highlighted(format!("syntax error: {error:?}"));
-    };
+    let display_syntax = |syntax| print_highlighted(syntax);
 
     let display_graph = |graph: String| {
         let mut process = std::process::Command::new("sh")
             .arg("-c")
-            .arg("mmdc -i - -o - -e png --scale 3 | imgcat")
+            .arg("mmdc -i - -o - -e png --scale 3 | imgcat -n")
             .stdin(std::process::Stdio::piped())
             .spawn()
             .unwrap();
@@ -97,7 +95,7 @@ fn run(path: &str, source: &str) {
     wipple_compiler::compile(
         path,
         source,
-        display_syntax_error,
+        display_syntax,
         display_graph,
         display_tys,
         display_feedback,

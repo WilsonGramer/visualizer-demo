@@ -15,7 +15,7 @@ pub static UNRESOLVED_TRAIT_NAME: Rule = Rule::new("unresolved trait name in ins
 
 impl Visit for InstanceDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, self.range, |visitor, id| {
+        visitor.node(parent, self.range, |visitor, id| {
             let attributes =
                 InstanceAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 

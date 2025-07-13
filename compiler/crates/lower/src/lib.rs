@@ -244,6 +244,17 @@ impl Definition {
         }
     }
 
+    pub fn comments(&self) -> Option<&Comments> {
+        match self {
+            Definition::Variable(_) => None,
+            Definition::Constant(definition) => Some(&definition.comments),
+            Definition::Type(definition) => Some(&definition.comments),
+            Definition::Trait(definition) => Some(&definition.comments),
+            Definition::Instance(definition) => Some(&definition.comments),
+            Definition::TypeParameter(_) => None,
+        }
+    }
+
     pub fn constraints(&self) -> Vec<Constraint> {
         match self {
             Definition::Variable(_) => Vec::new(),

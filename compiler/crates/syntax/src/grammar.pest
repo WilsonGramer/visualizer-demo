@@ -103,7 +103,7 @@ block_expression = !{ "{" ~ statements? ~ "}" }
 
 unit_expression = !{ "(" ~ ")" }
 
-formatted_text_expression = { text ~ subexpression+ }
+formatted_text_expression = ${ text ~ ((!NEWLINE ~ WHITESPACE)* ~ subexpression)+ }
 
 call_expression = ${ subexpression ~ ((!NEWLINE ~ WHITESPACE)* ~ subexpression)+ }
 
