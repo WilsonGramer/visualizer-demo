@@ -11,7 +11,7 @@ pub static TYPE_IN_CONSTANT_DEFINITION: Rule = Rule::new("type in constant defin
 
 impl Visit for ConstantDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             let attributes =
                 ConstantAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
