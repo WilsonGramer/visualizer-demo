@@ -196,7 +196,9 @@ pub struct ConstantDefinition {
     pub node: NodeId,
     pub comments: Comments,
     pub attributes: ConstantAttributes,
+    pub ty: NodeId,
     pub constraints: Vec<Constraint>,
+    pub assigned: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -300,12 +302,12 @@ impl Visitor<'_> {
     fn peek_name<'a, T: 'a>(
         &'a mut self,
         name: &str,
-        filter: impl FnMut(&'a Definition) -> Option<T>,
+        filter: impl FnMut(&'a mut Definition) -> Option<T>,
     ) -> Option<T> {
         self.scopes
-            .iter()
+            .iter_mut()
             .rev()
-            .filter_map(|scope| scope.definitions.get(name))
+            .filter_map(|scope| scope.definitions.get_mut(name))
             .flatten()
             .find_map(filter)
     }
