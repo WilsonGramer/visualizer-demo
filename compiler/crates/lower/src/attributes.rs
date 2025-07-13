@@ -8,7 +8,7 @@ pub struct ConstantAttributes {
 }
 
 impl ConstantAttributes {
-    pub fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
+    pub(crate) fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
         ConstantAttributes {
             unit: parser.parse_name("unit"),
         }
@@ -19,7 +19,7 @@ impl ConstantAttributes {
 pub struct TypeAttributes {}
 
 impl TypeAttributes {
-    pub fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
+    pub(crate) fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
         TypeAttributes {}
     }
 }
@@ -28,7 +28,7 @@ impl TypeAttributes {
 pub struct TraitAttributes {}
 
 impl TraitAttributes {
-    pub fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
+    pub(crate) fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
         TraitAttributes {}
     }
 }
@@ -40,7 +40,7 @@ pub struct InstanceAttributes {
 }
 
 impl InstanceAttributes {
-    pub fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
+    pub(crate) fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
         InstanceAttributes {
             default: parser.parse_name("default"),
             error: parser.parse_name("error"),
@@ -54,14 +54,18 @@ pub static MISSING_ATTRIBUTE_VALUE: Rule = Rule::new("missing attribute value");
 pub static EXTRA_ATTRIBUTE_VALUE: Rule = Rule::new("extra attribute value");
 pub static MISMATCHED_ATTRIBUTE_VALUE: Rule = Rule::new("mismatched attribute value");
 
-pub struct AttributeParser<'a, 'v> {
+pub(crate) struct AttributeParser<'a, 'v> {
     id: NodeId,
     visitor: &'v mut Visitor<'a>,
     attributes: &'a [Attribute],
 }
 
 impl<'a, 'v> AttributeParser<'a, 'v> {
-    pub fn new(id: NodeId, visitor: &'v mut Visitor<'a>, attributes: &'a [Attribute]) -> Self {
+    pub(crate) fn new(
+        id: NodeId,
+        visitor: &'v mut Visitor<'a>,
+        attributes: &'a [Attribute],
+    ) -> Self {
         Self {
             id,
             visitor,

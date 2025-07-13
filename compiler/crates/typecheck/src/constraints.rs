@@ -100,18 +100,18 @@ impl Constraints {
         let tys = self.tys.iter().flat_map(|(node, constraints)| {
             constraints
                 .iter()
-                .map(move |(ty, rule)| (node.clone(), Constraint::Ty(ty.clone(), *rule)))
+                .map(move |(ty, rule)| (*node, Constraint::Ty(ty.clone(), *rule)))
         });
 
         let generics = self
             .generic_tys
             .iter()
-            .map(|(node, (bound, rule))| (node.clone(), Constraint::Generic(bound.clone(), *rule)));
+            .map(|(node, (bound, rule))| (*node, Constraint::Generic(bound.clone(), *rule)));
 
         let bounds = self.bounds.iter().flat_map(|(node, constraints)| {
             constraints
                 .iter()
-                .map(move |(bound, rule)| (node.clone(), Constraint::Bound(bound.clone(), *rule)))
+                .map(move |(bound, rule)| (*node, Constraint::Bound(bound.clone(), *rule)))
         });
 
         tys.chain(generics).chain(bounds)
