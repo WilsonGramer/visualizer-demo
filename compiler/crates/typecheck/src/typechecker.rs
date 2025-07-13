@@ -66,14 +66,15 @@ pub struct Instance {
 #[derive(Clone)]
 pub struct TypeProvider<'a> {
     get_constraints: Rc<RefCell<dyn FnMut(NodeId) -> Vec<Constraint> + 'a>>,
-    get_instances: Rc<RefCell<dyn FnMut(NodeId) -> Vec<(NodeId, Rule)> + 'a>>,
+    get_instances:
+        Rc<RefCell<dyn FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a>>,
     flag_unresolved_trait: Rc<RefCell<dyn FnMut(NodeId) + 'a>>,
 }
 
 impl<'a> TypeProvider<'a> {
     pub fn new(
         get_constraints: impl FnMut(NodeId) -> Vec<Constraint> + 'a,
-        get_instances: impl FnMut(NodeId) -> Vec<(NodeId, Rule)> + 'a,
+        get_instances: impl FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a,
         flag_unresolved_trait: impl FnMut(NodeId) + 'a,
     ) -> Self {
         TypeProvider {
@@ -300,11 +301,11 @@ impl Typechecker<'_> {
             let instances = self.provider.get_instances.borrow_mut()(bound.tr);
 
             let mut error = true;
-            for (instance, rule) in instances {
+            for (instance, substitutions, rule) in instances {
                 let mut instance_typechecker = self.clone();
                 instance_typechecker.error = false;
                 instance_typechecker
-                    .insert_generics(&vec![(node, ((instance, Default::default()), rule))]);
+                    .insert_generics(&vec![(node, ((instance, substitutions), rule))]);
 
                 // This will resolve bounds recursively
                 instance_typechecker.run();

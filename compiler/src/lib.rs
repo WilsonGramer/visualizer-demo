@@ -2,6 +2,7 @@ use colored::Colorize;
 use petgraph::Direction;
 use std::collections::{BTreeMap, HashSet};
 use wasm_bindgen::prelude::*;
+use wipple_compiler_lower::Definition;
 use wipple_compiler_syntax::{Parse, Range};
 use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
@@ -101,7 +102,15 @@ pub fn compile(
                 .unwrap_or_default()
                 .iter()
                 .cloned()
-                .map(|node| (node, RESOLVED_TRAIT))
+                .map(|node| {
+                    let definition = lowered.definitions.get(&node).unwrap();
+
+                    let Definition::Instance(instance) = definition else {
+                        unreachable!()
+                    };
+
+                    (node, instance.substitutions.clone(), RESOLVED_TRAIT)
+                })
                 .collect()
         },
         |node| {
@@ -120,6 +129,11 @@ pub fn compile(
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
     for &node in &lowered.typed_nodes {
+        if lowered.definitions.contains_key(&node) {
+            // Uninstantiated definitions should not be checked
+            continue;
+        }
+
         let tys = ty_groups
             .index_of(node)
             .map(|index| ty_groups.tys_at(index))

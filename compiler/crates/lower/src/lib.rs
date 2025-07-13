@@ -223,7 +223,7 @@ pub struct InstanceDefinition {
     pub comments: Comments,
     pub attributes: InstanceAttributes,
     pub tr: NodeId,
-    pub parameters: Vec<NodeId>,
+    pub substitutions: BTreeMap<NodeId, NodeId>,
     pub constraints: Vec<Constraint>,
 }
 

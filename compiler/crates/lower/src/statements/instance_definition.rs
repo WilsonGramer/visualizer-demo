@@ -15,7 +15,7 @@ pub static UNRESOLVED_TRAIT_NAME: Rule = Rule::new("unresolved trait name in ins
 
 impl Visit for InstanceDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             let attributes =
                 InstanceAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
@@ -45,6 +45,13 @@ impl Visit for InstanceDefinitionStatement {
                 })
                 .collect::<Vec<_>>();
 
+            // TODO: Ensure `parameters` has the right length
+
+            let substitutions = trait_parameters
+                .into_iter()
+                .zip(parameters)
+                .collect::<BTreeMap<_, _>>();
+
             // TODO
             let constraints = self
                 .constraints
@@ -58,20 +65,13 @@ impl Visit for InstanceDefinitionStatement {
                 comments: self.comments.clone(),
                 attributes,
                 tr: trait_node,
-                parameters: parameters.clone(),
+                substitutions: substitutions.clone(),
                 constraints,
             });
 
             let value = self
                 .value
                 .visit(visitor, (id, VALUE_IN_INSTANCE_DEFINITION));
-
-            // TODO: Ensure `parameters` has the right length
-
-            let substitutions = trait_parameters
-                .into_iter()
-                .zip(parameters)
-                .collect::<BTreeMap<_, _>>();
 
             (
                 AnnotateNode {

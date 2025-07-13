@@ -15,7 +15,7 @@ pub static TYPE_IN_TRAIT_DEFINITION: Rule = Rule::new("type in trait definition"
 
 impl Visit for TraitDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, self.name.range, |visitor, id| {
+        visitor.typed_node(parent, self.name.range, |visitor, id| {
             let attributes =
                 TraitAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 

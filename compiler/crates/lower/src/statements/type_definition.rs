@@ -45,6 +45,7 @@ impl Visit for TypeDefinitionStatement {
                 }),
             );
 
+            // FIXME: Return the type here
             (EmptyNode, TYPE_DEFINITION)
         })
     }
