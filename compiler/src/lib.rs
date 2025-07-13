@@ -72,6 +72,7 @@ pub fn compile(
         }
     };
 
+    let mut replacements = BTreeMap::<NodeId, NodeId>::new();
     let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
 
     let lowered = wipple_compiler_lower::visit(&source_file, make_span);
@@ -112,6 +113,9 @@ pub fn compile(
                     (node, instance.substitutions.clone(), RESOLVED_TRAIT)
                 })
                 .collect()
+        },
+        |node, instance| {
+            replacements.insert(node, instance);
         },
         |node| {
             extras.entry(node).or_default().insert(UNRESOLVED_TRAIT);
@@ -164,6 +168,7 @@ pub fn compile(
 
     let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
         &feedback_nodes,
+        &replacements,
         &lowered.relations,
         get_span_source,
     );

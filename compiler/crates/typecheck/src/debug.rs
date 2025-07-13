@@ -34,7 +34,8 @@ pub fn write_graph(
             continue;
         }
 
-        let (node_span, node_source) = provider.node_span_source(node);
+        let display_node = provider.replacement_node(node).unwrap_or(node);
+        let (node_span, node_source) = provider.node_span_source(display_node);
 
         // Also link related nodes
         for parent in relations.neighbors_directed(node, Direction::Incoming) {
@@ -42,14 +43,16 @@ pub fn write_graph(
                 continue;
             }
 
+            let display_parent = provider.replacement_node(parent).unwrap_or(parent);
+
             let &rule = relations.edge_weight(parent, node).unwrap();
 
             writeln!(
                 w,
                 "{}-- {:?} -->{}",
-                node_id(node),
+                node_id(display_node),
                 format!("{rule:?}"),
-                node_id(parent)
+                node_id(display_parent)
             )?;
 
             visited.insert(parent);
@@ -58,7 +61,7 @@ pub fn write_graph(
         writeln!(
             w,
             "{}@{{ label: {:?} }}",
-            node_id(node),
+            node_id(display_node),
             format!("{node_span:?}\n<pre>{node_source}</pre>")
         )?;
 
@@ -67,6 +70,7 @@ pub fn write_graph(
 
     for (index, group_tys) in ty_groups.groups() {
         let nodes = ty_groups.nodes_in_group(index).collect::<Vec<_>>();
+
         if nodes.iter().all(|node| !visited.contains(node)) {
             continue;
         }
@@ -84,7 +88,8 @@ pub fn write_graph(
 
         for node in nodes {
             if visited.contains(&node) {
-                writeln!(w, "{}", node_id(node))?;
+                let display_node = provider.replacement_node(node).unwrap_or(node);
+                writeln!(w, "{}", node_id(display_node))?;
             }
         }
 

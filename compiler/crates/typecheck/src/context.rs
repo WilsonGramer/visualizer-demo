@@ -45,6 +45,7 @@ pub struct Trait {
 #[derive(Clone)]
 pub struct FeedbackProvider<'a> {
     nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
+    replacements: &'a BTreeMap<NodeId, NodeId>,
     relations: &'a DiGraphMap<NodeId, Rule>,
     get_span_source: Rc<dyn Fn(NodeId) -> (Span, String) + 'a>,
 }
@@ -52,11 +53,13 @@ pub struct FeedbackProvider<'a> {
 impl<'a> FeedbackProvider<'a> {
     pub fn new(
         nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
+        replacements: &'a BTreeMap<NodeId, NodeId>,
         relations: &'a DiGraphMap<NodeId, Rule>,
         get_span_source: impl Fn(NodeId) -> (Span, String) + 'a,
     ) -> Self {
         FeedbackProvider {
             nodes,
+            replacements,
             relations,
             get_span_source: Rc::new(get_span_source),
         }
@@ -68,6 +71,10 @@ impl<'a> FeedbackProvider<'a> {
 
     pub fn node_rules(&self, node: NodeId) -> &HashSet<Rule> {
         self.nodes.get(&node).unwrap()
+    }
+
+    pub fn replacement_node(&self, node: NodeId) -> Option<NodeId> {
+        self.replacements.get(&node).copied()
     }
 
     pub fn related_nodes(&self, node: NodeId) -> impl Iterator<Item = (NodeId, Rule)> {

@@ -68,6 +68,7 @@ pub struct TypeProvider<'a> {
     get_constraints: Rc<RefCell<dyn FnMut(NodeId) -> Vec<Constraint> + 'a>>,
     get_instances:
         Rc<RefCell<dyn FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a>>,
+    flag_resolved_trait: Rc<RefCell<dyn FnMut(NodeId, NodeId) + 'a>>,
     flag_unresolved_trait: Rc<RefCell<dyn FnMut(NodeId) + 'a>>,
 }
 
@@ -75,11 +76,13 @@ impl<'a> TypeProvider<'a> {
     pub fn new(
         get_constraints: impl FnMut(NodeId) -> Vec<Constraint> + 'a,
         get_instances: impl FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a,
+        flag_resolved_trait: impl FnMut(NodeId, NodeId) + 'a,
         flag_unresolved_trait: impl FnMut(NodeId) + 'a,
     ) -> Self {
         TypeProvider {
             get_constraints: Rc::new(RefCell::new(get_constraints)),
             get_instances: Rc::new(RefCell::new(get_instances)),
+            flag_resolved_trait: Rc::new(RefCell::new(flag_resolved_trait)),
             flag_unresolved_trait: Rc::new(RefCell::new(flag_unresolved_trait)),
         }
     }
@@ -297,7 +300,7 @@ impl Typechecker<'_> {
             })
             .collect();
 
-        for (node, bound) in dbg!(bounds) {
+        for (node, bound) in bounds {
             let instances = self.provider.get_instances.borrow_mut()(bound.tr);
 
             let mut error = true;
@@ -313,6 +316,8 @@ impl Typechecker<'_> {
                 if !instance_typechecker.error {
                     // Apply the resolved types
                     *self = instance_typechecker;
+
+                    self.provider.flag_resolved_trait.borrow_mut()(node, instance);
 
                     error = false;
                     break;
