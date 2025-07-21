@@ -18,7 +18,7 @@ impl Visit for AnnotatePattern {
             (
                 AnnotateNode {
                     value: pattern,
-                    definition: Annotation::Node(ty),
+                    annotations: vec![Annotation::Node(ty)],
                 },
                 ANNOTATED_PATTERN,
             )

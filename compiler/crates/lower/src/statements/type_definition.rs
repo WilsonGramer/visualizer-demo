@@ -2,9 +2,10 @@ use crate::{
     Definition, TypeDefinition, TypeParameterDefinition, Visit, Visitor,
     attributes::{AttributeParser, TypeAttributes},
 };
+use std::{collections::BTreeMap, mem};
 use wipple_compiler_syntax::TypeDefinitionStatement;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::EmptyNode;
+use wipple_compiler_typecheck::nodes::{Annotation, EmptyNode};
 
 pub static TYPE_DEFINITION: Rule = Rule::new("type definition");
 pub static PARAMETER_IN_TYPE_DEFINITION: Rule = Rule::new("parameter in type definition");
@@ -34,6 +35,20 @@ impl Visit for TypeDefinitionStatement {
                 })
                 .collect::<Vec<_>>();
 
+            let annotations = visitor.with_definition(|visitor| {
+                visitor
+                    .current_definition()
+                    .annotations
+                    .push(Annotation::Type {
+                        definition: id,
+                        substitutions: BTreeMap::new(),
+                    });
+
+                // Types don't have additional constraints
+
+                mem::take(&mut visitor.current_definition().annotations)
+            });
+
             visitor.define_name(
                 &self.name.value,
                 Definition::Type(TypeDefinition {
@@ -41,11 +56,10 @@ impl Visit for TypeDefinitionStatement {
                     comments: self.comments.clone(),
                     attributes,
                     parameters,
-                    constraints: Vec::new(), // types may not have extra constraints
+                    annotations,
                 }),
             );
 
-            // FIXME: Return the type here
             (EmptyNode, TYPE_DEFINITION)
         })
     }

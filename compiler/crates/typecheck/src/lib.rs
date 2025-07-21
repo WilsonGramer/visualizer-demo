@@ -1,6 +1,7 @@
 pub mod constraints;
 pub mod context;
 pub mod debug;
+pub mod id;
 pub mod nodes;
 pub mod typechecker;
 

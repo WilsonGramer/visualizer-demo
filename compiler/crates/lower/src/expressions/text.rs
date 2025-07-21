@@ -1,4 +1,5 @@
 use crate::{Definition, Visit, Visitor};
+use std::collections::BTreeMap;
 use wipple_compiler_syntax::TextExpression;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, EmptyNode, Node};
@@ -18,7 +19,10 @@ impl Visit for TextExpression {
                 Some((text_ty, rule)) => (
                     AnnotateNode {
                         value: id,
-                        definition: Annotation::Type(text_ty, Vec::new()),
+                        annotations: vec![Annotation::Type {
+                            definition: text_ty,
+                            substitutions: BTreeMap::new(),
+                        }],
                     }
                     .boxed(),
                     rule,

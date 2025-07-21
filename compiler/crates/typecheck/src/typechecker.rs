@@ -1,4 +1,7 @@
-use crate::constraints::{Constraint, GenericConstraints, Ty, TyConstraints};
+use crate::{
+    constraints::{Bound, BoundConstraints, Constraint, Ty, TyConstraints},
+    id::TypedNodeId,
+};
 use ena::unify::InPlaceUnificationTable;
 use std::{
     cell::RefCell,
@@ -9,24 +12,26 @@ use std::{
 };
 use wipple_compiler_trace::{NodeId, Rule};
 
+pub static UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
+
 #[derive(Debug, Clone, Default)]
 pub struct TyGroups {
-    indices: BTreeMap<NodeId, u32>,
+    indices: BTreeMap<TypedNodeId, u32>,
     tys: Vec<Vec<Ty>>,
 }
 
 impl TyGroups {
-    pub fn insert_group(&mut self, ty: Ty) -> u32 {
+    fn insert_group(&mut self, ty: Ty) -> u32 {
         let index = self.tys.len() as u32;
         self.tys.push(vec![ty]);
         index
     }
 
-    pub fn assign_node_to_index(&mut self, node: NodeId, index: u32) {
+    fn assign_node_to_index(&mut self, node: TypedNodeId, index: u32) {
         self.indices.insert(node, index);
     }
 
-    pub fn index_of(&self, node: NodeId) -> Option<u32> {
+    pub fn index_of(&self, node: TypedNodeId) -> Option<u32> {
         self.indices.get(&node).copied()
     }
 
@@ -38,13 +43,13 @@ impl TyGroups {
         &mut self.tys[index as usize]
     }
 
-    pub fn nodes_in_group(&self, index: u32) -> impl Iterator<Item = NodeId> {
+    pub fn nodes_in_group(&self, index: u32) -> impl Iterator<Item = TypedNodeId> {
         self.indices
             .iter()
             .filter_map(move |(&node, &i)| (i == index).then_some(node))
     }
 
-    pub fn nodes(&self) -> impl Iterator<Item = NodeId> {
+    pub fn nodes(&self) -> impl Iterator<Item = TypedNodeId> {
         self.indices.keys().copied()
     }
 
@@ -65,25 +70,22 @@ pub struct Instance {
 
 #[derive(Clone)]
 pub struct TypeProvider<'a> {
-    get_constraints: Rc<RefCell<dyn FnMut(NodeId) -> Vec<Constraint> + 'a>>,
-    get_instances:
+    get_trait_instances:
         Rc<RefCell<dyn FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a>>,
-    flag_resolved_trait: Rc<RefCell<dyn FnMut(NodeId, NodeId) + 'a>>,
-    flag_unresolved_trait: Rc<RefCell<dyn FnMut(NodeId) + 'a>>,
+    flag_resolved: Rc<RefCell<dyn FnMut(TypedNodeId, Bound, NodeId) + 'a>>,
+    flag_unresolved: Rc<RefCell<dyn FnMut(TypedNodeId, Bound) + 'a>>,
 }
 
 impl<'a> TypeProvider<'a> {
     pub fn new(
-        get_constraints: impl FnMut(NodeId) -> Vec<Constraint> + 'a,
-        get_instances: impl FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a,
-        flag_resolved_trait: impl FnMut(NodeId, NodeId) + 'a,
-        flag_unresolved_trait: impl FnMut(NodeId) + 'a,
+        get_trait_instances: impl FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a,
+        flag_resolved: impl FnMut(TypedNodeId, Bound, NodeId) + 'a,
+        flag_unresolved: impl FnMut(TypedNodeId, Bound) + 'a,
     ) -> Self {
         TypeProvider {
-            get_constraints: Rc::new(RefCell::new(get_constraints)),
-            get_instances: Rc::new(RefCell::new(get_instances)),
-            flag_resolved_trait: Rc::new(RefCell::new(flag_resolved_trait)),
-            flag_unresolved_trait: Rc::new(RefCell::new(flag_unresolved_trait)),
+            get_trait_instances: Rc::new(RefCell::new(get_trait_instances)),
+            flag_resolved: Rc::new(RefCell::new(flag_resolved)),
+            flag_unresolved: Rc::new(RefCell::new(flag_unresolved)),
         }
     }
 }
@@ -100,9 +102,9 @@ pub struct Typechecker<'a> {
     nodes: BTreeSet<NodeId>,
     keys: GroupKeys,
     unify: InPlaceUnificationTable<GroupKey>,
-    groups: BTreeMap<GroupKey, Ty>,    // types that unified
-    others: BTreeMap<NodeId, Vec<Ty>>, // types that failed to unify
-    queue: Vec<(NodeId, Constraint)>,  // ordered
+    groups: BTreeMap<GroupKey, Ty>,         // types that unified
+    others: BTreeMap<TypedNodeId, Vec<Ty>>, // types that failed to unify
+    queue: Vec<Constraint>,                 // ordered
     progress: Progress,
     error: bool,
 }
@@ -127,61 +129,44 @@ impl<'a> Typechecker<'a> {
     }
 
     pub fn insert_tys(&mut self, constraints: &TyConstraints) {
-        // Form better groups by first adding constraints that reference other
-        // nodes directly, followed by other incomplete types
+        // Instantiations must come last (since they need their definition's
+        // type). Otherwise, form better groups by first adding constraints that
+        // reference other nodes directly, followed by other incomplete types
+        // (FIXME: Make instantiations their own type of constraint)
         let mut of = Vec::new();
         let mut incomplete = Vec::new();
         let mut complete = Vec::new();
+        let mut instantiate = Vec::new();
         for (&node, tys) in constraints {
             for (ty, rule) in tys.iter().cloned() {
                 if let Ty::Of(_) = ty {
-                    of.push((node, (ty.clone(), rule)))
+                    of.push((node, (ty.clone(), rule)));
+                } else if let Ty::Instantiate { .. } = ty {
+                    instantiate.push((node, (ty.clone(), rule)));
                 } else if ty.is_incomplete() {
-                    incomplete.push((node, (ty.clone(), rule)))
+                    incomplete.push((node, (ty.clone(), rule)));
                 } else {
-                    complete.push((node, (ty.clone(), rule)))
+                    complete.push((node, (ty.clone(), rule)));
                 }
             }
         }
 
-        for (node, (ty, rule)) in [of, incomplete, complete].into_iter().flatten() {
-            self.queue.push((node, Constraint::Ty(ty, rule)));
+        for (node, (ty, rule)) in [of, incomplete, complete, instantiate]
+            .into_iter()
+            .flatten()
+        {
+            self.queue.push(Constraint::Ty(node, ty, rule));
         }
 
         self.run();
     }
 
-    pub fn insert_generics(&mut self, constraints: &GenericConstraints) {
-        // Make instantiated copies of the definition's constraints
-        for &(node, ((definition, ref substitutions), rule)) in constraints {
-            let mut constraints = self.provider.get_constraints.borrow_mut()(definition)
-                .into_iter()
-                .map(|constraint| (node, constraint))
-                .collect::<Vec<_>>();
-
-            constraints.push((node, Constraint::Ty(Ty::Of(definition), rule)));
-            for (&parameter, &substitution) in substitutions {
-                constraints.push((substitution, Constraint::Ty(Ty::Of(parameter), rule)));
+    pub fn insert_bounds(&mut self, bounds: &BoundConstraints) {
+        for (node, bounds) in bounds {
+            for (bound, rule) in bounds {
+                self.queue
+                    .push(Constraint::Bound(*node, bound.clone(), *rule));
             }
-
-            // Make instantiated copies of the constraints using a copy of the
-            // typechecker, to not interfere with existing nodes
-
-            let mut definition_typechecker = self.clone();
-            let key = definition_typechecker.key_for_node(node);
-
-            for (_, constraint) in &mut constraints {
-                constraint.traverse_mut(&mut |ty| {
-                    definition_typechecker.apply(ty);
-
-                    if let Ty::Of(other) = ty {
-                        // TODO: Check the existing value?
-                        other.namespace.replace(key.0);
-                    }
-                });
-            }
-
-            self.queue.extend(constraints);
         }
 
         self.run();
@@ -219,27 +204,12 @@ impl<'a> Typechecker<'a> {
 
         // Any remaining nodes have unknown types
         for &node in &self.nodes {
+            let node = TypedNodeId::from(node);
+
             if ty_groups.index_of(node).is_none() {
                 let index = ty_groups.insert_group(Ty::Unknown);
                 ty_groups.assign_node_to_index(node, index);
             }
-        }
-
-        // Remove namespaces from all node IDs
-        ty_groups.indices.retain(|node, _| node.namespace.is_none());
-
-        // Replace unresolved `Ty::Of` types with `Ty::Unknown`
-        for tys in ty_groups.tys.iter_mut() {
-            for ty in tys.iter_mut() {
-                ty.traverse_mut(&mut |ty| {
-                    if let Ty::Of(_) = *ty {
-                        *ty = Ty::Unknown;
-                    }
-                });
-            }
-
-            // Remove unknown types
-            tys.retain(|ty| !matches!(ty, Ty::Unknown));
         }
 
         ty_groups
@@ -249,6 +219,7 @@ impl<'a> Typechecker<'a> {
 impl Typechecker<'_> {
     fn run(&mut self) {
         loop {
+            // FIXME: Run all stages in order each time instead of `or_else`?
             let progress = self.run_tys().or_else(|| self.run_bounds());
             // TODO: `.or_else(|| self.run_defaults())`, etc.
 
@@ -263,12 +234,12 @@ impl Typechecker<'_> {
         let mut tys = Vec::new();
         self.queue = mem::take(&mut self.queue)
             .into_iter()
-            .filter_map(|(node, constraint)| match constraint {
-                Constraint::Ty(ty, _) => {
+            .filter_map(|constraint| match constraint {
+                Constraint::Ty(node, ty, _) => {
                     tys.push((node, ty));
                     None
                 }
-                _ => Some((node, constraint)),
+                _ => Some(constraint),
             })
             .collect();
 
@@ -291,42 +262,67 @@ impl Typechecker<'_> {
         let mut bounds = Vec::new();
         self.queue = mem::take(&mut self.queue)
             .into_iter()
-            .filter_map(|(node, constraint)| match constraint {
-                Constraint::Bound(bound, _) => {
-                    bounds.push((node, bound));
+            .filter_map(|constraint| match constraint {
+                Constraint::Bound(node, bound, rule) => {
+                    bounds.push((node, bound, rule));
                     None
                 }
-                _ => Some((node, constraint)),
+                _ => Some(constraint),
             })
             .collect();
 
-        for (node, bound) in bounds {
-            let instances = self.provider.get_instances.borrow_mut()(bound.tr);
+        for (node, bound, rule) in bounds {
+            // To resolve an instance, we need to satisfy the intersection of
+            // the bound's substitutions (1) and an instance's substitutions (2).
 
-            let mut error = true;
+            let instances = self.provider.get_trait_instances.borrow_mut()(bound.tr);
+
+            let node = TypedNodeId::instantiate(node, bound.instantiation);
+
+            // (1)
+            self.insert_tys(&TyConstraints::from([(node, vec![(bound.as_ty(), rule)])]));
+
+            let mut candidates = Vec::new();
             for (instance, substitutions, rule) in instances {
-                let mut instance_typechecker = self.clone();
-                instance_typechecker.error = false;
-                instance_typechecker
-                    .insert_generics(&vec![(node, ((instance, substitutions), rule))]);
+                let instance_bound = Bound {
+                    tr: bound.tr,
+                    instantiation: bound.instantiation,
+                    substitutions: Some(substitutions),
+                };
 
-                // This will resolve bounds recursively
-                instance_typechecker.run();
+                // Apply the instance's constraints to a copy of the
+                // typechecker, so if the instance fails to match, we can reset
+                let mut copy = self.clone();
+                copy.error = false;
 
-                if !instance_typechecker.error {
-                    // Apply the resolved types
-                    *self = instance_typechecker;
+                // (2)
+                copy.insert_tys(&TyConstraints::from([(
+                    node,
+                    vec![(instance_bound.as_ty(), rule)],
+                )]));
 
-                    self.provider.flag_resolved_trait.borrow_mut()(node, instance);
+                // (NOTE: `insert_tys` calls `run` and will also resolved
+                // nested bounds)
 
-                    error = false;
-                    break;
+                let error = copy.others.contains_key(&node);
+                if !error {
+                    candidates.push((instance, copy));
                 }
             }
 
-            if error {
-                self.provider.flag_unresolved_trait.borrow_mut()(node);
+            if candidates.len() != 1 {
+                self.provider.flag_unresolved.borrow_mut()(node, bound);
+
+                continue;
             }
+
+            let (instance, copy) = candidates.into_iter().next().unwrap();
+
+            // Incorporate the resolved types from the selected instance
+            *self = copy;
+
+            self.progress.set();
+            self.provider.flag_resolved.borrow_mut()(node, bound, instance);
         }
 
         self.progress.take()
@@ -334,26 +330,25 @@ impl Typechecker<'_> {
 }
 
 impl Typechecker<'_> {
-    fn key_for_node(&mut self, node: NodeId) -> GroupKey {
+    fn key_for_node(&mut self, node: TypedNodeId) -> GroupKey {
         self.keys
             .key_for_node(node, || self.unify.new_key(Group::new(node)))
     }
 
-    fn try_key_for_node(&self, node: NodeId) -> Option<GroupKey> {
+    fn try_key_for_node(&self, node: TypedNodeId) -> Option<GroupKey> {
         self.keys.try_key_for_node(node)
     }
 
-    fn node_for_key(&self, key: GroupKey) -> NodeId {
+    fn node_for_key(&self, key: GroupKey) -> TypedNodeId {
         self.keys.node_for_key(key)
     }
 }
 
 impl Typechecker<'_> {
     fn try_apply(&self, ty: &mut Ty, unify: &mut InPlaceUnificationTable<GroupKey>) {
-        ty.traverse_mut(&mut |ty| {
-            if let Ty::Of(node) = *ty {
+        ty.traverse_mut(&mut |ty| match *ty {
+            Ty::Of(node) => {
                 let Some(key) = self.try_key_for_node(node) else {
-                    *ty = Ty::Unknown;
                     return;
                 };
 
@@ -364,17 +359,17 @@ impl Typechecker<'_> {
                     self.try_apply(ty, unify);
                 }
             }
+            Ty::Instantiate { .. } => panic!("uninstantiated type"),
+            _ => {}
         });
     }
 
     fn apply(&mut self, ty: &mut Ty) {
-        ty.traverse_mut(&mut |ty| {
-            if let Ty::Of(node) = *ty {
+        ty.traverse_mut(&mut |ty| match ty.clone() {
+            Ty::Of(node) => {
                 let key = self.key_for_node(node);
-
                 let representative_key = self.unify.find(key);
                 let representative = self.node_for_key(representative_key);
-
                 if let Some(mut representative_ty) = self.groups.remove(&representative_key) {
                     self.apply(&mut representative_ty);
 
@@ -386,6 +381,73 @@ impl Typechecker<'_> {
                     *ty = Ty::Of(representative);
                 }
             }
+            Ty::Instantiate {
+                instantiation,
+                definition,
+                substitutions,
+            } => {
+                let mut unify = self.unify.clone();
+
+                // Deeply resolve the definition's type
+                *ty = Ty::of(definition);
+                self.try_apply(ty, &mut unify);
+
+                loop {
+                    let mut progress = false;
+                    ty.traverse_mut(&mut |ty| {
+                        match *ty {
+                            Ty::Parameter(parameter) => {
+                                // If `substitutions` is `None`, substitute all
+                                // parameters. Otherwise, only substitute the
+                                // parameters provided
+                                if let Some(substitutions) = &substitutions {
+                                    let Some(substitution) = substitutions.get(&parameter).copied()
+                                    else {
+                                        return;
+                                    };
+
+                                    // Deeply resolve the substitution's type
+                                    let mut substitution = Ty::of(substitution);
+                                    self.try_apply(&mut substitution, &mut unify);
+
+                                    if let Ty::Of(substitution) = substitution {
+                                        *ty =
+                                            Ty::Of(substitution.instantiated_under(instantiation));
+                                    } else {
+                                        // If the substitution resolved to an actual
+                                        // type, use that instead of the instantiated
+                                        // node ID
+                                        *ty = substitution;
+                                    }
+                                } else {
+                                    *ty =
+                                        Ty::Of(TypedNodeId::instantiate(parameter, instantiation));
+                                }
+
+                                progress = true;
+                            }
+                            Ty::Instantiated(parameter) => {
+                                // The parameter is being referenced from a
+                                // bound or another constraint that isn't the
+                                // type signature. That means the parameter has
+                                // already been substituted above, so just refer
+                                // to that existing substitution
+                                *ty = Ty::Of(TypedNodeId::instantiate(parameter, instantiation));
+                                progress = true;
+                            }
+                            _ => {}
+                        }
+                    });
+
+                    if !progress {
+                        break;
+                    }
+                }
+
+                // Apply again to deeply resolve any substitutions
+                self.try_apply(ty, &mut unify);
+            }
+            _ => {}
         });
     }
 
@@ -394,41 +456,20 @@ impl Typechecker<'_> {
         self.apply(right);
 
         match (&mut *left, &mut *right) {
-            (Ty::Unknown, _) | (_, Ty::Unknown) => {}
+            (Ty::Instantiate { .. }, _) | (_, Ty::Instantiate { .. }) => {
+                panic!("uninstantiated type")
+            }
+            (Ty::Parameter(left_parameter), Ty::Parameter(right_parameter)) => {
+                if *left_parameter == *right_parameter {}
+            }
             (Ty::Of(left_node), Ty::Of(right_node)) => {
-                let left_key = self.key_for_node(*left_node);
-                let right_key = self.key_for_node(*right_node);
-
-                self.unify
-                    .unify_var_var(left_key, right_key)
-                    .unwrap_or_else(|e| match e {});
-
-                let representative_key = self.unify.find(left_key);
-                let representative = self.node_for_key(representative_key);
-
-                // Move types from the old group to the new group
-                for key in [left_key, right_key] {
-                    if representative_key == key {
-                        continue;
-                    }
-
-                    if let Some(ty) = self.groups.remove(&key) {
-                        self.groups.insert(representative_key, ty);
-                    }
-
-                    let node = self.node_for_key(key);
-                    self.keys.update_representative(node, representative_key);
-                }
-
-                *left_node = representative;
-                *right_node = representative;
-
-                self.progress.set();
+                self.unify_nodes(left_node, right_node);
             }
             (other, ty @ &mut Ty::Of(node)) | (ty @ &mut Ty::Of(node), other) => {
                 let key = self.key_for_node(node);
-                let existing = self.groups.insert(key, other.clone());
-                assert!(existing.is_none());
+                if let Some(mut existing) = self.groups.insert(key, other.clone()) {
+                    self.unify(ty, &mut existing)?;
+                }
 
                 *ty = other.clone();
 
@@ -437,14 +478,19 @@ impl Typechecker<'_> {
             (
                 Ty::Named {
                     name: left_name,
-                    parameters: left_parameters,
+                    substitutions: left_substitutions,
                 },
                 Ty::Named {
                     name: right_name,
-                    parameters: right_parameters,
+                    substitutions: right_substitutions,
                 },
-            ) if left_name == right_name && left_parameters.len() == right_parameters.len() => {
-                for (left, right) in left_parameters.iter_mut().zip(right_parameters) {
+            ) if left_name == right_name
+                && left_substitutions.len() == right_substitutions.len() =>
+            {
+                for (left, right) in left_substitutions
+                    .values_mut()
+                    .zip(right_substitutions.values_mut())
+                {
                     self.unify(left, right)?;
                 }
             }
@@ -481,16 +527,47 @@ impl Typechecker<'_> {
 
         Ok(())
     }
+
+    fn unify_nodes(&mut self, left_node: &mut TypedNodeId, right_node: &mut TypedNodeId) {
+        let left_key = self.key_for_node(*left_node);
+        let right_key = self.key_for_node(*right_node);
+
+        self.unify
+            .unify_var_var(left_key, right_key)
+            .unwrap_or_else(|e| match e {});
+
+        let representative_key = self.unify.find(left_key);
+        let representative = self.node_for_key(representative_key);
+
+        // Move types from the old group to the new group
+        for key in [left_key, right_key] {
+            if representative_key == key {
+                continue;
+            }
+
+            if let Some(ty) = self.groups.remove(&key) {
+                self.groups.insert(representative_key, ty);
+            }
+
+            let node = self.node_for_key(key);
+            self.keys.update_representative(node, representative_key);
+        }
+
+        *left_node = representative;
+        *right_node = representative;
+
+        self.progress.set();
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct GroupKey(u32);
 
 #[derive(Debug, Clone)]
-struct Group(BTreeSet<NodeId>);
+struct Group(BTreeSet<TypedNodeId>);
 
 impl Group {
-    pub fn new(node: NodeId) -> Self {
+    pub fn new(node: TypedNodeId) -> Self {
         Group(BTreeSet::from([node]))
     }
 }
@@ -521,12 +598,12 @@ impl ena::unify::UnifyValue for Group {
 
 #[derive(Debug, Clone, Default)]
 struct GroupKeys {
-    keys: BTreeMap<NodeId, GroupKey>,
-    nodes: BTreeMap<GroupKey, NodeId>,
+    keys: BTreeMap<TypedNodeId, GroupKey>,
+    nodes: BTreeMap<GroupKey, TypedNodeId>,
 }
 
 impl GroupKeys {
-    pub fn key_for_node(&mut self, node: NodeId, init: impl FnOnce() -> GroupKey) -> GroupKey {
+    pub fn key_for_node(&mut self, node: TypedNodeId, init: impl FnOnce() -> GroupKey) -> GroupKey {
         *self.keys.entry(node).or_insert_with(|| {
             let key = init();
             self.nodes.insert(key, node);
@@ -534,20 +611,20 @@ impl GroupKeys {
         })
     }
 
-    fn try_key_for_node(&self, node: NodeId) -> Option<GroupKey> {
+    fn try_key_for_node(&self, node: TypedNodeId) -> Option<GroupKey> {
         self.keys.get(&node).copied()
     }
 
-    pub fn update_representative(&mut self, node: NodeId, group: GroupKey) {
+    pub fn update_representative(&mut self, node: TypedNodeId, group: GroupKey) {
         self.keys.insert(node, group);
         self.nodes.insert(group, node);
     }
 
-    pub fn node_for_key(&self, key: GroupKey) -> NodeId {
+    pub fn node_for_key(&self, key: GroupKey) -> TypedNodeId {
         self.try_node_for_key(key).unwrap()
     }
 
-    fn try_node_for_key(&self, key: GroupKey) -> Option<NodeId> {
+    fn try_node_for_key(&self, key: GroupKey) -> Option<TypedNodeId> {
         self.nodes.get(&key).copied()
     }
 }

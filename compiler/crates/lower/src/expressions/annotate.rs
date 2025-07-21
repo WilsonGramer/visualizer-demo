@@ -8,14 +8,14 @@ pub static TYPE_IN_ANNOTATED_VALUE: Rule = Rule::new("type in annotated value");
 
 impl Visit for AnnotateExpression {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             let value = self.left.visit(visitor, (id, ANNOTATED_VALUE));
             let ty = self.right.visit(visitor, (value, TYPE_IN_ANNOTATED_VALUE));
 
             (
                 AnnotateNode {
                     value,
-                    definition: Annotation::Node(ty),
+                    annotations: vec![Annotation::Node(ty), Annotation::Node(id)],
                 },
                 ANNOTATED_VALUE,
             )

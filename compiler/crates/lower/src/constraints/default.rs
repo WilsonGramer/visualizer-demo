@@ -1,0 +1,11 @@
+use crate::{Visit, Visitor};
+use wipple_compiler_syntax::DefaultConstraint;
+use wipple_compiler_trace::{NodeId, Rule};
+
+// TODO
+
+impl Visit for DefaultConstraint {
+    fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
+        todo!()
+    }
+}

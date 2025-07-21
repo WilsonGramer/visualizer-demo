@@ -15,7 +15,7 @@ impl Visit for VariableExpression {
                     Definition::Variable(definition) => Some((
                         AnnotateNode {
                             value: id,
-                            definition: Annotation::Node(definition.node),
+                            annotations: vec![Annotation::Node(definition.node)],
                         }
                         .boxed(),
                         RESOLVED_VARIABLE_NAME,
@@ -23,7 +23,7 @@ impl Visit for VariableExpression {
                     Definition::Constant(definition) => Some((
                         AnnotateNode {
                             value: id,
-                            definition: Annotation::Constant(definition.node),
+                            annotations: definition.annotations.clone(),
                         }
                         .boxed(),
                         RESOLVED_CONSTANT_NAME,

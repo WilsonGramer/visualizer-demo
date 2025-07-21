@@ -1,23 +1,31 @@
-use crate::{context::FeedbackProvider, typechecker::TyGroups};
+use crate::{context::FeedbackProvider, id::TypedNodeId, typechecker::TyGroups};
 use itertools::Itertools;
 use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
     collections::BTreeSet,
-    io::{self, Write},
+    fmt::{self, Write},
 };
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::Rule;
 
 pub fn write_graph(
     w: &mut dyn Write,
     ty_groups: &TyGroups,
-    relations: &DiGraphMap<NodeId, Rule>,
+    relations: &DiGraphMap<TypedNodeId, Rule>,
     provider: &FeedbackProvider<'_>,
-    filter: impl Fn(NodeId) -> bool,
-) -> io::Result<()> {
-    let node_id = |node: NodeId| format!("node{}", node.index);
+    filter: impl Fn(TypedNodeId) -> bool,
+) -> fmt::Result {
+    let node_id = |node: TypedNodeId| {
+        let mut id = format!("node{}", node.untyped().0);
 
-    writeln!(w, "%%{{init: {{'theme':'neutral'}}}}%%")?;
-    writeln!(w, "flowchart LR")?;
+        if let Some(instantiation) = node.instantiation {
+            write!(&mut id, "_{}", instantiation.0)?;
+        }
+
+        Ok(id)
+    };
+
+    writeln!(w, "%%{{init: {{'theme':'neutral','layout':'elk'}}}}%%")?;
+    writeln!(w, "flowchart TD")?;
     writeln!(
         w,
         "classDef success fill:#0000ff10,stroke:#0000ff,stroke-dasharray:10;"
@@ -34,8 +42,7 @@ pub fn write_graph(
             continue;
         }
 
-        let display_node = provider.replacement_node(node).unwrap_or(node);
-        let (node_span, node_source) = provider.node_span_source(display_node);
+        let (node_span, node_source) = provider.node_span_source(node.untyped());
 
         // Also link related nodes
         for parent in relations.neighbors_directed(node, Direction::Incoming) {
@@ -43,45 +50,37 @@ pub fn write_graph(
                 continue;
             }
 
-            let display_parent = provider.replacement_node(parent).unwrap_or(parent);
-
             let &rule = relations.edge_weight(parent, node).unwrap();
 
             writeln!(
                 w,
                 "{}-- {:?} -->{}",
-                node_id(display_node),
+                node_id(node)?,
                 format!("{rule:?}"),
-                node_id(display_parent)
+                node_id(parent)?
             )?;
 
-            visited.insert(display_parent);
+            visited.insert(parent);
         }
 
         let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>");
 
-        if let Some(comments) = provider.comments(display_node) {
+        if let Some(comments) = provider.comments(node.untyped()) {
             description.push_str(&comments);
         }
 
-        writeln!(
-            w,
-            "{}@{{ label: {:?} }}",
-            node_id(display_node),
-            description
-        )?;
+        writeln!(w, "{}@{{ label: {:?} }}", node_id(node)?, description)?;
 
-        visited.insert(display_node);
+        visited.insert(node);
     }
 
     for (index, group_tys) in ty_groups.groups() {
-        let display_nodes = ty_groups
+        let nodes = ty_groups
             .nodes_in_group(index)
-            .map(|node| provider.replacement_node(node).unwrap_or(node))
-            .filter(|display_node| visited.contains(display_node))
+            .filter(|node| visited.contains(node))
             .collect::<Vec<_>>();
 
-        if display_nodes.is_empty() {
+        if nodes.is_empty() {
             continue;
         }
 
@@ -96,8 +95,8 @@ pub fn write_graph(
 
         writeln!(w, "subgraph group{index}[\"<code>{description}</code>\"]")?;
 
-        for display_node in display_nodes {
-            writeln!(w, "{}", node_id(display_node))?;
+        for node in nodes {
+            writeln!(w, "{}", node_id(node)?)?;
         }
 
         writeln!(w, "end")?;

@@ -1,13 +1,14 @@
 use colored::Colorize;
-use petgraph::Direction;
-use std::collections::{BTreeMap, HashSet};
+use petgraph::{Direction, prelude::DiGraphMap};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use wasm_bindgen::prelude::*;
 use wipple_compiler_lower::Definition;
 use wipple_compiler_syntax::{Parse, Range};
 use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
     debug,
-    typechecker::{TypeProvider, Typechecker},
+    id::TypedNodeId,
+    typechecker::{TypeProvider, Typechecker, UNRESOLVED_TRAIT},
 };
 
 #[wasm_bindgen(js_name = "compile")]
@@ -39,7 +40,6 @@ pub fn compile_wasm(source: String) -> Vec<String> {
 pub static UNKNOWN_TYPE: Rule = Rule::new("unknown type");
 pub static INCOMPLETE_TYPE: Rule = Rule::new("incomplete type");
 pub static RESOLVED_TRAIT: Rule = Rule::new("resolved trait");
-pub static UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
 
 pub fn compile(
     path: &str,
@@ -72,10 +72,14 @@ pub fn compile(
         }
     };
 
-    let mut replacements = BTreeMap::<NodeId, NodeId>::new();
-    let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
-
     let lowered = wipple_compiler_lower::visit(&source_file, make_span);
+
+    let mut extras = BTreeMap::<TypedNodeId, HashSet<Rule>>::new();
+    let mut relations = lowered
+        .relations
+        .all_edges()
+        .map(|(from, to, rule)| (from.into(), to.into(), rule))
+        .collect::<DiGraphMap<_, _>>();
 
     let typecheck_ctx = wipple_compiler_typecheck::context::Context {
         nodes: lowered
@@ -88,13 +92,6 @@ pub fn compile(
     let constraints = typecheck_ctx.as_constraints();
 
     let type_provider = TypeProvider::new(
-        |definition_id| {
-            lowered
-                .definitions
-                .get(&definition_id)
-                .unwrap()
-                .constraints()
-        },
         |trait_id| {
             lowered
                 .instances
@@ -114,18 +111,24 @@ pub fn compile(
                 })
                 .collect()
         },
-        |node, instance| {
-            replacements.insert(node, instance);
+        |node, bound, instance| {
+            relations.add_edge(bound.instantiation.into(), node, RESOLVED_TRAIT);
+            relations.add_edge(node, instance.into(), RESOLVED_TRAIT);
         },
-        |node| {
-            extras.entry(node).or_default().insert(UNRESOLVED_TRAIT);
+        |node, bound| {
+            // TODO: Show the trait being resolved, not the node
+
+            extras
+                .entry(bound.instantiation.into())
+                .or_default()
+                .insert(UNRESOLVED_TRAIT);
         },
     );
 
     let mut typechecker = Typechecker::with_provider(type_provider);
     typechecker.insert_nodes(lowered.typed_nodes.clone());
     typechecker.insert_tys(&constraints.tys);
-    typechecker.insert_generics(&constraints.generic_tys);
+    typechecker.insert_bounds(&constraints.bounds);
 
     let ty_groups = typechecker.to_ty_groups();
 
@@ -133,24 +136,22 @@ pub fn compile(
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
     for &node in &lowered.typed_nodes {
-        if lowered.definitions.contains_key(&node) {
-            // Uninstantiated definitions should not be checked
-            continue;
-        }
-
         let tys = ty_groups
-            .index_of(node)
+            .index_of(node.into())
             .map(|index| ty_groups.tys_at(index))
             .unwrap_or_default();
 
         if tys.is_empty() {
-            extras.entry(node).or_default().insert(UNKNOWN_TYPE);
+            extras.entry(node.into()).or_default().insert(UNKNOWN_TYPE);
         } else if tys.iter().all(|ty| ty.is_incomplete()) {
-            extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
+            extras
+                .entry(node.into())
+                .or_default()
+                .insert(INCOMPLETE_TYPE);
         }
     }
 
-    let get_span_source = |node| {
+    let get_span_source = |node: NodeId| {
         let span = lowered.spans.get(&node).unwrap().clone();
 
         let mut source = source[span.range.clone()].to_string();
@@ -183,7 +184,8 @@ pub fn compile(
     let mut feedback_nodes = lowered
         .nodes
         .iter()
-        .map(|(&id, &(_, rule))| (id, HashSet::from([rule])))
+        .map(|(&node, &(_, rule))| (node.into(), HashSet::from([rule])))
+        .chain(ty_groups.nodes().map(|node| (node, HashSet::new())))
         .collect::<BTreeMap<_, _>>();
 
     for (node, rules) in extras {
@@ -192,25 +194,18 @@ pub fn compile(
 
     let provider = wipple_compiler_typecheck::context::FeedbackProvider::new(
         &feedback_nodes,
-        &replacements,
         &lowered.relations,
         get_span_source,
         get_comments,
     );
 
     // Display type graph
+    let filter = |node: TypedNodeId| lowered.typed_nodes.contains(&node.untyped());
 
-    let mut buf = Vec::new();
-    debug::write_graph(
-        &mut buf,
-        &ty_groups,
-        &lowered.relations,
-        &provider,
-        |node| lowered.typed_nodes.contains(&node),
-    )
-    .unwrap();
+    let mut graph = String::new();
+    debug::write_graph(&mut graph, &ty_groups, &relations, &provider, filter).unwrap();
 
-    display_graph(String::from_utf8(buf).unwrap());
+    display_graph(graph);
 
     // Display feedback
 
@@ -233,30 +228,42 @@ pub fn compile(
 
     // Display type table
 
-    let mut displayed_tys = Vec::from_iter(ty_groups.nodes());
+    let mut displayed_tys = Vec::from_iter(
+        ty_groups
+            .nodes()
+            .chain(lowered.nodes.keys().copied().map(TypedNodeId::from))
+            .collect::<BTreeSet<_>>(),
+    );
+
     displayed_tys.sort_by_key(|node| {
-        let span = lowered.spans.get(node).unwrap();
-        (span.range.start, span.range.end)
+        let span = lowered.spans.get(&node.untyped()).unwrap();
+        (node.instantiation, span.range.start, span.range.end)
     });
 
     let mut rows = Vec::new();
 
     for node in displayed_tys {
-        if !lowered.typed_nodes.contains(&node) {
+        if !filter(node) {
             continue;
         }
 
-        let index = ty_groups.index_of(node).unwrap();
-        let tys = ty_groups.tys_at(index);
+        let tys = ty_groups
+            .index_of(node)
+            .map(|index| ty_groups.tys_at(index))
+            .unwrap_or_default();
 
-        let (node_span, node_debug) = provider.node_span_source(node);
+        let (node_span, node_debug) = provider.node_span_source(node.untyped());
 
         let node_related_rules = lowered
             .relations
-            .neighbors_directed(node, Direction::Incoming)
+            .neighbors_directed(node.untyped(), Direction::Incoming)
             .filter(|node| lowered.typed_nodes.contains(node))
             .map(|related| {
-                let rule = lowered.relations.edge_weight(related, node).unwrap();
+                let rule = lowered
+                    .relations
+                    .edge_weight(related, node.untyped())
+                    .unwrap();
+
                 format!(
                     "\n  via {:?}: {}",
                     rule,
@@ -269,7 +276,7 @@ pub fn compile(
             format!("{node:?}\n{node_span:?}").to_string(),
             format!(
                 "{:?}{}",
-                lowered.nodes.get(&node).unwrap().1,
+                lowered.nodes.get(&node.untyped()).unwrap().1,
                 node_related_rules
             ),
             node_debug.to_string(),

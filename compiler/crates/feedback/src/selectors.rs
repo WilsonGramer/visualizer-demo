@@ -2,8 +2,8 @@ use crate::Context;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet, HashSet, btree_map::Entry};
-use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::constraints::Ty;
+use wipple_compiler_trace::Rule;
+use wipple_compiler_typecheck::{constraints::Ty, id::TypedNodeId};
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -42,15 +42,15 @@ impl Selector {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeTerm {
-    pub node: NodeId,
+    pub node: TypedNodeId,
     pub rule: Rule,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TyTerm {
-    pub node: NodeId,
+    pub node: TypedNodeId,
     pub ty: Ty,
-    pub related: BTreeSet<NodeId>,
+    pub related: BTreeSet<TypedNodeId>,
 }
 
 #[derive(Clone)]
@@ -59,7 +59,7 @@ pub struct State<'ctx, 'a> {
     pub root: NodeTerm,
     pub nodes: BTreeMap<String, NodeTerm>,
     pub tys: BTreeMap<String, TyTerm>,
-    pub visited_nodes: HashSet<NodeId>,
+    pub visited_nodes: HashSet<TypedNodeId>,
     pub visited_tys: HashSet<Ty>,
     pub node_progress: bool,
     pub ty_progress: bool,
@@ -89,14 +89,14 @@ impl<'ctx, 'a> State<'ctx, 'a> {
                 let term = self
                     .ctx
                     .relations
-                    .edges(self.root.node)
+                    .edges(self.root.node.untyped())
                     .find_map(|(parent, child, child_rule)| {
-                        if parent == self.root.node
-                            && !self.visited_nodes.contains(&child)
+                        if parent == self.root.node.untyped()
+                            && !self.visited_nodes.contains(&child.into())
                             && matches_rules(child_rule)
                         {
                             Some(NodeTerm {
-                                node: child,
+                                node: child.into(),
                                 rule: *child_rule,
                             })
                         } else {

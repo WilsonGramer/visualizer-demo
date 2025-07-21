@@ -18,7 +18,7 @@ impl ToConstraints for TupleNode {
         ctx.constraints().insert_ty(
             node,
             Ty::Tuple {
-                elements: self.elements.iter().copied().map(Ty::Of).collect(),
+                elements: self.elements.iter().copied().map(Ty::of).collect(),
             },
             TUPLE,
         );

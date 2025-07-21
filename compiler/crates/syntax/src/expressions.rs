@@ -44,6 +44,33 @@ impl Parse for Expression {
 #[pest_ast(rule(Rule::parenthesized_expression))]
 pub struct ParenthesizedExpression(pub Expression);
 
+impl Expression {
+    pub fn range(&self) -> Range {
+        match self {
+            Expression::Function(expression) => expression.range,
+            Expression::Tuple(expression) => expression.range,
+            Expression::Collection(expression) => expression.range,
+            Expression::Is(expression) => expression.range,
+            Expression::As(expression) => expression.range,
+            Expression::Annotate(expression) => expression.range,
+            Expression::Binary(expression) => expression.range(),
+            Expression::FormattedText(expression) => expression.range,
+            Expression::Call(expression) => expression.range,
+            Expression::Do(expression) => expression.range,
+            Expression::When(expression) => expression.range,
+            Expression::Intrinsic(expression) => expression.range,
+            Expression::Placeholder(expression) => expression.range,
+            Expression::Variable(expression) => expression.range,
+            Expression::Trait(expression) => expression.range,
+            Expression::Number(expression) => expression.range,
+            Expression::Text(expression) => expression.range,
+            Expression::Structure(expression) => expression.range,
+            Expression::Block(expression) => expression.range,
+            Expression::Unit(expression) => expression.range,
+        }
+    }
+}
+
 /// ```wipple
 /// _
 /// ```

@@ -1,4 +1,5 @@
 use crate::{Definition, Visit, Visitor};
+use std::collections::BTreeMap;
 use wipple_compiler_syntax::NamedType;
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, EmptyNode, Node};
@@ -19,11 +20,15 @@ impl Visit for NamedType {
             };
 
             // TODO: Ensure `definition.parameters` is empty
+            let substitutions = BTreeMap::new();
 
             (
                 AnnotateNode {
                     value: id,
-                    definition: Annotation::Type(type_node, Vec::new()),
+                    annotations: vec![Annotation::Type {
+                        definition: type_node,
+                        substitutions,
+                    }],
                 }
                 .boxed(),
                 rule,

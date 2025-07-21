@@ -10,6 +10,8 @@ workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+clearscreen = "4"
+cli-clipboard = "0.4"
 colored = "3"
 console_error_panic_hook = "0.1"
 line-col = "0.2"

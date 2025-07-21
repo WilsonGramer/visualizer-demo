@@ -2,26 +2,17 @@ use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, ops::Range};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct NodeId {
-    pub namespace: Option<u32>,
-    pub index: u32,
-}
+pub struct NodeId(pub u32);
 
 impl NodeId {
-    pub fn with_namespace(mut self, namespace: u32) -> Self {
-        let existing = self.namespace.replace(namespace);
-        assert!(existing.is_none());
-
-        self
+    pub fn new(index: u32) -> Self {
+        NodeId(index)
     }
 }
 
 impl Debug for NodeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.namespace {
-            Some(namespace) => write!(f, "NodeId({} in namespace {})", self.index, namespace),
-            None => write!(f, "NodeId({})", self.index),
-        }
+        write!(f, "NodeId({})", self.0)
     }
 }
 

@@ -1,4 +1,5 @@
 mod attributes;
+mod constraints;
 mod expressions;
 mod patterns;
 mod statements;
@@ -9,10 +10,7 @@ use petgraph::prelude::DiGraphMap;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use wipple_compiler_syntax::{Comments, Range, SourceFile, Statement};
 use wipple_compiler_trace::{NodeId, Rule, Span};
-use wipple_compiler_typecheck::{
-    constraints::Constraint,
-    nodes::{EmptyNode, Node},
-};
+use wipple_compiler_typecheck::nodes::{Annotation, EmptyNode, Node};
 
 pub static SOURCE_FILE: Rule = Rule::new("source file");
 pub static STATEMENT_IN_SOURCE_FILE: Rule = Rule::new("statement in source file");
@@ -65,11 +63,7 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     for (tr, instances) in visitor.instances {
         for instance in instances {
             definitions.insert(instance.node, Definition::Instance(instance.clone()));
-
-            instance_ids.entry(tr).or_default().push(NodeId {
-                namespace: None,
-                index: instance.node.index,
-            });
+            instance_ids.entry(tr).or_default().push(instance.node);
         }
     }
 
@@ -95,7 +89,14 @@ struct Visitor<'a> {
     relations: DiGraphMap<NodeId, Rule>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
+    current_definition: Option<VisitorCurrentDefinition>,
+}
+
+#[derive(Default)]
+struct VisitorCurrentDefinition {
+    annotations: Vec<Annotation>,
     implicit_type_parameters: bool,
+    instantiate_type_parameters: bool,
 }
 
 impl<'a> Visitor<'a> {
@@ -108,7 +109,7 @@ impl<'a> Visitor<'a> {
             relations: Default::default(),
             scopes: vec![Scope::default()],
             instances: Default::default(),
-            implicit_type_parameters: false,
+            current_definition: None,
         }
     }
 
@@ -138,11 +139,7 @@ impl<'a> Visitor<'a> {
         range: Range,
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
-        let id = NodeId {
-            namespace: None,
-            index: self.nodes.len() as u32,
-        };
-
+        let id = NodeId::new(self.nodes.len() as u32);
         self.nodes.insert(id, None);
 
         if let Some((parent, rule)) = parent {
@@ -196,9 +193,8 @@ pub struct ConstantDefinition {
     pub node: NodeId,
     pub comments: Comments,
     pub attributes: ConstantAttributes,
-    pub ty: NodeId,
-    pub constraints: Vec<Constraint>,
-    pub assigned: bool,
+    pub annotations: Vec<Annotation>,
+    pub value: std::result::Result<NodeId, NodeId>, // Ok(node) or Err(type signature)
 }
 
 #[derive(Debug, Clone)]
@@ -207,7 +203,7 @@ pub struct TypeDefinition {
     pub comments: Comments,
     pub attributes: TypeAttributes,
     pub parameters: Vec<NodeId>,
-    pub constraints: Vec<Constraint>,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(Debug, Clone)]
@@ -216,7 +212,7 @@ pub struct TraitDefinition {
     pub comments: Comments,
     pub attributes: TraitAttributes,
     pub parameters: Vec<NodeId>,
-    pub constraints: Vec<Constraint>,
+    pub annotations: Vec<Annotation>,
 }
 
 #[derive(Debug, Clone)]
@@ -226,7 +222,8 @@ pub struct InstanceDefinition {
     pub attributes: InstanceAttributes,
     pub tr: NodeId,
     pub substitutions: BTreeMap<NodeId, NodeId>,
-    pub constraints: Vec<Constraint>,
+    pub annotations: Vec<Annotation>,
+    pub value: NodeId,
 }
 
 #[derive(Debug, Clone)]
@@ -257,14 +254,14 @@ impl Definition {
         }
     }
 
-    pub fn constraints(&self) -> Vec<Constraint> {
+    pub fn annotations(&self) -> &[Annotation] {
         match self {
-            Definition::Variable(_) => Vec::new(),
-            Definition::Constant(definition) => definition.constraints.clone(),
-            Definition::Type(definition) => definition.constraints.clone(),
-            Definition::Trait(definition) => definition.constraints.clone(),
-            Definition::Instance(definition) => definition.constraints.clone(),
-            Definition::TypeParameter(_) => Vec::new(),
+            Definition::Variable(_) => &[],
+            Definition::Constant(definition) => &definition.annotations,
+            Definition::Type(definition) => &definition.annotations,
+            Definition::Trait(definition) => &definition.annotations,
+            Definition::Instance(definition) => &definition.annotations,
+            Definition::TypeParameter(_) => &[],
         }
     }
 }
@@ -329,13 +326,20 @@ impl Visitor<'_> {
             .push(definition);
     }
 
-    fn with_implicit_type_parameters<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
-        assert!(!self.implicit_type_parameters);
-
-        self.implicit_type_parameters = true;
+    fn with_definition<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        let existing = self.current_definition.replace(Default::default());
         let result = f(self);
-        self.implicit_type_parameters = false;
+        self.current_definition = existing;
 
         result
+    }
+
+    fn try_current_definition(&mut self) -> Option<&mut VisitorCurrentDefinition> {
+        self.current_definition.as_mut()
+    }
+
+    fn current_definition(&mut self) -> &mut VisitorCurrentDefinition {
+        self.try_current_definition()
+            .expect("no current definition")
     }
 }

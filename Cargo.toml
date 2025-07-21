@@ -10,6 +10,8 @@ elided_lifetimes_in_paths = "deny"
 
 [workspace.lints.clippy]
 new_without_default = "allow"
+print_stderr = "warn"
+dbg_macro = "warn"
 result_large_err = "allow"
 result_unit_err = "allow"
 too_many_arguments = "allow"

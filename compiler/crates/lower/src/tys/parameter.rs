@@ -17,23 +17,45 @@ impl Visit for ParameterType {
                     _ => None,
                 });
 
+            let instantiate = visitor
+                .try_current_definition()
+                .is_none_or(|definition| definition.instantiate_type_parameters);
+
+            let annotation = |node| {
+                if instantiate {
+                    Annotation::Instantiated(node)
+                } else {
+                    Annotation::Parameter(node)
+                }
+            };
+
             match existing {
                 Some((node, rule)) => (
                     AnnotateNode {
                         value: id,
-                        definition: Annotation::Node(node),
+                        annotations: vec![annotation(node)],
                     }
                     .boxed(),
                     rule,
                 ),
                 None => {
-                    if visitor.implicit_type_parameters {
+                    if visitor
+                        .try_current_definition()
+                        .is_some_and(|definition| definition.implicit_type_parameters)
+                    {
                         visitor.define_name(
                             &self.name.value,
                             Definition::TypeParameter(TypeParameterDefinition { node: id }),
                         );
 
-                        (EmptyNode.boxed(), PARAMETER_TYPE)
+                        (
+                            AnnotateNode {
+                                value: id,
+                                annotations: vec![annotation(id)],
+                            }
+                            .boxed(),
+                            PARAMETER_TYPE,
+                        )
                     } else {
                         (EmptyNode.boxed(), UNRESOLVED_PARAMETER_TYPE)
                     }

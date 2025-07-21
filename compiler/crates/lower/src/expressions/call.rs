@@ -21,10 +21,10 @@ impl Visit for CallExpression {
             // If `inputs` has a single element with the `[unit]` attribute,
             // flip the order
             if let Some((unit_range, unit_name)) = unit {
-                if let Some((attributes, definition)) =
+                if let Some((attributes, annotations)) =
                     visitor.peek_name(unit_name, |definition| match definition {
                         Definition::Constant(definition) => {
-                            Some((&definition.attributes, definition.node))
+                            Some((&definition.attributes, definition.annotations.clone()))
                         }
                         _ => None,
                     })
@@ -37,7 +37,7 @@ impl Visit for CallExpression {
                                 (
                                     AnnotateNode {
                                         value: id,
-                                        definition: Annotation::Constant(definition),
+                                        annotations,
                                     },
                                     UNIT_IN_UNIT_CALL,
                                 )

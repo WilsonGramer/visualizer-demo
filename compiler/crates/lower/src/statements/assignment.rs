@@ -3,9 +3,10 @@ use wipple_compiler_syntax::{AssignmentStatement, Pattern};
 use wipple_compiler_trace::{NodeId, Rule};
 use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation};
 
-pub static ASSIGNMENT_VALUE: Rule = Rule::new("assignment_value");
-pub static ASSIGNMENT_PATTERN: Rule = Rule::new("assignment_pattern");
-pub static ASSIGNMENT: Rule = Rule::new("assignment");
+pub static ASSIGNMENT_VALUE: Rule = Rule::new("assignment value");
+pub static ASSIGNMENT_PATTERN: Rule = Rule::new("assignment pattern");
+pub static ASSIGNMENT_TO_CONSTANT: Rule = Rule::new("assignment to constant");
+pub static ASSIGNMENT_TO_PATTERN: Rule = Rule::new("assignment to pattern");
 
 impl Visit for AssignmentStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
@@ -17,22 +18,28 @@ impl Visit for AssignmentStatement {
                 if let Some(node) =
                     visitor.peek_name(&pattern.variable.value, |definition| match definition {
                         Definition::Constant(definition) => {
-                            if definition.assigned {
+                            if definition.value.is_ok() {
                                 todo!();
                             }
 
-                            definition.assigned = true;
+                            let ty = match definition.value {
+                                Ok(_) => todo!(),
+                                Err(ty) => ty,
+                            };
 
-                            // Ensure the value is assignable to the constant's type
+                            definition.value = Err(value);
+
+                            // Ensure the value is assignable to the constant's
+                            // type
                             Some(AnnotateNode {
-                                value: definition.ty,
-                                definition: Annotation::Node(value),
+                                value,
+                                annotations: vec![Annotation::Node(ty)],
                             })
                         }
                         _ => None,
                     })
                 {
-                    return (node, ASSIGNMENT);
+                    return (node, ASSIGNMENT_TO_CONSTANT);
                 }
             }
 
@@ -41,9 +48,9 @@ impl Visit for AssignmentStatement {
             (
                 AnnotateNode {
                     value,
-                    definition: Annotation::Node(pattern),
+                    annotations: vec![Annotation::Node(pattern)],
                 },
-                ASSIGNMENT,
+                ASSIGNMENT_TO_PATTERN,
             )
         })
     }

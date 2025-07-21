@@ -5,6 +5,8 @@ use std::{
 };
 
 fn main() {
+    clearscreen::clear().unwrap();
+
     match env::args().nth(1) {
         Some(path) => {
             let source = fs::read_to_string(&path).unwrap();
@@ -66,9 +68,11 @@ fn run(path: &str, source: &str) {
     let display_syntax = |syntax| print_highlighted(syntax);
 
     let display_graph = |graph: String| {
+        cli_clipboard::set_contents(graph.clone()).unwrap();
+
         let mut process = std::process::Command::new("sh")
             .arg("-c")
-            .arg("mmdc -i - -o - -e png --scale 3 | imgcat -n")
+            .arg("mmdc -i - -o - -e png --scale 3 | imgcat -n -W 100%")
             .stdin(std::process::Stdio::piped())
             .spawn()
             .unwrap();

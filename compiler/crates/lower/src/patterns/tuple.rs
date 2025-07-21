@@ -9,7 +9,7 @@ pub static TUPLE_PATTERN_ELEMENT: Rule = Rule::new("tuple pattern element");
 
 impl Visit for TuplePattern {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, self.range, |visitor, id| {
+        visitor.typed_node(parent, self.range, |visitor, id| {
             let elements = self
                 .elements
                 .iter()
