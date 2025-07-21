@@ -10,8 +10,6 @@ workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-clearscreen = "4"
-cli-clipboard = "0.4"
 colored = "3"
 console_error_panic_hook = "0.1"
 line-col = "0.2"
@@ -26,4 +24,6 @@ wipple-compiler-trace = { path = "crates/trace" }
 wipple-compiler-typecheck = { path = "crates/typecheck" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+clearscreen = "4"
+cli-clipboard = "0.4"
 terminal-light = "1"
