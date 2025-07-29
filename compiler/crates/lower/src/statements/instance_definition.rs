@@ -5,7 +5,10 @@ use crate::{
 use std::{collections::BTreeMap, mem};
 use wipple_compiler_syntax::{Constraints, InstanceDefinitionStatement};
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, EmptyNode, Node};
+use wipple_compiler_typecheck::{
+    constraints::Substitutions,
+    nodes::{AnnotateNode, Annotation, EmptyNode, Node},
+};
 
 pub static INSTANCE_DEFINITION: Rule = Rule::new("instance definition");
 pub static TRAIT_IN_INSTANCE_DEFINITION: Rule = Rule::new("trait in instance definition");
@@ -16,7 +19,7 @@ pub static UNRESOLVED_TRAIT_NAME: Rule = Rule::new("unresolved trait name in ins
 
 impl Visit for InstanceDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, self.range, |visitor, id| {
+        visitor.definition_node(parent, self.range, |visitor, id| {
             let attributes =
                 InstanceAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
@@ -50,39 +53,27 @@ impl Visit for InstanceDefinitionStatement {
                     .zip(parameters)
                     .collect::<BTreeMap<_, _>>();
 
-                let value = visitor.node(
-                    (id, VALUE_IN_INSTANCE_DEFINITION),
-                    self.value.range(),
-                    |visitor, _annotation_id| {
-                        let value = self
-                            .value
-                            .visit(visitor, (_annotation_id, VALUE_IN_INSTANCE_DEFINITION));
-
-                        (
-                            AnnotateNode {
-                                value,
-                                annotations: vec![Annotation::Node(id)],
-                            },
-                            VALUE_IN_INSTANCE_DEFINITION,
-                        )
-                    },
-                );
-
                 visitor
                     .current_definition()
                     .annotations
                     .push(Annotation::Instantiate {
-                        definition: trait_node,
-                        substitutions: Some(substitutions.clone()),
+                        annotations: vec![Annotation::Node(trait_node)],
+                        substitutions: Substitutions::from(substitutions.clone()),
                     });
 
-                visitor.current_definition().instantiate_type_parameters = true;
+                // visitor.current_definition().instantiate_type_parameters = true;
 
                 if let Some(Constraints(constraints)) = &self.constraints.constraints {
                     for constraint in constraints {
                         constraint.visit(visitor, (id, CONSTRAINT_IN_INSTANCE_DEFINITION));
                     }
                 }
+
+                visitor.current_definition().implicit_type_parameters = false;
+
+                let value = self
+                    .value
+                    .visit(visitor, (id, VALUE_IN_INSTANCE_DEFINITION));
 
                 (
                     value,
@@ -97,14 +88,20 @@ impl Visit for InstanceDefinitionStatement {
                 attributes,
                 tr: trait_node,
                 substitutions: substitutions.clone(),
-                annotations: annotations.clone(),
+                annotations,
                 value,
             });
 
             (
                 AnnotateNode {
                     value: id,
-                    annotations,
+                    annotations: vec![
+                        Annotation::Instantiate {
+                            annotations: vec![Annotation::Node(trait_node)],
+                            substitutions: Substitutions::from(substitutions.clone()),
+                        },
+                        Annotation::Node(value),
+                    ],
                 }
                 .boxed(),
                 INSTANCE_DEFINITION,

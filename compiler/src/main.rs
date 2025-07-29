@@ -55,8 +55,6 @@ static HIGHLIGHT: LazyLock<Box<dyn Fn(&str) + Send + Sync>> = LazyLock::new(|| {
         }
 
         println!("\x1b[0m"); // reset color
-
-        std::io::stdout().flush().unwrap();
     })
 });
 
@@ -72,7 +70,7 @@ fn run(path: &str, source: &str) {
 
         let mut process = std::process::Command::new("sh")
             .arg("-c")
-            .arg("mmdc -i - -o - -e png --scale 3 | imgcat -n -W 100%")
+            .arg("mmdc -i - -o graph.png --scale 3")
             .stdin(std::process::Stdio::piped())
             .spawn()
             .unwrap();
@@ -85,8 +83,6 @@ fn run(path: &str, source: &str) {
             .unwrap();
 
         process.wait().unwrap();
-
-        std::io::stdout().flush().unwrap();
     };
 
     let display_tys = |tys| println!("{tys}");

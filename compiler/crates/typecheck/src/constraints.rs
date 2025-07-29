@@ -1,24 +1,21 @@
-use crate::{
-    context::{Context, FeedbackProvider},
-    id::TypedNodeId,
-    nodes::Node,
-};
+use crate::{feedback::FeedbackProvider, nodes::Node};
 use std::{
     any::TypeId,
     cell::{RefCell, RefMut},
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    ops::Deref,
 };
 use wipple_compiler_trace::{NodeId, Rule};
 
-pub type TyConstraints = BTreeMap<TypedNodeId, Vec<(Ty, Rule)>>;
-pub type BoundConstraints = BTreeMap<NodeId, Vec<(Bound, Rule)>>;
+pub type TyConstraints = BTreeMap<NodeId, Vec<(Ty, Rule)>>;
+pub type InstantiationConstraints = Vec<Instantiation>;
+pub type BoundConstraints = Vec<(Bound, Rule)>;
 
 #[derive(Debug, Clone, Default)]
 pub struct Constraints {
     pub nodes: BTreeSet<NodeId>,
     pub tys: TyConstraints,
+    pub instantiations: InstantiationConstraints,
     pub bounds: BoundConstraints,
 }
 
@@ -27,19 +24,24 @@ impl Constraints {
         Default::default()
     }
 
-    pub fn insert_ty(&mut self, node: impl Into<TypedNodeId>, ty: Ty, rule: Rule) {
-        self.tys.entry(node.into()).or_default().push((ty, rule));
+    pub fn insert_ty(&mut self, node: NodeId, ty: Ty, rule: Rule) {
+        self.tys.entry(node).or_default().push((ty, rule));
     }
 
-    pub fn insert_bound(&mut self, node: NodeId, bound: Bound, rule: Rule) {
-        self.bounds.entry(node).or_default().push((bound, rule));
+    pub fn insert_instantiation(&mut self, instantiation: Instantiation) {
+        self.instantiations.push(instantiation);
+    }
+
+    pub fn insert_bound(&mut self, bound: Bound, rule: Rule) {
+        self.bounds.push((bound, rule));
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum Constraint {
-    Ty(TypedNodeId, Ty, Rule),
-    Bound(NodeId, Bound, Rule),
+    Ty(NodeId, Ty, Rule),
+    Instantiation(Instantiation),
+    Bound(Bound, Rule),
 }
 
 impl Constraints {
@@ -54,7 +56,10 @@ impl Constraints {
         for constraint in iter {
             match constraint {
                 Constraint::Ty(node, ty, rule) => self.insert_ty(node, ty, rule),
-                Constraint::Bound(node, bound, rule) => self.insert_bound(node, bound, rule),
+                Constraint::Instantiation(instantiation) => {
+                    self.insert_instantiation(instantiation)
+                }
+                Constraint::Bound(bound, rule) => self.insert_bound(bound, rule),
             }
         }
     }
@@ -66,13 +71,17 @@ impl Constraints {
                 .map(move |(ty, rule)| (Constraint::Ty(*node, ty.clone(), *rule)))
         });
 
-        let bounds = self.bounds.iter().flat_map(|(node, constraints)| {
-            constraints
-                .iter()
-                .map(move |(bound, rule)| (Constraint::Bound(*node, bound.clone(), *rule)))
-        });
+        let instantiations = self
+            .instantiations
+            .iter()
+            .map(|instantiation| Constraint::Instantiation(instantiation.clone()));
 
-        tys.chain(bounds)
+        let bounds = self
+            .bounds
+            .iter()
+            .map(|(bound, rule)| Constraint::Bound(bound.clone(), *rule));
+
+        tys.chain(instantiations).chain(bounds)
     }
 }
 
@@ -80,7 +89,9 @@ impl Constraint {
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
             Constraint::Ty(_, ty, _) => ty.to_debug_string(provider),
-            Constraint::Bound(_, bound, _) => bound.to_debug_string(provider),
+            Constraint::Instantiation(..) | Constraint::Bound(..) => {
+                String::from("(instantiation)")
+            }
         }
     }
 }
@@ -89,29 +100,13 @@ pub trait ToConstraints {
     fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>);
 }
 
+#[derive(Default)]
 pub struct ToConstraintsContext<'a> {
-    ctx: &'a Context<'a>,
     constraints: RefCell<Constraints>,
     rules: BTreeMap<TypeId, Box<dyn Fn(NodeId, &dyn Node, &Self)>>,
 }
 
-impl<'a> Deref for ToConstraintsContext<'a> {
-    type Target = Context<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        self.ctx
-    }
-}
-
 impl<'a> ToConstraintsContext<'a> {
-    pub fn new(ctx: &'a Context<'a>) -> Self {
-        ToConstraintsContext {
-            ctx,
-            constraints: Default::default(),
-            rules: Default::default(),
-        }
-    }
-
     pub fn register<N: Node + ToConstraints>(&mut self) {
         let type_id = TypeId::of::<N>();
 
@@ -127,14 +122,12 @@ impl<'a> ToConstraintsContext<'a> {
         );
     }
 
-    pub fn visit(&mut self, node_id: NodeId) {
-        let (node, _) = self.ctx.get(node_id);
-
+    pub fn visit(&mut self, id: NodeId, node: &dyn Node) {
         let Some(rule) = self.rules.get(&node.type_id()) else {
             return;
         };
 
-        rule(node_id, node, self);
+        rule(id, node, self);
     }
 
     pub fn into_constraints(self) -> Constraints {
@@ -149,18 +142,11 @@ impl<'a> ToConstraintsContext<'a> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ty {
     Unknown,
-    Of(TypedNodeId),
+    Of(NodeId),
     Parameter(NodeId),
-    Instantiated(NodeId),
-    Instantiate {
-        instantiation: NodeId,
-        definition: NodeId,
-        // `None` is equivalent to substituting all parameters
-        substitutions: Option<BTreeMap<NodeId, NodeId>>,
-    },
     Named {
         name: NodeId,
-        substitutions: BTreeMap<NodeId, Ty>,
+        parameters: BTreeMap<NodeId, Ty>,
     },
     Function {
         inputs: Vec<Ty>,
@@ -172,10 +158,6 @@ pub enum Ty {
 }
 
 impl Ty {
-    pub fn of(node: impl Into<TypedNodeId>) -> Self {
-        Ty::Of(node.into())
-    }
-
     pub fn unit() -> Self {
         Ty::Tuple {
             elements: Vec::new(),
@@ -186,13 +168,9 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Unknown
-            | Ty::Of(..)
-            | Ty::Parameter(..)
-            | Ty::Instantiated(..)
-            | Ty::Instantiate { .. } => {}
-            Ty::Named { substitutions, .. } => {
-                for parameter in substitutions.values() {
+            Ty::Unknown | Ty::Of(_) | Ty::Parameter(_) => {}
+            Ty::Named { parameters, .. } => {
+                for parameter in parameters.values() {
                     parameter.traverse(f);
                 }
             }
@@ -215,13 +193,9 @@ impl Ty {
         f(self);
 
         match self {
-            Ty::Unknown
-            | Ty::Of(..)
-            | Ty::Parameter(..)
-            | Ty::Instantiated(..)
-            | Ty::Instantiate { .. } => {}
-            Ty::Named { substitutions, .. } => {
-                for parameter in substitutions.values_mut() {
+            Ty::Unknown | Ty::Of(_) | Ty::Parameter(_) => {}
+            Ty::Named { parameters, .. } => {
+                for parameter in parameters.values_mut() {
                     parameter.traverse_mut(f);
                 }
             }
@@ -243,7 +217,7 @@ impl Ty {
     pub fn is_incomplete(&self) -> bool {
         let mut incomplete = false;
         self.traverse(&mut |ty| {
-            if matches!(ty, Ty::Of(..)) {
+            if matches!(ty, Ty::Of(_)) {
                 incomplete = true;
             }
         });
@@ -255,28 +229,12 @@ impl Ty {
 impl Ty {
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
-            Ty::Unknown => String::from("_"),
-            Ty::Of(node) => format!("{node:?}"),
-            Ty::Parameter(parameter) => provider.node_span_source(*parameter).1,
-            Ty::Instantiated(parameter) => {
-                format!(
-                    "?(instantiated {})",
-                    provider.node_span_source(*parameter).1
-                )
-            }
-            Ty::Instantiate { definition, .. } => {
-                format!(
-                    "?(instantiate {})",
-                    provider.node_span_source(*definition).1
-                )
-            }
-            Ty::Named {
-                name,
-                substitutions,
-            } => format!(
+            Ty::Unknown | Ty::Of(_) => String::from("_"),
+            Ty::Parameter(node) => provider.node_span_source(*node).1,
+            Ty::Named { name, parameters } => format!(
                 "{}{}",
                 provider.node_span_source(*name).1,
-                substitutions
+                parameters
                     .values()
                     .map(|parameter| format!(" {}", parameter.to_debug_string(provider)))
                     .collect::<String>()
@@ -302,23 +260,34 @@ impl Ty {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Bound {
-    pub instantiation: NodeId,
-    pub tr: NodeId,
-    // `None` is equivalent to substituting all parameters
-    pub substitutions: Option<BTreeMap<NodeId, NodeId>>,
+pub struct Substitutions(pub BTreeMap<NodeId, Ty>);
+
+impl Substitutions {
+    pub fn replace_all() -> Self {
+        Substitutions(BTreeMap::new())
+    }
 }
 
-impl Bound {
-    pub fn to_debug_string(&self, _provider: &FeedbackProvider<'_>) -> String {
-        String::from("(bound)")
+impl From<BTreeMap<NodeId, NodeId>> for Substitutions {
+    fn from(value: BTreeMap<NodeId, NodeId>) -> Self {
+        Substitutions(
+            value
+                .into_iter()
+                .map(|(parameter, node)| (parameter, Ty::Of(node)))
+                .collect(),
+        )
     }
+}
 
-    pub fn as_ty(&self) -> Ty {
-        Ty::Instantiate {
-            instantiation: self.instantiation,
-            definition: self.tr,
-            substitutions: self.substitutions.clone(),
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct Instantiation {
+    pub substitutions: Substitutions,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Bound {
+    pub node: NodeId,
+    pub tr: NodeId,
+    pub substitutions: Substitutions,
 }

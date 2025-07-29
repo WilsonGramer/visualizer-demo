@@ -9,7 +9,7 @@ use std::{
     fmt::Write,
     sync::LazyLock,
 };
-use wipple_compiler_typecheck::context::FeedbackProvider;
+use wipple_compiler_typecheck::feedback::FeedbackProvider;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub struct Feedback {
@@ -75,7 +75,7 @@ fn render_template(
                 "source" => {
                     let term = state.nodes.get(name)?;
 
-                    let (span, source) = provider.node_span_source(term.node.untyped());
+                    let (span, source) = provider.node_span_source(term.node);
 
                     // TODO: Generate link using the span
                     let _ = span;
@@ -162,7 +162,7 @@ impl Message {
             } => {
                 let term = state.nodes.get(name)?;
 
-                let (node_span, node_source) = provider.node_span_source(term.node.untyped());
+                let (node_span, node_source) = provider.node_span_source(term.node);
                 write!(
                     md,
                     "{}{}{node_span:?}: `{node_source}`: ",
@@ -176,12 +176,11 @@ impl Message {
             Message::Trace { trace: name } => {
                 let term = state.tys.get(name)?;
 
-                let (node_span, _node_source) = provider.node_span_source(term.node.untyped());
+                let (node_span, _node_source) = provider.node_span_source(term.node);
 
                 let search = [term.node]
                     .into_iter()
                     .chain(term.related.clone())
-                    .map(|node| node.untyped())
                     .collect::<Vec<_>>();
 
                 if let Some(mut common_node) =

@@ -19,8 +19,8 @@ impl ToConstraints for CallNode {
         ctx.constraints().insert_ty(
             self.function,
             Ty::Function {
-                inputs: self.inputs.iter().copied().map(Ty::of).collect(),
-                output: Box::new(Ty::of(node)),
+                inputs: self.inputs.iter().copied().map(Ty::Of).collect(),
+                output: Box::new(Ty::Of(node)),
             },
             FUNCTION_IN_CALL,
         );

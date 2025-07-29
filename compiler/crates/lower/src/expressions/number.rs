@@ -21,7 +21,7 @@ impl Visit for NumberExpression {
                         value: id,
                         annotations: vec![Annotation::Type {
                             definition: number_ty,
-                            substitutions: BTreeMap::new(),
+                            parameters: BTreeMap::new(),
                         }],
                     }
                     .boxed(),

@@ -17,23 +17,11 @@ impl Visit for ParameterType {
                     _ => None,
                 });
 
-            let instantiate = visitor
-                .try_current_definition()
-                .is_none_or(|definition| definition.instantiate_type_parameters);
-
-            let annotation = |node| {
-                if instantiate {
-                    Annotation::Instantiated(node)
-                } else {
-                    Annotation::Parameter(node)
-                }
-            };
-
             match existing {
                 Some((node, rule)) => (
                     AnnotateNode {
                         value: id,
-                        annotations: vec![annotation(node)],
+                        annotations: vec![Annotation::Node(node)],
                     }
                     .boxed(),
                     rule,
@@ -51,7 +39,7 @@ impl Visit for ParameterType {
                         (
                             AnnotateNode {
                                 value: id,
-                                annotations: vec![annotation(id)],
+                                annotations: vec![Annotation::Parameter(id)],
                             }
                             .boxed(),
                             PARAMETER_TYPE,

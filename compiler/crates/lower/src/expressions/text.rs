@@ -21,7 +21,7 @@ impl Visit for TextExpression {
                         value: id,
                         annotations: vec![Annotation::Type {
                             definition: text_ty,
-                            substitutions: BTreeMap::new(),
+                            parameters: BTreeMap::new(),
                         }],
                     }
                     .boxed(),

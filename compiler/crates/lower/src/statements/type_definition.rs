@@ -12,7 +12,9 @@ pub static PARAMETER_IN_TYPE_DEFINITION: Rule = Rule::new("parameter in type def
 
 impl Visit for TypeDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, self.name.range, |visitor, id| {
+        // NOT a `definition_node`; type definitions are referenced by ID but
+        // not instantiated in this way
+        visitor.definition_node(parent, self.name.range, |visitor, id| {
             let attributes =
                 TypeAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
@@ -41,7 +43,7 @@ impl Visit for TypeDefinitionStatement {
                     .annotations
                     .push(Annotation::Type {
                         definition: id,
-                        substitutions: BTreeMap::new(),
+                        parameters: BTreeMap::new(),
                     });
 
                 // Types don't have additional constraints

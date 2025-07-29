@@ -17,7 +17,9 @@ pub static STATEMENT_IN_SOURCE_FILE: Rule = Rule::new("statement in source file"
 
 #[derive(Debug)]
 pub struct Result {
+    pub next_id: NodeId,
     pub nodes: BTreeMap<NodeId, (Box<dyn Node>, Rule)>,
+    pub definition_nodes: BTreeSet<NodeId>,
     pub typed_nodes: BTreeSet<NodeId>,
     pub spans: BTreeMap<NodeId, Span>,
     pub relations: DiGraphMap<NodeId, Rule>,
@@ -68,7 +70,9 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     }
 
     Result {
+        next_id: visitor.next_id,
         nodes,
+        definition_nodes: visitor.definition_nodes,
         typed_nodes: visitor.typed_nodes,
         spans: visitor.spans,
         relations: visitor.relations,
@@ -77,13 +81,15 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     }
 }
 
-trait Visit {
+trait Visit: PartialEq {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId;
 }
 
 struct Visitor<'a> {
     make_span: Box<dyn Fn(Range) -> Span + 'a>,
+    next_id: NodeId,
     nodes: BTreeMap<NodeId, Option<(Box<dyn Node>, Rule)>>,
+    definition_nodes: BTreeSet<NodeId>,
     typed_nodes: BTreeSet<NodeId>,
     spans: BTreeMap<NodeId, Span>,
     relations: DiGraphMap<NodeId, Rule>,
@@ -96,14 +102,16 @@ struct Visitor<'a> {
 struct VisitorCurrentDefinition {
     annotations: Vec<Annotation>,
     implicit_type_parameters: bool,
-    instantiate_type_parameters: bool,
+    // instantiate_type_parameters: bool,
 }
 
 impl<'a> Visitor<'a> {
     fn new(make_span: impl Fn(Range) -> Span + 'a) -> Self {
         Visitor {
+            next_id: NodeId(0),
             make_span: Box::new(make_span),
             nodes: Default::default(),
+            definition_nodes: Default::default(),
             typed_nodes: Default::default(),
             spans: Default::default(),
             relations: Default::default(),
@@ -120,6 +128,18 @@ impl<'a> Visitor<'a> {
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
         self.node_inner(Some(parent), range, f)
+    }
+
+    fn definition_node<N: Node>(
+        &mut self,
+        parent: (NodeId, Rule),
+        range: Range,
+        f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
+    ) -> NodeId {
+        let id = self.node_inner(Some(parent), range, f);
+        self.definition_nodes.insert(id);
+        self.typed_nodes.insert(id);
+        id
     }
 
     fn typed_node<N: Node>(
@@ -139,7 +159,9 @@ impl<'a> Visitor<'a> {
         range: Range,
         f: impl FnOnce(&mut Self, NodeId) -> (N, Rule),
     ) -> NodeId {
-        let id = NodeId::new(self.nodes.len() as u32);
+        let id = self.next_id;
+        self.next_id.0 += 1;
+
         self.nodes.insert(id, None);
 
         if let Some((parent, rule)) = parent {

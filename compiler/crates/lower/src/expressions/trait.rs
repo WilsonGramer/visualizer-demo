@@ -1,7 +1,10 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::TraitExpression;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{AnnotateNode, EmptyNode, Node};
+use wipple_compiler_typecheck::{
+    constraints::Substitutions,
+    nodes::{AnnotateNode, Annotation, EmptyNode, Node},
+};
 
 pub static RESOLVED_TRAIT_NAME: Rule = Rule::new("resolved trait name");
 pub static UNRESOLVED_TRAIT_NAME: Rule = Rule::new("unresolved trait name");
@@ -22,7 +25,10 @@ impl Visit for TraitExpression {
                 (
                     AnnotateNode {
                         value: id,
-                        annotations,
+                        annotations: vec![Annotation::Instantiate {
+                            annotations: annotations.clone(),
+                            substitutions: Substitutions::replace_all(),
+                        }],
                     }
                     .boxed(),
                     rule,

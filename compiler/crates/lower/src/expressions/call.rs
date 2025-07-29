@@ -1,7 +1,10 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::{CallExpression, Expression};
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, CallNode};
+use wipple_compiler_typecheck::{
+    constraints::Substitutions,
+    nodes::{AnnotateNode, Annotation, CallNode},
+};
 
 pub static FUNCTION_CALL: Rule = Rule::new("function call");
 pub static FUNCTION_IN_FUNCTION_CALL: Rule = Rule::new("function in function call");
@@ -37,7 +40,10 @@ impl Visit for CallExpression {
                                 (
                                     AnnotateNode {
                                         value: id,
-                                        annotations,
+                                        annotations: vec![Annotation::Instantiate {
+                                            annotations,
+                                            substitutions: Substitutions::replace_all(),
+                                        }],
                                     },
                                     UNIT_IN_UNIT_CALL,
                                 )

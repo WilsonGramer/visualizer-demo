@@ -28,17 +28,16 @@ impl Visit for ParameterizedType {
             });
 
             // TODO: Ensure `parameters` has the right length
-            let substitutions = type_parameters
-                .into_iter()
-                .zip(parameters)
-                .collect::<BTreeMap<_, _>>();
 
             (
                 AnnotateNode {
                     value: id,
                     annotations: vec![Annotation::Type {
                         definition: type_node,
-                        substitutions,
+                        parameters: type_parameters
+                            .into_iter()
+                            .zip(parameters)
+                            .collect::<BTreeMap<_, _>>(),
                     }],
                 }
                 .boxed(),

@@ -2,7 +2,10 @@ use crate::{Definition, Visit, Visitor};
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::BoundConstraint;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{Annotation, EmptyNode};
+use wipple_compiler_typecheck::{
+    constraints::Substitutions,
+    nodes::{Annotation, EmptyNode},
+};
 
 pub static RESOLVED_TRAIT_IN_BOUND: Rule = Rule::new("trait in bound");
 pub static UNRESOLVED_TRAIT_IN_BOUND: Rule = Rule::new("unresolved trait in bound");
@@ -38,9 +41,9 @@ impl Visit for BoundConstraint {
                 .current_definition()
                 .annotations
                 .push(Annotation::Bound {
-                    node: id,
+                    node: Some(id),
                     tr: trait_node,
-                    substitutions: Some(substitutions),
+                    substitutions: Substitutions::from(substitutions),
                 });
 
             (EmptyNode, rule)

@@ -1,28 +1,20 @@
-use crate::{context::FeedbackProvider, id::TypedNodeId, typechecker::TyGroups};
+use crate::{feedback::FeedbackProvider, typechecker::TyGroups};
 use itertools::Itertools;
 use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
     collections::BTreeSet,
     fmt::{self, Write},
 };
-use wipple_compiler_trace::Rule;
+use wipple_compiler_trace::{NodeId, Rule};
 
 pub fn write_graph(
     w: &mut dyn Write,
     ty_groups: &TyGroups,
-    relations: &DiGraphMap<TypedNodeId, Rule>,
+    relations: &DiGraphMap<NodeId, Rule>,
     provider: &FeedbackProvider<'_>,
-    filter: impl Fn(TypedNodeId) -> bool,
+    filter: impl Fn(NodeId) -> bool,
 ) -> fmt::Result {
-    let node_id = |node: TypedNodeId| {
-        let mut id = format!("node{}", node.untyped().0);
-
-        if let Some(instantiation) = node.instantiation {
-            write!(&mut id, "_{}", instantiation.0)?;
-        }
-
-        Ok(id)
-    };
+    let node_id = |node: NodeId| format!("node{}", node.0);
 
     writeln!(w, "%%{{init: {{'theme':'neutral','layout':'elk'}}}}%%")?;
     writeln!(w, "flowchart TD")?;
@@ -42,7 +34,7 @@ pub fn write_graph(
             continue;
         }
 
-        let (node_span, node_source) = provider.node_span_source(node.untyped());
+        let (node_span, node_source) = provider.node_span_source(node);
 
         // Also link related nodes
         for parent in relations.neighbors_directed(node, Direction::Incoming) {
@@ -55,9 +47,9 @@ pub fn write_graph(
             writeln!(
                 w,
                 "{}-- {:?} -->{}",
-                node_id(node)?,
+                node_id(node),
                 format!("{rule:?}"),
-                node_id(parent)?
+                node_id(parent)
             )?;
 
             visited.insert(parent);
@@ -65,11 +57,11 @@ pub fn write_graph(
 
         let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>");
 
-        if let Some(comments) = provider.comments(node.untyped()) {
+        if let Some(comments) = provider.comments(node) {
             description.push_str(&comments);
         }
 
-        writeln!(w, "{}@{{ label: {:?} }}", node_id(node)?, description)?;
+        writeln!(w, "{}@{{ label: {:?} }}", node_id(node), description)?;
 
         visited.insert(node);
     }
@@ -96,7 +88,7 @@ pub fn write_graph(
         writeln!(w, "subgraph group{index}[\"<code>{description}</code>\"]")?;
 
         for node in nodes {
-            writeln!(w, "{}", node_id(node)?)?;
+            writeln!(w, "{}", node_id(node))?;
         }
 
         writeln!(w, "end")?;

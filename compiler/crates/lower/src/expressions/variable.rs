@@ -1,7 +1,10 @@
 use crate::{Definition, Visit, Visitor};
 use wipple_compiler_syntax::VariableExpression;
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation, EmptyNode, Node};
+use wipple_compiler_typecheck::{
+    constraints::Substitutions,
+    nodes::{AnnotateNode, Annotation, EmptyNode, Node},
+};
 
 pub static RESOLVED_VARIABLE_NAME: Rule = Rule::new("resolved variable name");
 pub static RESOLVED_CONSTANT_NAME: Rule = Rule::new("resolved constant name");
@@ -23,7 +26,10 @@ impl Visit for VariableExpression {
                     Definition::Constant(definition) => Some((
                         AnnotateNode {
                             value: id,
-                            annotations: definition.annotations.clone(),
+                            annotations: vec![Annotation::Instantiate {
+                                annotations: definition.annotations.clone(),
+                                substitutions: Substitutions::replace_all(),
+                            }],
                         }
                         .boxed(),
                         RESOLVED_CONSTANT_NAME,

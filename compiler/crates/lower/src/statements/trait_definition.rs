@@ -5,7 +5,10 @@ use crate::{
 use std::mem;
 use wipple_compiler_syntax::{Constraints, TraitDefinitionStatement};
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation};
+use wipple_compiler_typecheck::{
+    constraints::Substitutions,
+    nodes::{AnnotateNode, Annotation},
+};
 
 pub static TRAIT_DEFINITION: Rule = Rule::new("trait definition");
 pub static PARAMETER_IN_TRAIT_DEFINITION: Rule = Rule::new("parameter in trait definition");
@@ -14,7 +17,7 @@ pub static CONSTRAINT_IN_TRAIT_DEFINITION: Rule = Rule::new("constraint in trait
 
 impl Visit for TraitDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.typed_node(parent, self.name.range, |visitor, id| {
+        visitor.definition_node(parent, self.name.range, |visitor, id| {
             let attributes =
                 TraitAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
@@ -25,38 +28,41 @@ impl Visit for TraitDefinitionStatement {
                 .unwrap_or_default()
                 .iter()
                 .map(|parameter| {
-                    let node = visitor
-                        .placeholder_node((id, PARAMETER_IN_TRAIT_DEFINITION), parameter.range);
+                    visitor.node(
+                        (id, PARAMETER_IN_TRAIT_DEFINITION),
+                        parameter.range,
+                        |visitor, id| {
+                            visitor.define_name(
+                                &parameter.value,
+                                Definition::TypeParameter(TypeParameterDefinition { node: id }),
+                            );
 
-                    visitor.define_name(
-                        &parameter.value,
-                        Definition::TypeParameter(TypeParameterDefinition { node }),
-                    );
-
-                    node
+                            (
+                                AnnotateNode {
+                                    value: id,
+                                    annotations: vec![Annotation::Parameter(id)],
+                                },
+                                PARAMETER_IN_TRAIT_DEFINITION,
+                            )
+                        },
+                    )
                 })
                 .collect::<Vec<_>>();
 
             let (ty, annotations) = visitor.with_definition(|visitor| {
-                visitor.current_definition().annotations.extend([
-                    Annotation::Instantiate {
-                        definition: id,
-                        substitutions: None,
-                    },
-                    Annotation::Bound {
-                        node: id,
-                        tr: id,
-                        substitutions: None,
-                    },
-                ]);
-
-                // Visiting the type inside of this definition, without
-                // `instantiate_type_parameters` set, will keep referenced
-                // parameters generic
                 let ty = self
                     .constraints
                     .r#type
                     .visit(visitor, (id, TYPE_IN_TRAIT_DEFINITION));
+
+                visitor.current_definition().annotations.extend([
+                    Annotation::Node(ty),
+                    Annotation::Bound {
+                        node: None,
+                        tr: id,
+                        substitutions: Substitutions::replace_all(),
+                    },
+                ]);
 
                 if let Some(Constraints(constraints)) = &self.constraints.constraints {
                     for constraint in constraints {

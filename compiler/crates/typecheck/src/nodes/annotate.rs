@@ -1,5 +1,5 @@
 use crate::{
-    constraints::{Bound, ToConstraints, ToConstraintsContext, Ty},
+    constraints::{Bound, Instantiation, Substitutions, ToConstraints, ToConstraintsContext, Ty},
     nodes::Node,
 };
 use std::collections::BTreeMap;
@@ -29,21 +29,18 @@ impl ToConstraints for AnnotateNode {
 pub enum Annotation {
     Node(NodeId),
     Parameter(NodeId),
-    Instantiated(NodeId),
-    Instantiate {
-        definition: NodeId,
-        // `None` is equivalent to substituting all parameters
-        substitutions: Option<BTreeMap<NodeId, NodeId>>,
-    },
     Type {
         definition: NodeId,
-        substitutions: BTreeMap<NodeId, NodeId>,
+        parameters: BTreeMap<NodeId, NodeId>,
+    },
+    Instantiate {
+        annotations: Vec<Annotation>,
+        substitutions: Substitutions,
     },
     Bound {
-        node: NodeId,
+        node: Option<NodeId>,
         tr: NodeId,
-        // `None` is equivalent to substituting all parameters
-        substitutions: Option<BTreeMap<NodeId, NodeId>>,
+        substitutions: Substitutions,
     },
 }
 
@@ -51,45 +48,41 @@ impl Annotation {
     pub fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>) {
         match *self {
             Annotation::Node(other) => {
-                ctx.constraints().insert_ty(node, Ty::of(other), ANNOTATED);
+                ctx.constraints().insert_ty(node, Ty::Of(other), ANNOTATED);
             }
             Annotation::Parameter(parameter) => {
                 ctx.constraints()
                     .insert_ty(node, Ty::Parameter(parameter), ANNOTATED);
             }
-            Annotation::Instantiated(parameter) => {
-                ctx.constraints()
-                    .insert_ty(node, Ty::Instantiated(parameter), ANNOTATED);
-            }
-            Annotation::Instantiate {
-                definition,
-                ref substitutions,
-            } => {
-                ctx.constraints().insert_ty(
-                    node,
-                    Ty::Instantiate {
-                        instantiation: node,
-                        definition,
-                        substitutions: substitutions.clone(),
-                    },
-                    ANNOTATED,
-                );
-            }
             Annotation::Type {
                 definition,
-                ref substitutions,
+                ref parameters,
             } => {
                 ctx.constraints().insert_ty(
                     node,
                     Ty::Named {
                         name: definition,
-                        substitutions: substitutions
+                        parameters: parameters
                             .iter()
-                            .map(|(&parameter, &substitution)| (parameter, Ty::of(substitution)))
+                            .map(|(&parameter, &ty)| (parameter, Ty::Of(ty)))
                             .collect(),
                     },
                     ANNOTATED_TYPE,
                 );
+            }
+            Annotation::Instantiate {
+                ref annotations,
+                ref substitutions,
+            } => {
+                let instantiate_ctx = ToConstraintsContext::default();
+                for annotation in annotations {
+                    annotation.to_constraints(node, &instantiate_ctx);
+                }
+
+                ctx.constraints().insert_instantiation(Instantiation {
+                    constraints: instantiate_ctx.into_constraints().iter().collect(), // TODO: Just use `Vec<Constraint>` instead of `Constraints` wrapper type
+                    substitutions: substitutions.clone(),
+                });
             }
             Annotation::Bound {
                 node: bound_node,
@@ -97,9 +90,8 @@ impl Annotation {
                 ref substitutions,
             } => {
                 ctx.constraints().insert_bound(
-                    bound_node,
                     Bound {
-                        instantiation: node,
+                        node: bound_node.unwrap_or(node),
                         tr,
                         substitutions: substitutions.clone(),
                     },

@@ -5,7 +5,7 @@ use crate::{
 use std::mem;
 use wipple_compiler_syntax::{ConstantDefinitionStatement, Constraints};
 use wipple_compiler_trace::{NodeId, Rule};
-use wipple_compiler_typecheck::nodes::{Annotation, EmptyNode};
+use wipple_compiler_typecheck::nodes::{AnnotateNode, Annotation};
 
 pub static CONSTANT_DEFINITION: Rule = Rule::new("constant definition");
 pub static TYPE_IN_CONSTANT_DEFINITION: Rule = Rule::new("type in constant definition");
@@ -13,7 +13,7 @@ pub static CONSTRAINT_IN_CONSTANT_DEFINITION: Rule = Rule::new("constraint in co
 
 impl Visit for ConstantDefinitionStatement {
     fn visit<'a>(&'a self, visitor: &mut Visitor<'a>, parent: (NodeId, Rule)) -> NodeId {
-        visitor.node(parent, self.range, |visitor, id| {
+        visitor.definition_node(parent, self.range, |visitor, id| {
             let attributes =
                 ConstantAttributes::parse(&mut AttributeParser::new(id, visitor, &self.attributes));
 
@@ -28,12 +28,9 @@ impl Visit for ConstantDefinitionStatement {
                 visitor
                     .current_definition()
                     .annotations
-                    .push(Annotation::Instantiate {
-                        definition: ty,
-                        substitutions: None,
-                    });
+                    .push(Annotation::Node(ty));
 
-                visitor.current_definition().instantiate_type_parameters = true;
+                // visitor.current_definition().instantiate_type_parameters = true;
 
                 if let Some(Constraints(constraints)) = &self.constraints.constraints {
                     for constraint in constraints {
@@ -55,7 +52,13 @@ impl Visit for ConstantDefinitionStatement {
                 }),
             );
 
-            (EmptyNode, CONSTANT_DEFINITION)
+            (
+                AnnotateNode {
+                    value: id,
+                    annotations: vec![Annotation::Node(ty)],
+                },
+                CONSTANT_DEFINITION,
+            )
         })
     }
 }

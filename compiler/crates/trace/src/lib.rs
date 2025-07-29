@@ -4,12 +4,6 @@ use std::{fmt::Debug, ops::Range};
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct NodeId(pub u32);
 
-impl NodeId {
-    pub fn new(index: u32) -> Self {
-        NodeId(index)
-    }
-}
-
 impl Debug for NodeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "NodeId({})", self.0)

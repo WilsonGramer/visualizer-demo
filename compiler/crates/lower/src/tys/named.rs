@@ -20,14 +20,13 @@ impl Visit for NamedType {
             };
 
             // TODO: Ensure `definition.parameters` is empty
-            let substitutions = BTreeMap::new();
 
             (
                 AnnotateNode {
                     value: id,
                     annotations: vec![Annotation::Type {
                         definition: type_node,
-                        substitutions,
+                        parameters: BTreeMap::new(),
                     }],
                 }
                 .boxed(),

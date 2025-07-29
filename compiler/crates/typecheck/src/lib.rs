@@ -1,30 +1,24 @@
 pub mod constraints;
-pub mod context;
 pub mod debug;
-pub mod id;
+pub mod feedback;
 pub mod nodes;
 pub mod typechecker;
 
 use crate::{
     constraints::{Constraints, ToConstraintsContext},
-    context::Context,
+    nodes::Node,
 };
-use std::collections::BTreeSet;
+use wipple_compiler_trace::NodeId;
 
-impl Context<'_> {
-    pub fn as_constraints(&self) -> Constraints {
-        let mut ctx = ToConstraintsContext::new(self);
+impl Constraints {
+    pub fn from_nodes<'a>(nodes: impl IntoIterator<Item = (NodeId, &'a dyn Node)>) -> Self {
+        let mut ctx = ToConstraintsContext::default();
         ctx.register_all();
 
-        let nodes = self
-            .nodes
-            .keys()
-            .copied()
-            .inspect(|&node| ctx.visit(node))
-            .collect::<BTreeSet<_>>();
+        for (id, node) in nodes {
+            ctx.visit(id, node);
+        }
 
-        let mut constraints = ctx.into_constraints();
-        constraints.nodes.extend(nodes);
-        constraints
+        ctx.into_constraints()
     }
 }

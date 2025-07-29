@@ -13,14 +13,12 @@ use std::{
     mem,
 };
 use wipple_compiler_trace::{NodeId, Rule, Span};
-use wipple_compiler_typecheck::{
-    context::FeedbackProvider, id::TypedNodeId, typechecker::TyGroups,
-};
+use wipple_compiler_typecheck::{feedback::FeedbackProvider, typechecker::TyGroups};
 
 #[derive(Clone)]
 pub struct Context<'a> {
     pub feedback: &'a FeedbackProvider<'a>,
-    pub nodes: &'a BTreeMap<TypedNodeId, HashSet<Rule>>,
+    pub nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
     pub spans: &'a BTreeMap<NodeId, Span>,
     pub relations: &'a DiGraphMap<NodeId, Rule>,
     pub ty_groups: &'a TyGroups,
@@ -29,7 +27,7 @@ pub struct Context<'a> {
 impl<'a> Context<'a> {
     pub fn new(
         feedback: &'a FeedbackProvider<'a>,
-        nodes: &'a BTreeMap<TypedNodeId, HashSet<Rule>>,
+        nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
         spans: &'a BTreeMap<NodeId, Span>,
         relations: &'a DiGraphMap<NodeId, Rule>,
         ty_groups: &'a TyGroups,
@@ -45,7 +43,7 @@ impl<'a> Context<'a> {
 
     pub fn collect_feedback(
         &self,
-    ) -> Vec<(&'static str, TypedNodeId, &'static Feedback, State<'a, '_>)> {
+    ) -> Vec<(&'static str, NodeId, &'static Feedback, State<'a, '_>)> {
         let mut result = Vec::new();
 
         for (name, query) in QUERIES.iter() {
@@ -94,7 +92,7 @@ impl<'a> Context<'a> {
         }
 
         result.sort_by_key(|(_, node, _, _)| {
-            let span = self.spans.get(&node.untyped()).unwrap();
+            let span = self.spans.get(node).unwrap();
 
             // Show smaller spans first
             (span.range.len(), span.range.start, *node)
