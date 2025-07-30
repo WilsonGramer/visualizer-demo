@@ -24,7 +24,7 @@ impl Visit for NamedType {
             (
                 AnnotateNode {
                     value: id,
-                    annotations: vec![Annotation::Type {
+                    annotations: vec![Annotation::Named {
                         definition: type_node,
                         parameters: BTreeMap::new(),
                     }],

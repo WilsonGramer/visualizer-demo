@@ -5,20 +5,20 @@ pub mod nodes;
 pub mod typechecker;
 
 use crate::{
-    constraints::{Constraints, ToConstraintsContext},
+    constraints::{Constraint, ToConstraintsContext},
     nodes::Node,
 };
 use wipple_compiler_trace::NodeId;
 
-impl Constraints {
-    pub fn from_nodes<'a>(nodes: impl IntoIterator<Item = (NodeId, &'a dyn Node)>) -> Self {
-        let mut ctx = ToConstraintsContext::default();
-        ctx.register_all();
+pub fn collect_constraints<'a>(
+    nodes: impl IntoIterator<Item = (NodeId, &'a dyn Node)>,
+) -> Vec<Constraint> {
+    let mut ctx = ToConstraintsContext::default();
+    ctx.register_all();
 
-        for (id, node) in nodes {
-            ctx.visit(id, node);
-        }
-
-        ctx.into_constraints()
+    for (id, node) in nodes {
+        ctx.visit(id, node);
     }
+
+    ctx.into_constraints()
 }

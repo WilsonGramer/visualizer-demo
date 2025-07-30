@@ -7,9 +7,7 @@ use std::{
     mem,
     rc::Rc,
 };
-use wipple_compiler_trace::{NodeId, Rule};
-
-pub static UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
+use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone, Default)]
 pub struct TyGroups {
@@ -70,7 +68,7 @@ pub struct Instance {
 pub struct TypeProvider<'a> {
     copy_node: Rc<RefCell<dyn FnMut(NodeId) -> NodeId + 'a>>,
     get_trait_instances:
-        Rc<RefCell<dyn FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a>>,
+        Rc<RefCell<dyn FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>)> + 'a>>,
     flag_resolved: Rc<RefCell<dyn FnMut(NodeId, Bound, NodeId) + 'a>>,
     flag_unresolved: Rc<RefCell<dyn FnMut(NodeId, Bound) + 'a>>,
 }
@@ -78,7 +76,7 @@ pub struct TypeProvider<'a> {
 impl<'a> TypeProvider<'a> {
     pub fn new(
         copy_node: impl FnMut(NodeId) -> NodeId + 'a,
-        get_trait_instances: impl FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>, Rule)> + 'a,
+        get_trait_instances: impl FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>)> + 'a,
         flag_resolved: impl FnMut(NodeId, Bound, NodeId) + 'a,
         flag_unresolved: impl FnMut(NodeId, Bound) + 'a,
     ) -> Self {
@@ -202,7 +200,7 @@ impl Typechecker<'_> {
         self.queue = mem::take(&mut self.queue)
             .into_iter()
             .filter_map(|constraint| match constraint {
-                Constraint::Ty(node, ty, _) => {
+                Constraint::Ty(node, ty) => {
                     tys.push((node, ty));
                     None
                 }
@@ -260,15 +258,15 @@ impl Typechecker<'_> {
         self.queue = mem::take(&mut self.queue)
             .into_iter()
             .filter_map(|constraint| match constraint {
-                Constraint::Bound(bound, rule) => {
-                    bounds.push((bound, rule));
+                Constraint::Bound(bound) => {
+                    bounds.push(bound);
                     None
                 }
                 _ => Some(constraint),
             })
             .collect();
 
-        for (bound, bound_rule) in bounds {
+        for bound in bounds {
             // Use a temporary node for the bound while resolving.
             let temp_node = (self.provider.copy_node.borrow_mut())(bound.node);
 
@@ -277,13 +275,13 @@ impl Typechecker<'_> {
             let mut bound_ty = Ty::Of(bound.node);
             self.try_apply_ty(&mut bound_ty, &mut self.unify.clone());
             if bound_ty != Ty::Of(bound.node) {
-                self.insert_constraints([Constraint::Ty(temp_node, bound_ty.clone(), bound_rule)])
+                self.insert_constraints([Constraint::Ty(temp_node, bound_ty.clone())])
             }
 
             let instances = self.provider.get_trait_instances.borrow_mut()(bound.tr);
 
             let mut candidates = Vec::new();
-            for (instance, parameters, instance_rule) in instances {
+            for (instance, parameters) in instances {
                 // Apply the instance's constraints to a copy of the
                 // typechecker, so if the instance fails to match, we can reset
                 let mut copy = self.clone();
@@ -295,12 +293,12 @@ impl Typechecker<'_> {
                 // will unify.
 
                 let bound_instantiation = Instantiation {
-                    constraints: vec![Constraint::Ty(temp_node, Ty::Of(bound.tr), bound_rule)],
+                    constraints: vec![Constraint::Ty(temp_node, Ty::Of(bound.tr))],
                     substitutions: bound.substitutions.clone(),
                 };
 
                 let instance_instantiation = Instantiation {
-                    constraints: vec![Constraint::Ty(temp_node, Ty::Of(instance), instance_rule)],
+                    constraints: vec![Constraint::Ty(temp_node, Ty::Of(instance))],
                     substitutions: Substitutions::from(parameters),
                 };
 
@@ -401,13 +399,13 @@ impl Typechecker<'_> {
             .into_iter()
             .map(|mut constraint| {
                 match &mut constraint {
-                    Constraint::Ty(_, ty, _) => {
+                    Constraint::Ty(_, ty) => {
                         self.instantiate_ty(ty, &mut instantiation.substitutions, &mut unify);
                     }
                     Constraint::Instantiation(..) => {
                         panic!("cannot have nested instantiations")
                     }
-                    Constraint::Bound(bound, _) => {
+                    Constraint::Bound(bound) => {
                         for ty in bound.substitutions.0.values_mut() {
                             self.instantiate_ty(ty, &mut instantiation.substitutions, &mut unify);
                         }

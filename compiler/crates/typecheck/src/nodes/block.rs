@@ -1,11 +1,8 @@
 use crate::{
-    constraints::{ToConstraints, ToConstraintsContext, Ty},
+    constraints::{Constraint, ToConstraints, ToConstraintsContext, Ty},
     nodes::Node,
 };
-use wipple_compiler_trace::{NodeId, Rule};
-
-pub static BLOCK_LAST_STATEMENT: Rule = Rule::new("last statement in block");
-pub static EMPTY_BLOCK: Rule = Rule::new("empty block");
+use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone)]
 pub struct BlockNode {
@@ -18,9 +15,9 @@ impl ToConstraints for BlockNode {
     fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>) {
         if let Some(last_statement) = self.statements.last() {
             ctx.constraints()
-                .insert_ty(node, Ty::Of(*last_statement), BLOCK_LAST_STATEMENT);
+                .push(Constraint::Ty(node, Ty::Of(*last_statement)));
         } else {
-            ctx.constraints().insert_ty(node, Ty::unit(), EMPTY_BLOCK);
+            ctx.constraints().push(Constraint::Ty(node, Ty::unit()));
         }
     }
 }

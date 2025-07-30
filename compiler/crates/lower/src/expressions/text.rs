@@ -19,7 +19,7 @@ impl Visit for TextExpression {
                 Some((text_ty, rule)) => (
                     AnnotateNode {
                         value: id,
-                        annotations: vec![Annotation::Type {
+                        annotations: vec![Annotation::Named {
                             definition: text_ty,
                             parameters: BTreeMap::new(),
                         }],

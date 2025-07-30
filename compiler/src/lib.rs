@@ -9,10 +9,9 @@ use wipple_compiler_lower::Definition;
 use wipple_compiler_syntax::{Parse, Range};
 use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
-    constraints::Constraints,
-    debug,
+    collect_constraints, debug,
     nodes::Node,
-    typechecker::{TypeProvider, Typechecker, UNRESOLVED_TRAIT},
+    typechecker::{TypeProvider, Typechecker},
 };
 
 #[wasm_bindgen(js_name = "compile")]
@@ -48,6 +47,7 @@ impl Node for ClonedNode {}
 
 pub static UNKNOWN_TYPE: Rule = Rule::new("unknown type");
 pub static INCOMPLETE_TYPE: Rule = Rule::new("incomplete type");
+pub static UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
 pub static RESOLVED_TRAIT: Rule = Rule::new("resolved trait");
 pub static INSTANTIATED: Rule = Rule::new("instantiated");
 
@@ -86,7 +86,7 @@ pub fn compile(
 
     let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
 
-    let constraints = Constraints::from_nodes(
+    let constraints = collect_constraints(
         lowered
             .borrow()
             .nodes
@@ -128,7 +128,7 @@ pub fn compile(
                         unreachable!()
                     };
 
-                    (node, instance.substitutions.clone(), RESOLVED_TRAIT)
+                    (node, instance.substitutions.clone())
                 })
                 .collect()
         },
@@ -149,7 +149,7 @@ pub fn compile(
 
     let mut typechecker = Typechecker::with_provider(type_provider);
     typechecker.insert_nodes(lowered.borrow().nodes.keys().copied());
-    typechecker.insert_constraints(constraints.iter());
+    typechecker.insert_constraints(constraints);
 
     let ty_groups = typechecker.to_ty_groups();
 

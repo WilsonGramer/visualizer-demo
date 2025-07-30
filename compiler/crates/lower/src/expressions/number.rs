@@ -19,7 +19,7 @@ impl Visit for NumberExpression {
                 Some((number_ty, rule)) => (
                     AnnotateNode {
                         value: id,
-                        annotations: vec![Annotation::Type {
+                        annotations: vec![Annotation::Named {
                             definition: number_ty,
                             parameters: BTreeMap::new(),
                         }],

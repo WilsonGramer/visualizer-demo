@@ -41,7 +41,7 @@ impl Visit for TypeDefinitionStatement {
                 visitor
                     .current_definition()
                     .annotations
-                    .push(Annotation::Type {
+                    .push(Annotation::Named {
                         definition: id,
                         parameters: BTreeMap::new(),
                     });

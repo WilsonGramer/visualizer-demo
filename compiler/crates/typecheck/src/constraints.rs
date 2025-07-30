@@ -2,96 +2,24 @@ use crate::{feedback::FeedbackProvider, nodes::Node};
 use std::{
     any::TypeId,
     cell::{RefCell, RefMut},
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fmt::Debug,
 };
-use wipple_compiler_trace::{NodeId, Rule};
-
-pub type TyConstraints = BTreeMap<NodeId, Vec<(Ty, Rule)>>;
-pub type InstantiationConstraints = Vec<Instantiation>;
-pub type BoundConstraints = Vec<(Bound, Rule)>;
-
-#[derive(Debug, Clone, Default)]
-pub struct Constraints {
-    pub nodes: BTreeSet<NodeId>,
-    pub tys: TyConstraints,
-    pub instantiations: InstantiationConstraints,
-    pub bounds: BoundConstraints,
-}
-
-impl Constraints {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn insert_ty(&mut self, node: NodeId, ty: Ty, rule: Rule) {
-        self.tys.entry(node).or_default().push((ty, rule));
-    }
-
-    pub fn insert_instantiation(&mut self, instantiation: Instantiation) {
-        self.instantiations.push(instantiation);
-    }
-
-    pub fn insert_bound(&mut self, bound: Bound, rule: Rule) {
-        self.bounds.push((bound, rule));
-    }
-}
+use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone)]
 pub enum Constraint {
-    Ty(NodeId, Ty, Rule),
+    Ty(NodeId, Ty),
     Instantiation(Instantiation),
-    Bound(Bound, Rule),
-}
-
-impl Constraints {
-    pub fn from_iter(node: NodeId, iter: impl IntoIterator<Item = Constraint>) -> Self {
-        let mut constraints = Constraints::new();
-        constraints.nodes.insert(node);
-        constraints.extend(iter);
-        constraints
-    }
-
-    pub fn extend(&mut self, iter: impl IntoIterator<Item = Constraint>) {
-        for constraint in iter {
-            match constraint {
-                Constraint::Ty(node, ty, rule) => self.insert_ty(node, ty, rule),
-                Constraint::Instantiation(instantiation) => {
-                    self.insert_instantiation(instantiation)
-                }
-                Constraint::Bound(bound, rule) => self.insert_bound(bound, rule),
-            }
-        }
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = Constraint> {
-        let tys = self.tys.iter().flat_map(|(node, constraints)| {
-            constraints
-                .iter()
-                .map(move |(ty, rule)| (Constraint::Ty(*node, ty.clone(), *rule)))
-        });
-
-        let instantiations = self
-            .instantiations
-            .iter()
-            .map(|instantiation| Constraint::Instantiation(instantiation.clone()));
-
-        let bounds = self
-            .bounds
-            .iter()
-            .map(|(bound, rule)| Constraint::Bound(bound.clone(), *rule));
-
-        tys.chain(instantiations).chain(bounds)
-    }
+    Bound(Bound),
 }
 
 impl Constraint {
     pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
         match self {
-            Constraint::Ty(_, ty, _) => ty.to_debug_string(provider),
-            Constraint::Instantiation(..) | Constraint::Bound(..) => {
-                String::from("(instantiation)")
-            }
+            Constraint::Ty(_, ty) => ty.to_debug_string(provider),
+            Constraint::Instantiation(..) => String::from("(instantiation)"),
+            Constraint::Bound(..) => String::from("(bound)"),
         }
     }
 }
@@ -102,7 +30,7 @@ pub trait ToConstraints {
 
 #[derive(Default)]
 pub struct ToConstraintsContext<'a> {
-    constraints: RefCell<Constraints>,
+    constraints: RefCell<Vec<Constraint>>,
     rules: BTreeMap<TypeId, Box<dyn Fn(NodeId, &dyn Node, &Self)>>,
 }
 
@@ -130,11 +58,11 @@ impl<'a> ToConstraintsContext<'a> {
         rule(id, node, self);
     }
 
-    pub fn into_constraints(self) -> Constraints {
+    pub fn into_constraints(self) -> Vec<Constraint> {
         self.constraints.into_inner()
     }
 
-    pub fn constraints(&self) -> RefMut<'_, Constraints> {
+    pub fn constraints(&self) -> RefMut<'_, Vec<Constraint>> {
         self.constraints.borrow_mut()
     }
 }

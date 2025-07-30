@@ -32,7 +32,7 @@ impl Visit for ParameterizedType {
             (
                 AnnotateNode {
                     value: id,
-                    annotations: vec![Annotation::Type {
+                    annotations: vec![Annotation::Named {
                         definition: type_node,
                         parameters: type_parameters
                             .into_iter()
