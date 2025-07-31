@@ -8,10 +8,7 @@ use wasm_bindgen::prelude::*;
 use wipple_compiler_lower::definitions::Definition;
 use wipple_compiler_syntax::{Parse, Range};
 use wipple_compiler_trace::{NodeId, Rule, Span};
-use wipple_compiler_typecheck::{
-    debug,
-    typechecker::{TypeProvider, Typechecker},
-};
+use wipple_compiler_typecheck::{TypeProvider, Typechecker, debug};
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {

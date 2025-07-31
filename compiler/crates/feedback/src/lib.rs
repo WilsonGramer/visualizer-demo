@@ -13,7 +13,7 @@ use std::{
     mem,
 };
 use wipple_compiler_trace::{NodeId, Rule, Span};
-use wipple_compiler_typecheck::{feedback::FeedbackProvider, typechecker::TyGroups};
+use wipple_compiler_typecheck::{TyGroups, feedback::FeedbackProvider};
 
 #[derive(Clone)]
 pub struct Context<'a> {

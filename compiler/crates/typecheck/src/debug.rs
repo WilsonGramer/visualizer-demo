@@ -1,4 +1,4 @@
-use crate::{feedback::FeedbackProvider, typechecker::TyGroups};
+use crate::{TyGroups, feedback::FeedbackProvider};
 use itertools::Itertools;
 use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
