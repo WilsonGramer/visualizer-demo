@@ -17,6 +17,7 @@ impl Visit for AnnotatePattern {
         let ty = visitor.child(&self.right, pattern, "type in annotated pattern");
 
         visitor.constraint(Constraint::Ty(pattern, Ty::Of(ty)));
+        visitor.constraint(Constraint::Ty(id, Ty::Of(ty)));
     }
 
     fn is_typed(&self) -> bool {

@@ -17,7 +17,7 @@ impl Visit for AnnotateExpression {
         let ty = visitor.child(&self.right, value, "type in annotated value");
 
         visitor.constraint(Constraint::Ty(value, Ty::Of(ty)));
-        visitor.constraint(Constraint::Ty(value, Ty::Of(id)));
+        visitor.constraint(Constraint::Ty(id, Ty::Of(ty)));
     }
 
     fn is_typed(&self) -> bool {
