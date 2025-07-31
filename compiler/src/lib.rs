@@ -2,15 +2,14 @@ use colored::Colorize;
 use petgraph::Direction;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet},
 };
 use wasm_bindgen::prelude::*;
-use wipple_compiler_lower::Definition;
+use wipple_compiler_lower::definitions::Definition;
 use wipple_compiler_syntax::{Parse, Range};
 use wipple_compiler_trace::{NodeId, Rule, Span};
 use wipple_compiler_typecheck::{
-    collect_constraints, debug,
-    nodes::Node,
+    debug,
     typechecker::{TypeProvider, Typechecker},
 };
 
@@ -39,17 +38,6 @@ pub fn compile_wasm(source: String) -> Vec<String> {
         output_feedback,
     ]
 }
-
-#[derive(Debug, Clone)]
-struct ClonedNode;
-
-impl Node for ClonedNode {}
-
-pub static UNKNOWN_TYPE: Rule = Rule::new("unknown type");
-pub static INCOMPLETE_TYPE: Rule = Rule::new("incomplete type");
-pub static UNRESOLVED_TRAIT: Rule = Rule::new("unresolved trait");
-pub static RESOLVED_TRAIT: Rule = Rule::new("resolved trait");
-pub static INSTANTIATED: Rule = Rule::new("instantiated");
 
 pub fn compile(
     path: &str,
@@ -84,16 +72,6 @@ pub fn compile(
 
     let lowered = RefCell::new(wipple_compiler_lower::visit(&source_file, make_span));
 
-    let mut extras = BTreeMap::<NodeId, HashSet<Rule>>::new();
-
-    let constraints = collect_constraints(
-        lowered
-            .borrow()
-            .nodes
-            .iter()
-            .map(|(&id, (node, _))| (id, node.as_ref())),
-    );
-
     let type_provider = TypeProvider::new(
         |node_id| {
             let mut lowered = lowered.borrow_mut();
@@ -101,13 +79,8 @@ pub fn compile(
             let new_id = lowered.next_id;
             lowered.next_id.0 += 1;
 
-            lowered
-                .nodes
-                .insert(new_id, (ClonedNode.boxed(), INSTANTIATED));
-
-            if let Some(span) = lowered.spans.get(&node_id).cloned() {
-                lowered.spans.insert(new_id, span);
-            }
+            let span = lowered.spans.get(&node_id).unwrap().clone();
+            lowered.spans.insert(new_id, span);
 
             new_id
         },
@@ -134,33 +107,55 @@ pub fn compile(
         },
         |node, bound, instance| {
             let mut lowered = lowered.borrow_mut();
-            lowered.relations.add_edge(node, bound.tr, RESOLVED_TRAIT);
-            lowered.relations.add_edge(node, instance, RESOLVED_TRAIT);
+
+            lowered.typed_nodes.insert(node);
+
+            lowered
+                .relations
+                .add_edge(bound.tr, node, "resolved trait".into());
+
+            lowered
+                .relations
+                .add_edge(instance, node, "resolved trait".into());
         },
         |node, bound| {
             let mut lowered = lowered.borrow_mut();
 
-            lowered.relations.add_edge(node, bound.tr, RESOLVED_TRAIT);
+            lowered.typed_nodes.insert(node);
+
+            lowered
+                .relations
+                .add_edge(bound.tr, node, "unresolved trait".into());
 
             // TODO: Show the trait being resolved, not the node, in feedback
-            extras.entry(node).or_default().insert(UNRESOLVED_TRAIT);
+            lowered
+                .rules
+                .entry(node)
+                .or_default()
+                .insert("unresolved trait".into());
         },
     );
 
     let mut typechecker = Typechecker::with_provider(type_provider);
-    typechecker.insert_nodes(lowered.borrow().nodes.keys().copied());
-    typechecker.insert_constraints(constraints);
+    {
+        let nodes = lowered.borrow().rules.keys().cloned().collect::<Vec<_>>();
+        let constraints = lowered.borrow().constraints.clone();
+        typechecker.insert_nodes(nodes);
+        typechecker.insert_constraints(constraints);
+    }
 
     let ty_groups = typechecker.to_ty_groups();
 
     drop(typechecker);
-    let lowered = lowered.into_inner();
-
-    let filter = |node: NodeId| lowered.typed_nodes.contains(&node);
+    let mut lowered = lowered.into_inner();
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
-    for &node in lowered.nodes.keys() {
-        if !filter(node) {
+    for &node in lowered.typed_nodes.iter() {
+        if lowered
+            .rules
+            .get(&node)
+            .is_some_and(|rules| rules.iter().any(Rule::should_ignore))
+        {
             continue;
         }
 
@@ -170,9 +165,17 @@ pub fn compile(
             .unwrap_or_default();
 
         if tys.is_empty() {
-            extras.entry(node).or_default().insert(UNKNOWN_TYPE);
+            lowered
+                .rules
+                .entry(node)
+                .or_default()
+                .insert("unknown type".into());
         } else if tys.iter().all(|ty| ty.is_incomplete()) {
-            extras.entry(node).or_default().insert(INCOMPLETE_TYPE);
+            lowered
+                .rules
+                .entry(node)
+                .or_default()
+                .insert("incomplete type".into());
         }
     }
 
@@ -184,7 +187,7 @@ pub fn compile(
         // HACK: Remove comments
         source = source
             .lines()
-            .skip_while(|line| line.starts_with("--"))
+            .skip_while(|line| line.is_empty() || line.starts_with("--"))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -206,20 +209,8 @@ pub fn compile(
             })
     };
 
-    let mut feedback_nodes = lowered
-        .nodes
-        .iter()
-        .filter(|&(&node, _)| filter(node))
-        .map(|(&node, &(_, rule))| (node, HashSet::from([rule])))
-        .chain(ty_groups.nodes().map(|node| (node, HashSet::new())))
-        .collect::<BTreeMap<_, _>>();
-
-    for (node, rules) in extras {
-        feedback_nodes.entry(node).or_default().extend(rules);
-    }
-
     let provider = wipple_compiler_typecheck::feedback::FeedbackProvider::new(
-        &feedback_nodes,
+        &lowered.rules,
         &lowered.relations,
         get_span_source,
         get_comments,
@@ -231,9 +222,9 @@ pub fn compile(
     debug::write_graph(
         &mut graph,
         &ty_groups,
+        &lowered.rules,
         &lowered.relations,
         &provider,
-        filter,
     )
     .unwrap();
 
@@ -241,11 +232,25 @@ pub fn compile(
 
     // Display feedback
 
+    let feedback_rules = lowered
+        .rules
+        .iter()
+        .filter(|(_, rules)| rules.iter().any(|rule| !Rule::should_ignore(rule)))
+        .map(|(node, rules)| (*node, rules.clone()))
+        .collect::<BTreeMap<_, _>>();
+
+    let mut feedback_relations = lowered.relations.clone();
+    for node in feedback_relations.nodes().collect::<Vec<_>>() {
+        if !feedback_rules.contains_key(&node) {
+            feedback_relations.remove_node(node);
+        }
+    }
+
     let feedback_ctx = wipple_compiler_feedback::Context::new(
         &provider,
-        &feedback_nodes,
+        &feedback_rules,
         &lowered.spans,
-        &lowered.relations,
+        &feedback_relations,
         &ty_groups,
     );
 
@@ -263,7 +268,7 @@ pub fn compile(
     let mut displayed_tys = Vec::from_iter(
         ty_groups
             .nodes()
-            .chain(lowered.nodes.keys().copied())
+            .chain(lowered.rules.keys().copied())
             .collect::<BTreeSet<_>>(),
     );
 
@@ -273,23 +278,28 @@ pub fn compile(
     });
 
     let mut rows = Vec::new();
-
     for node in displayed_tys {
-        if !filter(node) {
+        let (node_span, node_debug) = provider.node_span_source(node);
+
+        let rules = lowered.rules.get(&node);
+
+        if rules.is_some_and(|rules| rules.iter().any(Rule::should_ignore)) {
             continue;
         }
 
-        let tys = ty_groups
-            .index_of(node)
-            .map(|index| ty_groups.tys_at(index))
+        let node_rules = rules
+            .map(|rules| {
+                rules
+                    .iter()
+                    .map(|rule| rule.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
             .unwrap_or_default();
-
-        let (node_span, node_debug) = provider.node_span_source(node);
 
         let node_related_rules = lowered
             .relations
             .neighbors_directed(node, Direction::Incoming)
-            .filter(|&node| filter(node))
             .map(|related| {
                 let rule = lowered.relations.edge_weight(related, node).unwrap();
 
@@ -301,13 +311,14 @@ pub fn compile(
             })
             .collect::<String>();
 
+        let tys = ty_groups
+            .index_of(node)
+            .map(|index| ty_groups.tys_at(index))
+            .unwrap_or_default();
+
         rows.push([
             format!("{node:?}\n{node_span:?}").to_string(),
-            format!(
-                "{:?}{}",
-                lowered.nodes.get(&node).unwrap().1,
-                node_related_rules
-            ),
+            format!("{node_rules}{node_related_rules}"),
             node_debug.to_string(),
             tys.iter()
                 .map(|ty| ty.to_debug_string(&provider).blue().to_string())
@@ -315,8 +326,6 @@ pub fn compile(
                 .join(&" or ".bright_red().to_string()),
         ]);
     }
-
-    rows.dedup();
 
     if !rows.is_empty() {
         let mut table = tabled::builder::Builder::new();

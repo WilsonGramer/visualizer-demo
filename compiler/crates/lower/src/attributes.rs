@@ -1,6 +1,6 @@
-use crate::Visitor;
+use crate::visitor::Visitor;
 use wipple_compiler_syntax::{Attribute, AttributeValue};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone, Default)]
 pub struct ConstantAttributes {
@@ -8,9 +8,9 @@ pub struct ConstantAttributes {
 }
 
 impl ConstantAttributes {
-    pub(crate) fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
+    pub(crate) fn parse(visitor: &mut Visitor<'_>, parser: &mut AttributeParser<'_>) -> Self {
         ConstantAttributes {
-            unit: parser.parse_name("unit"),
+            unit: parser.parse_name(visitor, "unit"),
         }
     }
 }
@@ -19,7 +19,7 @@ impl ConstantAttributes {
 pub struct TypeAttributes {}
 
 impl TypeAttributes {
-    pub(crate) fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
+    pub(crate) fn parse(_visitor: &mut Visitor<'_>, parser: &mut AttributeParser<'_>) -> Self {
         TypeAttributes {}
     }
 }
@@ -28,7 +28,7 @@ impl TypeAttributes {
 pub struct TraitAttributes {}
 
 impl TraitAttributes {
-    pub(crate) fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
+    pub(crate) fn parse(_visitor: &mut Visitor<'_>, parser: &mut AttributeParser<'_>) -> Self {
         TraitAttributes {}
     }
 }
@@ -40,50 +40,35 @@ pub struct InstanceAttributes {
 }
 
 impl InstanceAttributes {
-    pub(crate) fn parse(parser: &mut AttributeParser<'_, '_>) -> Self {
+    pub(crate) fn parse(visitor: &mut Visitor<'_>, parser: &mut AttributeParser<'_>) -> Self {
         InstanceAttributes {
-            default: parser.parse_name("default"),
-            error: parser.parse_name("error"),
+            default: parser.parse_name(visitor, "default"),
+            error: parser.parse_name(visitor, "error"),
         }
     }
 }
 
-pub static UNKNOWN_ATTRIBUTE: Rule = Rule::new("unknown attribute");
-pub static DUPLICATE_ATTRIBUTE: Rule = Rule::new("duplicate attribute");
-pub static MISSING_ATTRIBUTE_VALUE: Rule = Rule::new("missing attribute value");
-pub static EXTRA_ATTRIBUTE_VALUE: Rule = Rule::new("extra attribute value");
-pub static MISMATCHED_ATTRIBUTE_VALUE: Rule = Rule::new("mismatched attribute value");
-
-pub(crate) struct AttributeParser<'a, 'v> {
+pub(crate) struct AttributeParser<'a> {
     id: NodeId,
-    visitor: &'v mut Visitor<'a>,
     attributes: &'a [Attribute],
 }
 
-impl<'a, 'v> AttributeParser<'a, 'v> {
-    pub(crate) fn new(
-        id: NodeId,
-        visitor: &'v mut Visitor<'a>,
-        attributes: &'a [Attribute],
-    ) -> Self {
-        Self {
-            id,
-            visitor,
-            attributes,
-        }
+impl<'a> AttributeParser<'a> {
+    pub(crate) fn new(id: NodeId, attributes: &'a [Attribute]) -> Self {
+        Self { id, attributes }
     }
 
-    fn parse_name(&mut self, name: &str) -> bool {
+    fn parse_name(&mut self, visitor: &mut Visitor<'_>, name: &str) -> bool {
         let mut found = false;
         for attribute in self.attributes {
             if attribute.name.value == name {
+                let node = visitor.node(attribute.range, "attribute");
+
                 if attribute.value.is_some() {
-                    self.visitor
-                        .placeholder_node((self.id, EXTRA_ATTRIBUTE_VALUE), attribute.range);
+                    visitor.rule(node, "extra attribute value");
                 } else {
                     if found {
-                        self.visitor
-                            .placeholder_node((self.id, DUPLICATE_ATTRIBUTE), attribute.range);
+                        visitor.rule(node, "duplicate attribute");
 
                         continue;
                     }
@@ -96,8 +81,8 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
         found
     }
 
-    fn parse_text(&mut self, name: &str) -> Option<String> {
-        self.parse_assign(name, |value| match value {
+    fn parse_text(&mut self, visitor: &mut Visitor<'_>, name: &str) -> Option<String> {
+        self.parse_assign(visitor, name, |value| match value {
             AttributeValue::Text(text) => Some(text.value.value.clone()),
             #[expect(unreachable_patterns)]
             _ => None,
@@ -106,16 +91,18 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
 
     fn parse_assign<T>(
         &mut self,
+        visitor: &mut Visitor<'_>,
         name: &str,
         f: impl Fn(&'a AttributeValue) -> Option<T>,
     ) -> Option<T> {
         let mut result = None;
         for attribute in self.attributes {
             if attribute.name.value == name {
+                let node = visitor.node(attribute.range, "attribute");
+
                 if let Some(value) = &attribute.value {
                     if result.is_some() {
-                        self.visitor
-                            .placeholder_node((self.id, DUPLICATE_ATTRIBUTE), attribute.range);
+                        visitor.rule(node, "duplicate attribute");
 
                         continue;
                     }
@@ -123,14 +110,10 @@ impl<'a, 'v> AttributeParser<'a, 'v> {
                     result = f(value);
 
                     if result.is_none() {
-                        self.visitor.placeholder_node(
-                            (self.id, MISMATCHED_ATTRIBUTE_VALUE),
-                            attribute.range,
-                        );
+                        visitor.rule(node, "mismatched attribute value");
                     }
                 } else {
-                    self.visitor
-                        .placeholder_node((self.id, MISSING_ATTRIBUTE_VALUE), attribute.range);
+                    visitor.rule(node, "missing attribute value");
                 }
             }
         }

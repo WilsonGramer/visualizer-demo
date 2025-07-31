@@ -50,6 +50,10 @@ impl<'a> Context<'a> {
             // Try every starting node
             for (&node, rules) in self.nodes {
                 for &rule in rules {
+                    if rule.should_ignore() {
+                        continue;
+                    }
+
                     if query
                         .rule
                         .as_deref()

@@ -1,10 +1,5 @@
-use crate::{feedback::FeedbackProvider, nodes::Node};
-use std::{
-    any::TypeId,
-    cell::{RefCell, RefMut},
-    collections::BTreeMap,
-    fmt::Debug,
-};
+use crate::feedback::FeedbackProvider;
+use std::{collections::BTreeMap, fmt::Debug};
 use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone)]
@@ -21,49 +16,6 @@ impl Constraint {
             Constraint::Instantiation(..) => String::from("(instantiation)"),
             Constraint::Bound(..) => String::from("(bound)"),
         }
-    }
-}
-
-pub trait ToConstraints {
-    fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>);
-}
-
-#[derive(Default)]
-pub struct ToConstraintsContext<'a> {
-    constraints: RefCell<Vec<Constraint>>,
-    rules: BTreeMap<TypeId, Box<dyn Fn(NodeId, &dyn Node, &Self)>>,
-}
-
-impl<'a> ToConstraintsContext<'a> {
-    pub fn register<N: Node + ToConstraints>(&mut self) {
-        let type_id = TypeId::of::<N>();
-
-        self.rules.insert(
-            type_id,
-            Box::new(move |node_id, node, ctx| {
-                let Some(node) = node.downcast::<N>() else {
-                    return;
-                };
-
-                node.to_constraints(node_id, ctx);
-            }),
-        );
-    }
-
-    pub fn visit(&mut self, id: NodeId, node: &dyn Node) {
-        let Some(rule) = self.rules.get(&node.type_id()) else {
-            return;
-        };
-
-        rule(id, node, self);
-    }
-
-    pub fn into_constraints(self) -> Vec<Constraint> {
-        self.constraints.into_inner()
-    }
-
-    pub fn constraints(&self) -> RefMut<'_, Vec<Constraint>> {
-        self.constraints.borrow_mut()
     }
 }
 

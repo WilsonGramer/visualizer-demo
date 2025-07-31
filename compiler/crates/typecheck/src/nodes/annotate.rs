@@ -4,7 +4,6 @@ use crate::{
     },
     nodes::Node,
 };
-use std::collections::BTreeMap;
 use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone)]
@@ -26,12 +25,7 @@ impl ToConstraints for AnnotateNode {
 // TODO: Document the difference between annotations and constraints
 #[derive(Debug, Clone)]
 pub enum Annotation {
-    Node(NodeId),
-    Parameter(NodeId),
-    Named {
-        definition: NodeId,
-        parameters: BTreeMap<NodeId, NodeId>,
-    },
+    Ty(Ty),
     Instantiate {
         annotations: Vec<Annotation>,
         substitutions: Substitutions,
@@ -46,27 +40,8 @@ pub enum Annotation {
 impl Annotation {
     pub fn to_constraints(&self, node: NodeId, ctx: &ToConstraintsContext<'_>) {
         match *self {
-            Annotation::Node(other) => {
-                ctx.constraints().push(Constraint::Ty(node, Ty::Of(other)));
-            }
-            Annotation::Parameter(parameter) => {
-                ctx.constraints()
-                    .push(Constraint::Ty(node, Ty::Parameter(parameter)));
-            }
-            Annotation::Named {
-                definition,
-                ref parameters,
-            } => {
-                ctx.constraints().push(Constraint::Ty(
-                    node,
-                    Ty::Named {
-                        name: definition,
-                        parameters: parameters
-                            .iter()
-                            .map(|(&parameter, &ty)| (parameter, Ty::Of(ty)))
-                            .collect(),
-                    },
-                ));
+            Annotation::Ty(ref ty) => {
+                ctx.constraints().push(Constraint::Ty(node, ty.clone()));
             }
             Annotation::Instantiate {
                 ref annotations,

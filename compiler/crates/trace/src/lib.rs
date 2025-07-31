@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, ops::Range};
+use std::{
+    fmt::{Debug, Display},
+    ops::Range,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct NodeId(pub u32);
@@ -44,14 +47,26 @@ pub struct Rule {
     pub name: &'static str,
 }
 
-impl Rule {
-    pub const fn new(name: &'static str) -> Self {
+impl From<&'static str> for Rule {
+    fn from(name: &'static str) -> Self {
         Rule { name }
     }
 }
 
 impl Debug for Rule {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+impl Display for Rule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)
+    }
+}
+
+impl Rule {
+    pub fn should_ignore(&self) -> bool {
+        self.name.contains("[ignore]")
     }
 }

@@ -270,13 +270,19 @@ impl Typechecker<'_> {
             // Use a temporary node for the bound while resolving.
             let temp_node = (self.provider.copy_node.borrow_mut())(bound.node);
 
-            // Get the current type of the bound, if there is one, without
+            // Get the current type of the node, if there is one, without
             // actually unifying it with anything.
             let mut bound_ty = Ty::Of(bound.node);
             self.try_apply_ty(&mut bound_ty, &mut self.unify.clone());
             if bound_ty != Ty::Of(bound.node) {
                 self.insert_constraints([Constraint::Ty(temp_node, bound_ty.clone())])
             }
+
+            // Instantiate the bound with the trait's type.
+            self.insert_constraints([Constraint::Instantiation(Instantiation {
+                constraints: vec![Constraint::Ty(temp_node, Ty::Of(bound.tr))],
+                substitutions: bound.substitutions.clone(),
+            })]);
 
             let instances = self.provider.get_trait_instances.borrow_mut()(bound.tr);
 
@@ -291,21 +297,10 @@ impl Typechecker<'_> {
                 // substitutions, the instance's substitutions, and the node's
                 // type. All three are applied to the temporary node, so they
                 // will unify.
-
-                let bound_instantiation = Instantiation {
-                    constraints: vec![Constraint::Ty(temp_node, Ty::Of(bound.tr))],
-                    substitutions: bound.substitutions.clone(),
-                };
-
-                let instance_instantiation = Instantiation {
+                copy.queue = vec![Constraint::Instantiation(Instantiation {
                     constraints: vec![Constraint::Ty(temp_node, Ty::Of(instance))],
                     substitutions: Substitutions::from(parameters),
-                };
-
-                copy.queue = vec![
-                    Constraint::Instantiation(bound_instantiation),
-                    Constraint::Instantiation(instance_instantiation),
-                ];
+                })];
 
                 // Recursive bounds will be resolved here.
                 copy.run();
@@ -320,7 +315,7 @@ impl Typechecker<'_> {
             }
 
             if candidates.len() != 1 {
-                self.provider.flag_unresolved.borrow_mut()(bound.node, bound);
+                self.provider.flag_unresolved.borrow_mut()(temp_node, bound);
 
                 continue;
             }
@@ -331,7 +326,7 @@ impl Typechecker<'_> {
             *self = copy;
 
             self.progress.set();
-            self.provider.flag_resolved.borrow_mut()(bound.node, bound, instance);
+            self.provider.flag_resolved.borrow_mut()(temp_node, bound, instance);
         }
 
         self.progress.take()

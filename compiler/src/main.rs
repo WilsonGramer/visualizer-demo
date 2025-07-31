@@ -29,10 +29,12 @@ fn main() {
 }
 
 static HIGHLIGHT: LazyLock<Box<dyn Fn(&str) + Send + Sync>> = LazyLock::new(|| {
-    use syntect::easy::HighlightLines;
-    use syntect::highlighting::ThemeSet;
-    use syntect::parsing::SyntaxSet;
-    use syntect::util::{LinesWithEndings, as_24_bit_terminal_escaped};
+    use syntect::{
+        easy::HighlightLines,
+        highlighting::ThemeSet,
+        parsing::SyntaxSet,
+        util::{LinesWithEndings, as_24_bit_terminal_escaped},
+    };
 
     let syntax = SyntaxSet::load_defaults_newlines();
 

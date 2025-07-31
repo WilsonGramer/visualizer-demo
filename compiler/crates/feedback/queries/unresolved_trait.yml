@@ -1,11 +1,16 @@
 # yaml-language-server: $schema=_schema.json
-as: node
+as: trait
+rule: trait definition
 where:
+  - child:
+      as: node
+      rules:
+        - unresolved trait
   - type:
+      of: node
       as: ty
-rule: unresolved trait
 group: todo
 messages:
   - node: node
     template: |
-      Could not find an instance for `{{node:source}}` with type {{ty:type}}. (TODO)
+      Could not find an instance for `{{trait:source}}` with type {{ty:type}}.

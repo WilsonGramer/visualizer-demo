@@ -1,0 +1,68 @@
+use crate::{
+    constraints::{constraints_for_call, instantiate_constraints},
+    definitions::Definition,
+    visitor::{Visit, Visitor},
+};
+use wipple_compiler_syntax::{CallExpression, Expression, Range};
+use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions};
+
+impl Visit for CallExpression {
+    fn rule(&self) -> Rule {
+        "function call".into()
+    }
+
+    fn range(&self) -> Range {
+        self.range
+    }
+
+    fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
+        let unit = match self.inputs.as_slice() {
+            [Expression::Variable(input)] => Some((input.range, input.variable.value.as_str())),
+            _ => None,
+        };
+
+        // If `inputs` has a single element with the `[unit]` attribute,
+        // flip the order
+        if let Some((unit_range, unit_name)) = unit {
+            if let Some((attributes, constraints)) =
+                visitor.peek_name(unit_name, |definition| match definition {
+                    Definition::Constant(definition) => {
+                        Some((&definition.attributes, definition.constraints.clone()))
+                    }
+                    _ => None,
+                })
+            {
+                if attributes.unit {
+                    let function =
+                        visitor.child(&(unit_range, "unit name".into()), id, "unit in unit call");
+
+                    visitor.constraint(Constraint::Instantiation(Instantiation {
+                        substitutions: Substitutions::replace_all(),
+                        constraints: instantiate_constraints(id, constraints).collect(),
+                    }));
+
+                    let input = visitor.child(self.function.as_ref(), id, "number in unit call");
+
+                    visitor.constraints(constraints_for_call(function, [input], id));
+
+                    return;
+                }
+            }
+        }
+
+        let function = visitor.child(self.function.as_ref(), id, "function in function call");
+
+        let inputs = self
+            .inputs
+            .iter()
+            .map(|input| visitor.child(input, id, "input in function call"))
+            .collect::<Vec<_>>();
+
+        visitor.constraints(constraints_for_call(function, inputs, id));
+    }
+
+    fn is_typed(&self) -> bool {
+        true
+    }
+}

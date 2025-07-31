@@ -2,7 +2,7 @@ use crate::{feedback::FeedbackProvider, typechecker::TyGroups};
 use itertools::Itertools;
 use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet, HashSet},
     fmt::{self, Write},
 };
 use wipple_compiler_trace::{NodeId, Rule};
@@ -10,13 +10,13 @@ use wipple_compiler_trace::{NodeId, Rule};
 pub fn write_graph(
     w: &mut dyn Write,
     ty_groups: &TyGroups,
+    rules: &BTreeMap<NodeId, HashSet<Rule>>,
     relations: &DiGraphMap<NodeId, Rule>,
     provider: &FeedbackProvider<'_>,
-    filter: impl Fn(NodeId) -> bool,
 ) -> fmt::Result {
     let node_id = |node: NodeId| format!("node{}", node.0);
 
-    writeln!(w, "%%{{init: {{'theme':'neutral','layout':'elk'}}}}%%")?;
+    writeln!(w, "%%{{init: {{'theme':'neutral'}}}}%%")?;
     writeln!(w, "flowchart TD")?;
     writeln!(
         w,
@@ -27,10 +27,13 @@ pub fn write_graph(
         "classDef error fill:#ff000010,stroke:#ff0000,stroke-dasharray:10;"
     )?;
 
-    let mut visited = BTreeSet::new();
+    let mut visited_rules = BTreeMap::<_, BTreeSet<_>>::new();
 
-    for node in ty_groups.nodes() {
-        if !(filter)(node) {
+    for node in ty_groups.nodes().chain(rules.keys().copied()) {
+        if rules
+            .get(&node)
+            .is_some_and(|rules| rules.iter().any(Rule::should_ignore))
+        {
             continue;
         }
 
@@ -38,11 +41,21 @@ pub fn write_graph(
 
         // Also link related nodes
         for parent in relations.neighbors_directed(node, Direction::Incoming) {
-            if !filter(parent) {
+            if rules
+                .get(&parent)
+                .is_some_and(|rules| rules.iter().any(Rule::should_ignore))
+            {
                 continue;
             }
 
             let &rule = relations.edge_weight(parent, node).unwrap();
+
+            if visited_rules
+                .get(&(node, parent))
+                .is_some_and(|existing| existing.contains(&rule))
+            {
+                continue;
+            }
 
             writeln!(
                 w,
@@ -52,19 +65,34 @@ pub fn write_graph(
                 node_id(parent)
             )?;
 
-            visited.insert(parent);
+            visited_rules
+                .entry((node, parent))
+                .or_default()
+                .insert(rule);
         }
 
-        let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>");
+        let rules = rules
+            .get(&node)
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .map(|rule| rule.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>\n{rules}");
 
         if let Some(comments) = provider.comments(node) {
             description.push_str(&comments);
         }
 
         writeln!(w, "{}@{{ label: {:?} }}", node_id(node), description)?;
-
-        visited.insert(node);
     }
+
+    let visited = visited_rules
+        .into_keys()
+        .flat_map(|(node, parent)| [node, parent])
+        .collect::<BTreeSet<_>>();
 
     for (index, group_tys) in ty_groups.groups() {
         let nodes = ty_groups
