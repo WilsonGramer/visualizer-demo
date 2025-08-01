@@ -3,11 +3,11 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{FunctionExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for FunctionExpression {
-    fn rule(&self) -> Rule {
-        "function".into()
+    fn name(&self) -> &'static str {
+        "function"
     }
 
     fn range(&self) -> Range {
@@ -21,10 +21,10 @@ impl Visit for FunctionExpression {
             .inputs
             .0
             .iter()
-            .map(|input| visitor.child(input, id, "function input"))
+            .map(|input| visitor.child(input, id, "functionInput"))
             .collect::<Vec<_>>();
 
-        let output = visitor.child(self.output.as_ref(), id, "function output");
+        let output = visitor.child(self.output.as_ref(), id, "functionOutput");
 
         visitor.pop_scope();
 

@@ -5,12 +5,12 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{Range, TypeDefinitionStatement};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 use wipple_compiler_typecheck::constraints::{Constraint, Ty};
 
 impl Visit for TypeDefinitionStatement {
-    fn rule(&self) -> Rule {
-        "type definition".into()
+    fn name(&self) -> &'static str {
+        "typeDefinition"
     }
 
     fn range(&self) -> Range {
@@ -28,7 +28,11 @@ impl Visit for TypeDefinitionStatement {
             .unwrap_or_default()
             .iter()
             .map(|parameter| {
-                let node = visitor.child(&(parameter.range, "parameter name".into()), id, "parameter in type definition");
+                let node = visitor.child(
+                    &(parameter.range, "parameterName"),
+                    id,
+                    "parameterInTypeDefinition",
+                );
 
                 visitor.define_name(
                     &parameter.value,

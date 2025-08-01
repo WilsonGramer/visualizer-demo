@@ -4,12 +4,12 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{Range, TextExpression};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Ty};
 
 impl Visit for TextExpression {
-    fn rule(&self) -> Rule {
-        "text".into()
+    fn name(&self) -> &'static str {
+        "text"
     }
 
     fn range(&self) -> Range {
@@ -31,7 +31,7 @@ impl Visit for TextExpression {
                 },
             ));
         } else {
-            visitor.rule(id, "missing text type");
+            visitor.fact(id, Fact::marker("missingTextType"));
         }
     }
 

@@ -4,12 +4,12 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{CallExpression, Expression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions};
 
 impl Visit for CallExpression {
-    fn rule(&self) -> Rule {
-        "function call".into()
+    fn name(&self) -> &'static str {
+        "functionCall"
     }
 
     fn range(&self) -> Range {
@@ -34,15 +34,14 @@ impl Visit for CallExpression {
                 })
             {
                 if attributes.unit {
-                    let function =
-                        visitor.child(&(unit_range, "unit name".into()), id, "unit in unit call");
+                    let function = visitor.child(&(unit_range, "unitName"), id, "unitInUnitCall");
 
                     visitor.constraint(Constraint::Instantiation(Instantiation {
                         substitutions: Substitutions::replace_all(),
                         constraints: instantiate_constraints(id, constraints).collect(),
                     }));
 
-                    let input = visitor.child(self.function.as_ref(), id, "number in unit call");
+                    let input = visitor.child(self.function.as_ref(), id, "numberInUnitCall");
 
                     visitor.constraints(constraints_for_call(function, [input], id));
 
@@ -51,12 +50,12 @@ impl Visit for CallExpression {
             }
         }
 
-        let function = visitor.child(self.function.as_ref(), id, "function in function call");
+        let function = visitor.child(self.function.as_ref(), id, "functionInFunctionCall");
 
         let inputs = self
             .inputs
             .iter()
-            .map(|input| visitor.child(input, id, "input in function call"))
+            .map(|input| visitor.child(input, id, "inputInFunctionCall"))
             .collect::<Vec<_>>();
 
         visitor.constraints(constraints_for_call(function, inputs, id));

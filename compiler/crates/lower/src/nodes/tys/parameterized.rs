@@ -4,12 +4,12 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{ParameterizedType, ParameterizedTypeElement, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Ty};
 
 impl Visit for ParameterizedType {
-    fn rule(&self) -> Rule {
-        "parameterized type".into()
+    fn name(&self) -> &'static str {
+        "parameterizedType"
     }
 
     fn range(&self) -> Range {
@@ -26,7 +26,7 @@ impl Visit for ParameterizedType {
                 _ => None,
             })
         else {
-            visitor.rule(id, "unresolved parameterized type");
+            visitor.fact(id, Fact::marker("unresolvedParameterizedType"));
             return;
         };
 
@@ -34,7 +34,7 @@ impl Visit for ParameterizedType {
             .parameters
             .iter()
             .map(|ParameterizedTypeElement(ty)| {
-                visitor.child(ty, id, "parameter in parameterized type")
+                visitor.child(ty, id, "parameterInParameterizedType")
             })
             .collect::<Vec<_>>();
 

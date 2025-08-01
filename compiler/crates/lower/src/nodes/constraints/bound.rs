@@ -4,12 +4,12 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{BoundConstraint, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Bound, Constraint, Substitutions};
 
 impl Visit for BoundConstraint {
-    fn rule(&self) -> Rule {
-        "bound constraint".into()
+    fn name(&self) -> &'static str {
+        "boundConstraint"
     }
 
     fn range(&self) -> Range {
@@ -26,14 +26,14 @@ impl Visit for BoundConstraint {
                 _ => None,
             })
         else {
-            visitor.rule(id, "unresolved trait in bound");
+            visitor.fact(id, Fact::marker("unresolvedTraitInBound"));
             return;
         };
 
         let parameters = self
             .parameters
             .iter()
-            .map(|ty| visitor.child(ty, id, "parameter in bound"));
+            .map(|ty| visitor.child(ty, id, "parameterInBound"));
 
         // TODO: Ensure `parameters` has the right length
         let substitutions = trait_parameters

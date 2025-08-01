@@ -4,12 +4,12 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{NumberExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Ty};
 
 impl Visit for NumberExpression {
-    fn rule(&self) -> Rule {
-        "number".into()
+    fn name(&self) -> &'static str {
+        "number"
     }
 
     fn range(&self) -> Range {
@@ -31,7 +31,7 @@ impl Visit for NumberExpression {
                 },
             ));
         } else {
-            visitor.rule(id, "missing number type");
+            visitor.fact(id, Fact::marker("missingNumberType"));
         }
     }
 

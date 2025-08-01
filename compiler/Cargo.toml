@@ -13,11 +13,9 @@ crate-type = ["cdylib", "rlib"]
 colored = "3"
 console_error_panic_hook = "0.1"
 line-col = "0.2"
-petgraph = "0.8"
 syntect = { version = "5", features = ["default-syntaxes", "plist-load", "regex-fancy"], default-features = false }
 tabled = { version = "0.20", features = ["ansi"] }
 wasm-bindgen = "0.2"
-wipple-compiler-feedback = { path = "crates/feedback" }
 wipple-compiler-lower = { path = "crates/lower" }
 wipple-compiler-syntax = { path = "crates/syntax" }
 wipple-compiler-trace = { path = "crates/trace" }

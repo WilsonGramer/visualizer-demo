@@ -1,8 +1,0 @@
-# yaml-language-server: $schema=_schema.json
-as: attribute
-rule: extra attribute
-group: todo
-messages:
-  - node: attribute
-    template: |
-      TODO

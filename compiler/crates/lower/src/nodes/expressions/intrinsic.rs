@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{IntrinsicExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for IntrinsicExpression {
-    fn rule(&self) -> Rule {
-        "intrinsic".into()
+    fn name(&self) -> &'static str {
+        "intrinsic"
     }
 
     fn range(&self) -> Range {

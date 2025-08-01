@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{AsExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for AsExpression {
-    fn rule(&self) -> Rule {
-        "as".into()
+    fn name(&self) -> &'static str {
+        "as"
     }
 
     fn range(&self) -> Range {

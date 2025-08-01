@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{CollectionExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for CollectionExpression {
-    fn rule(&self) -> Rule {
-        "collection".into()
+    fn name(&self) -> &'static str {
+        "collection"
     }
 
     fn range(&self) -> Range {

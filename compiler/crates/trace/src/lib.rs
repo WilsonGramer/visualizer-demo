@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Debug, Display},
     ops::Range,
+    rc::Rc,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -42,31 +43,42 @@ impl Debug for Span {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Rule {
-    pub name: &'static str,
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Fact {
+    Marker(Rc<str>),
+    Str(Rc<str>, Rc<str>),
+    Node(NodeId, Rc<str>),
 }
 
-impl From<&'static str> for Rule {
-    fn from(name: &'static str) -> Self {
-        Rule { name }
+impl Fact {
+    pub fn marker(name: impl AsRef<str>) -> Self {
+        Fact::Marker(Rc::from(name.as_ref()))
+    }
+
+    pub fn with_str(name: impl AsRef<str>, str: impl AsRef<str>) -> Self {
+        Fact::Str(Rc::from(name.as_ref()), Rc::from(str.as_ref()))
+    }
+
+    pub fn with_node(node: NodeId, relation: impl AsRef<str>) -> Self {
+        Fact::Node(node, Rc::from(relation.as_ref()))
     }
 }
 
-impl Debug for Rule {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self, f)
-    }
-}
-
-impl Display for Rule {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
-    }
-}
-
-impl Rule {
+impl Fact {
     pub fn should_ignore(&self) -> bool {
-        self.name.contains("[ignore]")
+        match self {
+            Fact::Marker(name) | Fact::Str(name, _) => name.starts_with('_'),
+            _ => false,
+        }
+    }
+}
+
+impl Display for Fact {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Fact::Marker(name) => write!(f, "{name}"),
+            Fact::Str(name, str) => write!(f, "{name}({str:?})"),
+            Fact::Node(node, relation) => write!(f, "{node:?} as {relation:?}"),
+        }
     }
 }

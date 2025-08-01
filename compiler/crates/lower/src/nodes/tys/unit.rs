@@ -3,11 +3,11 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{Range, UnitType};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for UnitType {
-    fn rule(&self) -> Rule {
-        "unit type".into()
+    fn name(&self) -> &'static str {
+        "unitType"
     }
 
     fn range(&self) -> Range {

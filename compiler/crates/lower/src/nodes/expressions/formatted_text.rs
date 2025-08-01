@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{FormattedTextExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for FormattedTextExpression {
-    fn rule(&self) -> Rule {
-        "formatted text".into()
+    fn name(&self) -> &'static str {
+        "formattedText"
     }
 
     fn range(&self) -> Range {

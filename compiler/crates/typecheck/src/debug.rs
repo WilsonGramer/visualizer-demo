@@ -1,17 +1,15 @@
 use crate::{TyGroups, feedback::FeedbackProvider};
 use itertools::Itertools;
-use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fmt::{self, Write},
 };
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 
 pub fn write_graph(
     w: &mut dyn Write,
     ty_groups: &TyGroups,
-    rules: &BTreeMap<NodeId, HashSet<Rule>>,
-    relations: &DiGraphMap<NodeId, Rule>,
+    facts: &BTreeMap<NodeId, HashSet<Fact>>,
     provider: &FeedbackProvider<'_>,
 ) -> fmt::Result {
     let node_id = |node: NodeId| format!("node{}", node.0);
@@ -27,69 +25,64 @@ pub fn write_graph(
         "classDef error fill:#ff000010,stroke:#ff0000,stroke-dasharray:10;"
     )?;
 
-    let mut visited_rules = BTreeMap::<_, BTreeSet<_>>::new();
+    let mut visited_relations = BTreeMap::<_, BTreeSet<_>>::new();
 
-    for node in ty_groups.nodes().chain(rules.keys().copied()) {
-        if rules
-            .get(&node)
-            .is_some_and(|rules| rules.iter().any(Rule::should_ignore))
-        {
+    for node in ty_groups.nodes().chain(facts.keys().copied()) {
+        let Some(node_facts) = facts.get(&node) else {
+            continue;
+        };
+
+        if node_facts.iter().any(Fact::should_ignore) {
             continue;
         }
 
         let (node_span, node_source) = provider.node_span_source(node);
 
         // Also link related nodes
-        for parent in relations.neighbors_directed(node, Direction::Incoming) {
-            if rules
-                .get(&parent)
-                .is_some_and(|rules| rules.iter().any(Rule::should_ignore))
-            {
+        for (parent, relation) in node_facts.iter().filter_map(|fact| match fact {
+            Fact::Node(parent, relation) => Some((*parent, relation.as_ref())),
+            _ => None,
+        }) {
+            let Some(parent_facts) = facts.get(&parent) else {
+                continue;
+            };
+
+            if parent_facts.iter().any(Fact::should_ignore) {
                 continue;
             }
 
-            let &rule = relations.edge_weight(parent, node).unwrap();
-
-            if visited_rules
+            if visited_relations
                 .get(&(node, parent))
-                .is_some_and(|existing| existing.contains(&rule))
+                .is_some_and(|existing| existing.contains(&relation))
             {
                 continue;
             }
 
-            writeln!(
-                w,
-                "{}-- {:?} -->{}",
-                node_id(node),
-                format!("{rule:?}"),
-                node_id(parent)
-            )?;
+            writeln!(w, "{}-- {} -->{}", node_id(node), relation, node_id(parent))?;
 
-            visited_rules
+            visited_relations
                 .entry((node, parent))
                 .or_default()
-                .insert(rule);
+                .insert(relation);
         }
 
-        let rules = rules
-            .get(&node)
-            .cloned()
-            .unwrap_or_default()
+        let facts = node_facts
             .iter()
-            .map(|rule| rule.to_string())
+            .filter(|fact| !fact.should_ignore() && !matches!(fact, Fact::Node(_, _)))
+            .map(|fact| fact.to_string())
             .collect::<Vec<_>>()
-            .join(", ");
+            .join(",\n");
 
-        let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>\n{rules}");
+        let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>\n{facts}");
 
-        if let Some(comments) = provider.comments(node) {
+        if let Some(comments) = provider.node_comments(node) {
             description.push_str(&comments);
         }
 
         writeln!(w, "{}@{{ label: {:?} }}", node_id(node), description)?;
     }
 
-    let visited = visited_rules
+    let visited = visited_relations
         .into_keys()
         .flat_map(|(node, parent)| [node, parent])
         .collect::<BTreeSet<_>>();

@@ -4,12 +4,12 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{Range, VariableExpression};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions, Ty};
 
 impl Visit for VariableExpression {
-    fn rule(&self) -> Rule {
-        "variable".into()
+    fn name(&self) -> &'static str {
+        "variable"
     }
 
     fn range(&self) -> Range {
@@ -40,7 +40,7 @@ impl Visit for VariableExpression {
         if let Some(constraint) = constraint {
             visitor.constraint(constraint);
         } else {
-            visitor.rule(id, "unresolved variable name");
+            visitor.fact(id, Fact::marker("unresolvedVariableName"));
         }
     }
 

@@ -4,12 +4,12 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{NamedType, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Ty};
 
 impl Visit for NamedType {
-    fn rule(&self) -> Rule {
-        "named type".into()
+    fn name(&self) -> &'static str {
+        "namedType"
     }
 
     fn range(&self) -> Range {
@@ -23,7 +23,7 @@ impl Visit for NamedType {
                 _ => None,
             })
         else {
-            visitor.rule(id, "unresolved named type");
+            visitor.fact(id, Fact::marker("unresolvedNamedType"));
             return;
         };
 

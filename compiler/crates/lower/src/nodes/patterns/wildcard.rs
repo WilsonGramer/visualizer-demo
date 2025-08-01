@@ -1,10 +1,10 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{Range, WildcardPattern};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for WildcardPattern {
-    fn rule(&self) -> Rule {
-        "wildcard pattern".into()
+    fn name(&self) -> &'static str {
+        "wildcardPattern"
     }
 
     fn range(&self) -> Range {

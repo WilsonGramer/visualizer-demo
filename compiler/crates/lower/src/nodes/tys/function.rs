@@ -3,11 +3,11 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{FunctionType, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for FunctionType {
-    fn rule(&self) -> Rule {
-        "function type".into()
+    fn name(&self) -> &'static str {
+        "functionType"
     }
 
     fn range(&self) -> Range {
@@ -19,10 +19,10 @@ impl Visit for FunctionType {
             .inputs
             .0
             .iter()
-            .map(|input| visitor.child(input, id, "function type input"))
+            .map(|input| visitor.child(input, id, "functionTypeInput"))
             .collect::<Vec<_>>();
 
-        let output = visitor.child(self.output.as_ref(), id, "function type output");
+        let output = visitor.child(self.output.as_ref(), id, "functionTypeOutput");
 
         visitor.constraints(constraints_for_call(id, inputs, output));
     }

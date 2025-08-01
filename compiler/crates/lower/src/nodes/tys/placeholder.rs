@@ -1,10 +1,10 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{PlaceholderType, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for PlaceholderType {
-    fn rule(&self) -> Rule {
-        "placeholder type".into()
+    fn name(&self) -> &'static str {
+        "placeholderType"
     }
 
     fn range(&self) -> Range {

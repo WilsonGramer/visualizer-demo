@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{InferConstraint, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for InferConstraint {
-    fn rule(&self) -> Rule {
-        "infer constraint".into()
+    fn name(&self) -> &'static str {
+        "inferConstraint"
     }
 
     fn range(&self) -> Range {

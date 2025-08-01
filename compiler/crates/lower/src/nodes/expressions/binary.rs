@@ -3,11 +3,11 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{BinaryExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for BinaryExpression {
-    fn rule(&self) -> Rule {
-        "binary".into()
+    fn name(&self) -> &'static str {
+        "binary"
     }
 
     fn range(&self) -> Range {
@@ -33,8 +33,8 @@ impl Visit for BinaryExpression {
             BinaryExpression::And(expression) => todo!(),
             BinaryExpression::Or(expression) => todo!(),
             BinaryExpression::Apply(expression) => {
-                let input = visitor.child(expression.left.as_ref(), id, "input in apply");
-                let function = visitor.child(expression.right.as_ref(), id, "function in apply");
+                let input = visitor.child(expression.left.as_ref(), id, "inputInApply");
+                let function = visitor.child(expression.right.as_ref(), id, "functionInApply");
                 visitor.constraints(constraints_for_call(function, [input], id));
             }
         }

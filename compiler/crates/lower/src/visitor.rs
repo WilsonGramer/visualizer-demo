@@ -1,11 +1,10 @@
 use crate::definitions::{Definition, InstanceDefinition};
-use petgraph::prelude::DiGraphMap;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     rc::Rc,
 };
 use wipple_compiler_syntax::{self as syntax, Range};
-use wipple_compiler_trace::{NodeId, Rule, Span};
+use wipple_compiler_trace::{Fact, NodeId, Span};
 use wipple_compiler_typecheck::constraints::Constraint;
 
 #[enum_delegate::register]
@@ -69,7 +68,7 @@ use wipple_compiler_typecheck::constraints::Constraint;
     Tuple(TupleType),
 })]
 pub trait Visit {
-    fn rule(&self) -> Rule;
+    fn name(&self) -> &'static str;
 
     fn range(&self) -> Range;
 
@@ -80,8 +79,8 @@ pub trait Visit {
     }
 }
 
-impl Visit for (Range, Rule) {
-    fn rule(&self) -> Rule {
+impl Visit for (Range, &'static str) {
+    fn name(&self) -> &'static str {
         self.1
     }
 
@@ -96,8 +95,7 @@ pub struct Result {
     pub next_id: NodeId,
     pub typed_nodes: BTreeSet<NodeId>,
     pub spans: BTreeMap<NodeId, Span>,
-    pub rules: BTreeMap<NodeId, HashSet<Rule>>,
-    pub relations: DiGraphMap<NodeId, Rule>,
+    pub facts: BTreeMap<NodeId, HashSet<Fact>>,
     pub definitions: BTreeMap<NodeId, Definition>,
     pub instances: BTreeMap<NodeId, Vec<NodeId>>,
     pub constraints: Vec<Constraint>,
@@ -106,10 +104,9 @@ pub struct Result {
 pub struct Visitor<'a> {
     make_span: Box<dyn Fn(Range) -> Span + 'a>,
     next_id: NodeId,
-    typed_nodes: BTreeSet<NodeId>,
+    typed_nodes: BTreeSet<NodeId>, // FIXME: Remove
     spans: BTreeMap<NodeId, Span>,
-    rules: BTreeMap<NodeId, HashSet<Rule>>,
-    relations: DiGraphMap<NodeId, Rule>,
+    facts: BTreeMap<NodeId, HashSet<Fact>>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
     constraints: Vec<Constraint>,
@@ -123,8 +120,7 @@ impl<'a> Visitor<'a> {
             make_span: Box::new(make_span),
             typed_nodes: Default::default(),
             spans: Default::default(),
-            rules: Default::default(),
-            relations: Default::default(),
+            facts: Default::default(),
             scopes: vec![Scope::default()],
             instances: Default::default(),
             constraints: Default::default(),
@@ -155,39 +151,33 @@ impl<'a> Visitor<'a> {
             next_id: self.next_id,
             typed_nodes: self.typed_nodes,
             spans: self.spans,
-            relations: self.relations,
             definitions,
             instances: instance_ids,
             constraints: self.constraints,
-            rules: self.rules,
+            facts: self.facts,
         }
     }
 }
 
 impl<'a> Visitor<'a> {
-    pub fn node(&mut self, range: Range, rule: impl Into<Rule>) -> NodeId {
+    pub fn node(&mut self, range: Range, name: &'static str) -> NodeId {
         let id = self.next_id;
         self.next_id.0 += 1;
 
         self.spans.insert(id, (self.make_span)(range));
-        self.rule(id, rule);
+        self.fact(id, Fact::marker(name));
 
         id
     }
 
-    pub fn rule(&mut self, node: NodeId, rule: impl Into<Rule>) {
-        self.rules.entry(node).or_default().insert(rule.into());
+    pub fn fact(&mut self, node: NodeId, fact: Fact) {
+        self.facts.entry(node).or_default().insert(fact);
     }
 
-    pub fn child(
-        &mut self,
-        node: &impl Visit,
-        parent: NodeId,
-        relation: impl Into<Rule>,
-    ) -> NodeId {
-        let id = self.node(node.range(), node.rule());
+    pub fn child(&mut self, node: &impl Visit, parent: NodeId, relation: &'static str) -> NodeId {
+        let id = self.node(node.range(), node.name());
 
-        self.relations.add_edge(parent, id, relation.into());
+        self.relation(id, parent, relation);
 
         if node.is_typed() {
             self.typed_nodes.insert(id);
@@ -196,6 +186,10 @@ impl<'a> Visitor<'a> {
         node.visit(id, self);
 
         id
+    }
+
+    pub fn relation(&mut self, child: NodeId, parent: NodeId, relation: &'static str) {
+        self.fact(child, Fact::with_node(parent, relation));
     }
 
     pub fn constraint(&mut self, constraint: Constraint) {
@@ -223,22 +217,21 @@ impl Visitor<'_> {
         self.scopes.pop();
     }
 
-    pub fn resolve_name<'a, T: 'a, R: Into<Rule>>(
-        &'a mut self,
+    pub fn resolve_name<T>(
+        &mut self,
         name: &str,
         node: NodeId,
-        mut filter: impl FnMut(&'a Definition) -> Option<(T, R)>,
+        mut filter: impl FnMut(&Definition) -> Option<(T, &'static str)>,
     ) -> Option<T> {
-        let ((result, rule), definition) = self
+        let ((result, relation), definition) = self
             .scopes
             .iter()
             .rev()
             .filter_map(|scope| scope.definitions.get(name))
             .flatten()
-            .find_map(|definition| Some((filter(definition)?, definition)))?;
+            .find_map(|definition| Some((filter(definition)?, definition.source())))?;
 
-        self.relations
-            .add_edge(definition.source(), node, rule.into());
+        self.relation(definition, node, relation);
 
         Some(result)
     }

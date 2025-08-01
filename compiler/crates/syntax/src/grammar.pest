@@ -227,7 +227,7 @@ tuple_pattern = !{
 
 or_pattern = !{ pattern_element ~ ("or" ~ pattern_element)+ }
 
-annotate_pattern = !{ "(" ~ pattern_element ~ "::" ~ type_element ~ ")" }
+annotate_pattern = !{ pattern_element ~ "::" ~ type_element }
 
 set_pattern = !{ "set" ~ variable_name }
 

@@ -1,10 +1,9 @@
 use crate::constraints::Constraint;
-use petgraph::{Direction, prelude::DiGraphMap};
 use std::{
     collections::{BTreeMap, HashSet},
     rc::Rc,
 };
-use wipple_compiler_trace::{NodeId, Rule, Span};
+use wipple_compiler_trace::{Fact, NodeId, Span};
 
 #[derive(Clone)]
 pub struct Constant {
@@ -19,42 +18,33 @@ pub struct Trait {
 
 #[derive(Clone)]
 pub struct FeedbackProvider<'a> {
-    nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
-    relations: &'a DiGraphMap<NodeId, Rule>,
+    facts: &'a BTreeMap<NodeId, HashSet<Fact>>,
     get_span_source: Rc<dyn Fn(NodeId) -> (Span, String) + 'a>,
     get_comments: Rc<dyn Fn(NodeId) -> Option<String> + 'a>,
 }
 
 impl<'a> FeedbackProvider<'a> {
     pub fn new(
-        nodes: &'a BTreeMap<NodeId, HashSet<Rule>>,
-        relations: &'a DiGraphMap<NodeId, Rule>,
+        facts: &'a BTreeMap<NodeId, HashSet<Fact>>,
         get_span_source: impl Fn(NodeId) -> (Span, String) + 'a,
         get_comments: impl Fn(NodeId) -> Option<String> + 'a,
     ) -> Self {
         FeedbackProvider {
-            nodes,
-            relations,
+            facts,
             get_span_source: Rc::new(get_span_source),
             get_comments: Rc::new(get_comments),
         }
     }
 
-    pub fn related_nodes(&self, node: NodeId) -> impl Iterator<Item = (NodeId, Rule)> {
-        self.relations
-            .neighbors_directed(node, Direction::Incoming)
-            .map(move |other| (other, *self.relations.edge_weight(other, node).unwrap()))
+    pub fn node_facts(&self, node: NodeId) -> &HashSet<Fact> {
+        self.facts.get(&node).unwrap()
     }
 
     pub fn node_span_source(&self, node: NodeId) -> (Span, String) {
         (self.get_span_source)(node)
     }
 
-    pub fn comments(&self, node: NodeId) -> Option<String> {
+    pub fn node_comments(&self, node: NodeId) -> Option<String> {
         (self.get_comments)(node)
-    }
-
-    pub fn node_rules(&self, node: NodeId) -> &HashSet<Rule> {
-        self.nodes.get(&node).unwrap()
     }
 }

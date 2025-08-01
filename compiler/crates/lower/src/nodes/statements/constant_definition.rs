@@ -4,12 +4,12 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{ConstantDefinitionStatement, Constraints, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 use wipple_compiler_typecheck::constraints::{Constraint, Ty};
 
 impl Visit for ConstantDefinitionStatement {
-    fn rule(&self) -> Rule {
-        "constant definition".into()
+    fn name(&self) -> &'static str {
+        "constantDefinition"
     }
 
     fn range(&self) -> Range {
@@ -23,7 +23,7 @@ impl Visit for ConstantDefinitionStatement {
         let (ty, constraints) = visitor.with_definition(|visitor| {
             visitor.current_definition().implicit_type_parameters = true;
 
-            let ty = visitor.child(&self.constraints.r#type, id, "type in constant definition");
+            let ty = visitor.child(&self.constraints.r#type, id, "typeInConstantDefinition");
 
             visitor
                 .current_definition()
@@ -31,7 +31,7 @@ impl Visit for ConstantDefinitionStatement {
 
             if let Some(Constraints(constraints)) = &self.constraints.constraints {
                 for constraint in constraints {
-                    visitor.child(constraint, id, "constraint in constant definition");
+                    visitor.child(constraint, id, "constraintInConstantDefinition");
                 }
             }
 

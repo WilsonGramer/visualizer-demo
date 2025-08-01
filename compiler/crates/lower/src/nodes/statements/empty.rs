@@ -1,10 +1,10 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{EmptyStatement, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for EmptyStatement {
-    fn rule(&self) -> Rule {
-        "empty statement".into()
+    fn name(&self) -> &'static str {
+        "emptyStatement"
     }
 
     fn range(&self) -> Range {

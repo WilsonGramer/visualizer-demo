@@ -3,12 +3,12 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{ParameterType, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Ty};
 
 impl Visit for ParameterType {
-    fn rule(&self) -> Rule {
-        "parameter type".into()
+    fn name(&self) -> &'static str {
+        "parameterType"
     }
 
     fn range(&self) -> Range {
@@ -37,7 +37,7 @@ impl Visit for ParameterType {
 
                     visitor.constraint(Constraint::Ty(id, Ty::Parameter(id)));
                 } else {
-                    visitor.rule(id, "unresolved parameter type");
+                    visitor.fact(id, Fact::marker("unresolvedParameterType"));
                 }
             }
         }

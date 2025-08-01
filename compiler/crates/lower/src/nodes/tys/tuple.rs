@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{Range, TupleType};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for TupleType {
-    fn rule(&self) -> Rule {
-        "tuple type".into()
+    fn name(&self) -> &'static str {
+        "tupleType"
     }
 
     fn range(&self) -> Range {

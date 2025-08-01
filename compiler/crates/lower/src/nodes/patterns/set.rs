@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{Range, SetPattern};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for SetPattern {
-    fn rule(&self) -> Rule {
-        "set pattern".into()
+    fn name(&self) -> &'static str {
+        "setPattern"
     }
 
     fn range(&self) -> Range {

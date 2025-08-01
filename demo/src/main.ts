@@ -1,7 +1,5 @@
 import mermaid from "mermaid";
 import initCompiler, { compile } from "wipple-compiler";
-import DOMPurify from "dompurify";
-import { marked } from "marked";
 import "./style.css";
 
 mermaid.initialize({ startOnLoad: false });
@@ -30,19 +28,16 @@ const update = async () => {
 
     await initCompiler();
 
-    const [syntaxError, graphString, tys, feedback] = compile(code.value);
+    const [syntaxError, graphString, tys] = compile(code.value);
 
     if (syntaxError) {
-        log.innerText = `Syntax error: ${syntaxError}`;
+        graph.innerHTML = "";
+        log.innerText = syntaxError;
     } else {
         const { svg } = await mermaid.render("graphSvg", graphString);
         graph.innerHTML = svg;
 
-        const markdown = DOMPurify.sanitize(marked.parse(feedback, { async: false }));
-        log.innerHTML = `
-            <div class="markdown-body">${markdown}</div>
-            <pre>${tys}</pre>
-        `;
+        log.innerText = tys;
     }
 };
 

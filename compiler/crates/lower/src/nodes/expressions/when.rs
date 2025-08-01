@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{Range, WhenExpression};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for WhenExpression {
-    fn rule(&self) -> Rule {
-        "when".into()
+    fn name(&self) -> &'static str {
+        "when"
     }
 
     fn range(&self) -> Range {

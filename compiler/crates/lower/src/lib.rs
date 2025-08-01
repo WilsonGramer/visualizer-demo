@@ -11,7 +11,7 @@ use wipple_compiler_trace::Span;
 pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     let mut visitor = Visitor::new(make_span);
 
-    let source_file = visitor.node(file.range, "source file [ignore]");
+    let source_file = visitor.node(file.range, "_sourceFile");
     if let Some(statements) = &file.statements {
         for statement in &statements.0 {
             if !matches!(statement, Statement::Empty(_)) {

@@ -3,11 +3,11 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{BlockExpression, Range, Statement};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for BlockExpression {
-    fn rule(&self) -> Rule {
-        "block".into()
+    fn name(&self) -> &'static str {
+        "block"
     }
 
     fn range(&self) -> Range {
@@ -22,7 +22,7 @@ impl Visit for BlockExpression {
             .0
             .iter()
             .filter(|statement| !matches!(statement, Statement::Empty(_)))
-            .map(|statement| visitor.child(statement, id, "block statement"))
+            .map(|statement| visitor.child(statement, id, "blockStatement"))
             .collect::<Vec<_>>();
 
         visitor.pop_scope();

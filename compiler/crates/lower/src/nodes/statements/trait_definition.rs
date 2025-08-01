@@ -4,12 +4,12 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{Constraints, Range, TraitDefinitionStatement};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 use wipple_compiler_typecheck::constraints::{Bound, Constraint, Substitutions, Ty};
 
 impl Visit for TraitDefinitionStatement {
-    fn rule(&self) -> Rule {
-        "trait definition".into()
+    fn name(&self) -> &'static str {
+        "traitDefinition"
     }
 
     fn range(&self) -> Range {
@@ -27,7 +27,11 @@ impl Visit for TraitDefinitionStatement {
             .unwrap_or_default()
             .iter()
             .map(|parameter| {
-                let id = visitor.child(&(parameter.range, "parameter name".into()), id, "parameter in trait definition");
+                let id = visitor.child(
+                    &(parameter.range, "parameterName"),
+                    id,
+                    "parameterInTraitDefinition",
+                );
 
                 visitor.define_name(
                     &parameter.value,
@@ -41,7 +45,7 @@ impl Visit for TraitDefinitionStatement {
             .collect::<Vec<_>>();
 
         let (ty, constraints) = visitor.with_definition(|visitor| {
-            let ty = visitor.child(&self.constraints.r#type, id, "type in trait definition");
+            let ty = visitor.child(&self.constraints.r#type, id, "typeInTraitDefinition");
 
             visitor
                 .current_definition()
@@ -57,7 +61,7 @@ impl Visit for TraitDefinitionStatement {
 
             if let Some(Constraints(constraints)) = &self.constraints.constraints {
                 for constraint in constraints {
-                    visitor.child(constraint, id, "constraint in trait definition");
+                    visitor.child(constraint, id, "constraintInTraitDefinition");
                 }
             }
 

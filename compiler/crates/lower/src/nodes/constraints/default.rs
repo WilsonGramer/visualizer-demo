@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{DefaultConstraint, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for DefaultConstraint {
-    fn rule(&self) -> Rule {
-        "default constraint".into()
+    fn name(&self) -> &'static str {
+        "defaultConstraint"
     }
 
     fn range(&self) -> Range {

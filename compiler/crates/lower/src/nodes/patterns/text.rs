@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{Range, TextPattern};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for TextPattern {
-    fn rule(&self) -> Rule {
-        "text pattern".into()
+    fn name(&self) -> &'static str {
+        "textPattern"
     }
 
     fn range(&self) -> Range {

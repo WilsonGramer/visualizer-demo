@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{Range, StructureExpression};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for StructureExpression {
-    fn rule(&self) -> Rule {
-        "structure".into()
+    fn name(&self) -> &'static str {
+        "structure"
     }
 
     fn range(&self) -> Range {

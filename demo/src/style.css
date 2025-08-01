@@ -9,10 +9,6 @@
         --font-mono: "Fira Code Variable", monospace;
     }
 
-    li {
-        list-style-type: disc;
-    }
-
     pre,
     code {
         font-family: var(--font-mono) !important;

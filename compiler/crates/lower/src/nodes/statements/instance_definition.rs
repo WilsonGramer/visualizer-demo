@@ -5,12 +5,12 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{Constraints, InstanceDefinitionStatement, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions, Ty};
 
 impl Visit for InstanceDefinitionStatement {
-    fn rule(&self) -> Rule {
-        "instance definition".into()
+    fn name(&self) -> &'static str {
+        "instanceDefinition"
     }
 
     fn range(&self) -> Range {
@@ -32,7 +32,7 @@ impl Visit for InstanceDefinitionStatement {
                 }
             })
         else {
-            visitor.rule(id, "unresolved trait name");
+            visitor.fact(id, Fact::marker("unresolvedTraitName"));
             return;
         };
 
@@ -44,7 +44,7 @@ impl Visit for InstanceDefinitionStatement {
                 .bound
                 .parameters
                 .iter()
-                .map(|ty| visitor.child(ty, id, "parameter in instance definition"));
+                .map(|ty| visitor.child(ty, id, "parameterInInstanceDefinition"));
 
             // TODO: Ensure `parameters` has the right length
             let substitutions = trait_parameters
@@ -64,13 +64,13 @@ impl Visit for InstanceDefinitionStatement {
 
             if let Some(Constraints(constraints)) = &self.constraints.constraints {
                 for constraint in constraints {
-                    visitor.child(constraint, id, "constraint in instance definition");
+                    visitor.child(constraint, id, "constraintInInstanceDefinition");
                 }
             }
 
             visitor.current_definition().implicit_type_parameters = false;
 
-            let value = visitor.child(&self.value, id, "value in instance definition");
+            let value = visitor.child(&self.value, id, "valueInInstanceDefinition");
 
             (
                 value,

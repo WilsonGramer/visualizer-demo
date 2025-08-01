@@ -4,12 +4,12 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{Range, TraitExpression};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions};
 
 impl Visit for TraitExpression {
-    fn rule(&self) -> Rule {
-        "trait".into()
+    fn name(&self) -> &'static str {
+        "trait"
     }
 
     fn range(&self) -> Range {
@@ -32,7 +32,7 @@ impl Visit for TraitExpression {
                 constraints: instantiate_constraints(id, constraints).collect(),
             }));
         } else {
-            visitor.rule(id, "unresolved trait name");
+            visitor.fact(id, Fact::marker("unresolvedTraitName"));
         }
     }
 

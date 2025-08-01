@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{BlockType, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for BlockType {
-    fn rule(&self) -> Rule {
-        "block type".into()
+    fn name(&self) -> &'static str {
+        "blockType"
     }
 
     fn range(&self) -> Range {

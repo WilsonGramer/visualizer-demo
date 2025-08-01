@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{OrPattern, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for OrPattern {
-    fn rule(&self) -> Rule {
-        "or pattern".into()
+    fn name(&self) -> &'static str {
+        "orPattern"
     }
 
     fn range(&self) -> Range {

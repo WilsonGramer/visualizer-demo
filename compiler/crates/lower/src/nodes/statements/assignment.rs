@@ -3,12 +3,12 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{AssignmentStatement, Pattern, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::{Fact, NodeId};
 use wipple_compiler_typecheck::constraints::{Constraint, Ty};
 
 impl Visit for AssignmentStatement {
-    fn rule(&self) -> Rule {
-        "assignment".into()
+    fn name(&self) -> &'static str {
+        "_assignment"
     }
 
     fn range(&self) -> Range {
@@ -16,7 +16,7 @@ impl Visit for AssignmentStatement {
     }
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
-        let value = visitor.child(&self.value, id, "assignment value");
+        let value = visitor.child(&self.value, id, "assignmentValue");
 
         // Try assigning to an existing constant if possible
         if let Pattern::Variable(pattern) = &self.pattern {
@@ -38,14 +38,14 @@ impl Visit for AssignmentStatement {
                 })
             {
                 visitor.constraint(constraint);
-                visitor.rule(id, "assignment to constant");
+                visitor.fact(id, Fact::marker("assignmentToConstant"));
                 return;
             }
         }
 
-        let pattern = visitor.child(&self.pattern, value, "assignment pattern");
+        let pattern = visitor.child(&self.pattern, value, "assignmentPattern");
 
-        visitor.constraint(Constraint::Ty(id, Ty::Of(pattern)));
-        visitor.rule(id, "assignment to pattern");
+        visitor.constraint(Constraint::Ty(value, Ty::Of(pattern)));
+        visitor.fact(id, Fact::marker("assignmentToPattern"));
     }
 }

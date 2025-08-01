@@ -89,17 +89,5 @@ fn run(path: &str, source: &str) {
 
     let display_tys = |tys| println!("{tys}");
 
-    let display_feedback = |feedback| {
-        println!();
-        print_highlighted(feedback);
-    };
-
-    wipple_compiler::compile(
-        path,
-        source,
-        display_syntax,
-        display_graph,
-        display_tys,
-        display_feedback,
-    );
+    wipple_compiler::compile(path, source, display_syntax, display_graph, display_tys);
 }

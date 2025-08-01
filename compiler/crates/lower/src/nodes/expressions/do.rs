@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{DoExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for DoExpression {
-    fn rule(&self) -> Rule {
-        "do".into()
+    fn name(&self) -> &'static str {
+        "do"
     }
 
     fn range(&self) -> Range {

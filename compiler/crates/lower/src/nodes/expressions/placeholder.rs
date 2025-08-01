@@ -1,10 +1,10 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{PlaceholderExpression, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 
 impl Visit for PlaceholderExpression {
-    fn rule(&self) -> Rule {
-        "placeholder".into()
+    fn name(&self) -> &'static str {
+        "placeholder"
     }
 
     fn range(&self) -> Range {

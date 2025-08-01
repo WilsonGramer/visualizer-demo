@@ -1,11 +1,11 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{DestructurePattern, Range};
-use wipple_compiler_trace::{NodeId, Rule};
+use wipple_compiler_trace::NodeId;
 // TODO
 
 impl Visit for DestructurePattern {
-    fn rule(&self) -> Rule {
-        "destructure pattern".into()
+    fn name(&self) -> &'static str {
+        "destructurePattern"
     }
 
     fn range(&self) -> Range {
