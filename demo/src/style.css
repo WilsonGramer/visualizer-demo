@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "@fontsource-variable/inter/wght.css";
 @import "@fontsource-variable/fira-code/wght.css";
-@import "github-markdown-css/github-markdown.css";
 
 @layer base {
     :root {
