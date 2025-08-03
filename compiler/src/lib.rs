@@ -1,10 +1,10 @@
 use colored::Colorize;
-use std::{cell::RefCell, collections::BTreeSet};
+use std::{collections::BTreeSet, mem};
 use wasm_bindgen::prelude::*;
 use wipple_compiler_lower::definitions::Definition;
 use wipple_compiler_syntax::{Parse, Range};
 use wipple_compiler_trace::{Fact, NodeId, Span};
-use wipple_compiler_typecheck::{TypeProvider, Typechecker, debug};
+use wipple_compiler_typecheck::{Typechecker, debug};
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {
@@ -55,75 +55,15 @@ pub fn compile(
         }
     };
 
-    let lowered = RefCell::new(wipple_compiler_lower::visit(&source_file, make_span));
+    let mut lowered = wipple_compiler_lower::visit(&source_file, make_span);
 
-    let type_provider = TypeProvider::new(
-        |node_id| {
-            let mut lowered = lowered.borrow_mut();
+    let constraints = mem::take(&mut lowered.constraints);
 
-            let new_id = lowered.next_id;
-            lowered.next_id.0 += 1;
-
-            let span = lowered.spans.get(&node_id).unwrap().clone();
-            lowered.spans.insert(new_id, span);
-
-            new_id
-        },
-        |trait_id| {
-            lowered
-                .borrow()
-                .instances
-                .get(&trait_id)
-                .map(Vec::as_slice)
-                .unwrap_or_default()
-                .iter()
-                .cloned()
-                .map(|node| {
-                    let lowered = lowered.borrow();
-                    let definition = lowered.definitions.get(&node).unwrap();
-
-                    let Definition::Instance(instance) = definition else {
-                        unreachable!()
-                    };
-
-                    (node, instance.substitutions.clone())
-                })
-                .collect()
-        },
-        |node, bound, instance| {
-            let mut lowered = lowered.borrow_mut();
-
-            lowered.typed_nodes.insert(node);
-
-            let facts = lowered.facts.entry(node).or_default();
-            facts.insert(Fact::with_node(bound.tr, "resolved trait"));
-            facts.insert(Fact::with_node(instance, "resolved trait"));
-        },
-        |node, bound| {
-            let mut lowered = lowered.borrow_mut();
-
-            lowered.typed_nodes.insert(node);
-
-            lowered
-                .facts
-                .entry(node)
-                .or_default()
-                .insert(Fact::with_node(bound.tr, "unresolved trait"));
-        },
-    );
-
-    let mut typechecker = Typechecker::with_provider(type_provider);
-    {
-        let nodes = lowered.borrow().facts.keys().cloned().collect::<Vec<_>>();
-        let constraints = lowered.borrow().constraints.clone();
-        typechecker.insert_nodes(nodes);
+    let ty_groups = {
+        let mut typechecker = Typechecker::with_provider(TypeProvider(&mut lowered));
         typechecker.insert_constraints(constraints);
-    }
-
-    let ty_groups = typechecker.to_ty_groups();
-
-    drop(typechecker);
-    let mut lowered = lowered.into_inner();
+        typechecker.to_ty_groups()
+    };
 
     // Ensure all expressions are typed (TODO: Put this in its own function)
     for &node in lowered.typed_nodes.iter() {
@@ -272,5 +212,69 @@ pub fn compile(
                         .with(tabled::settings::Width::increase(width))
                 )
         ));
+    }
+}
+
+struct TypeProvider<'a>(&'a mut wipple_compiler_lower::visitor::Result);
+
+impl<'a> wipple_compiler_typecheck::TypeProvider<'a> for TypeProvider<'a> {
+    fn copy_node(&mut self, node_id: NodeId) -> NodeId {
+        let new_id = self.0.next_id;
+        self.0.next_id.0 += 1;
+
+        let span = self.0.spans.get(&node_id).unwrap().clone();
+        self.0.spans.insert(new_id, span);
+
+        new_id
+    }
+
+    fn get_trait_instances(
+        &mut self,
+        trait_id: NodeId,
+    ) -> Vec<(NodeId, std::collections::BTreeMap<NodeId, NodeId>)> {
+        self.0
+            .instances
+            .get(&trait_id)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+            .iter()
+            .cloned()
+            .map(|node| {
+                let definition = self.0.definitions.get(&node).unwrap();
+
+                let Definition::Instance(instance) = definition else {
+                    unreachable!()
+                };
+
+                (node, instance.substitutions.clone())
+            })
+            .collect()
+    }
+
+    fn flag_resolved(
+        &mut self,
+        node: NodeId,
+        bound: wipple_compiler_typecheck::constraints::Bound,
+        instance: NodeId,
+    ) {
+        self.0.typed_nodes.insert(node);
+
+        let facts = self.0.facts.entry(node).or_default();
+        facts.insert(Fact::with_node(bound.tr, "resolved trait"));
+        facts.insert(Fact::with_node(instance, "resolved trait"));
+    }
+
+    fn flag_unresolved(
+        &mut self,
+        node: NodeId,
+        bound: wipple_compiler_typecheck::constraints::Bound,
+    ) {
+        self.0.typed_nodes.insert(node);
+
+        self.0
+            .facts
+            .entry(node)
+            .or_default()
+            .insert(Fact::with_node(bound.tr, "unresolved trait"));
     }
 }

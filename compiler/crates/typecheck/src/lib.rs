@@ -67,59 +67,29 @@ pub struct Instance {
     pub constraints: Vec<Constraint>,
 }
 
-// TODO: Make this a trait
+pub trait TypeProvider<'a> {
+    fn copy_node(&mut self, node: NodeId) -> NodeId;
+    fn get_trait_instances(&mut self, trait_id: NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>)>;
+    fn flag_resolved(&mut self, node: NodeId, bound: Bound, instance: NodeId);
+    fn flag_unresolved(&mut self, node: NodeId, bound: Bound);
+}
+
 #[derive(Clone)]
-pub struct TypeProvider<'a> {
-    copy_node: Rc<RefCell<dyn FnMut(NodeId) -> NodeId + 'a>>,
-    get_trait_instances:
-        Rc<RefCell<dyn FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>)> + 'a>>,
-    flag_resolved: Rc<RefCell<dyn FnMut(NodeId, Bound, NodeId) + 'a>>,
-    flag_unresolved: Rc<RefCell<dyn FnMut(NodeId, Bound) + 'a>>,
-}
-
-impl<'a> TypeProvider<'a> {
-    pub fn new(
-        copy_node: impl FnMut(NodeId) -> NodeId + 'a,
-        get_trait_instances: impl FnMut(NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>)> + 'a,
-        flag_resolved: impl FnMut(NodeId, Bound, NodeId) + 'a,
-        flag_unresolved: impl FnMut(NodeId, Bound) + 'a,
-    ) -> Self {
-        TypeProvider {
-            copy_node: Rc::new(RefCell::new(copy_node)),
-            get_trait_instances: Rc::new(RefCell::new(get_trait_instances)),
-            flag_resolved: Rc::new(RefCell::new(flag_resolved)),
-            flag_unresolved: Rc::new(RefCell::new(flag_unresolved)),
-        }
-    }
-}
-
-impl Debug for TypeProvider<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("TypeProvider").finish_non_exhaustive()
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct Typechecker<'a> {
-    provider: TypeProvider<'a>,
-    nodes: BTreeSet<NodeId>,
+    provider: Rc<RefCell<dyn TypeProvider<'a> + 'a>>,
     keys: GroupKeys,
-    /// Tracks unified groups
     unify: InPlaceUnificationTable<GroupKey>,
-    /// Types that unified
     groups: BTreeMap<GroupKey, Ty>,
-    /// Types that failed to unify
-    others: BTreeMap<NodeId, Vec<Ty>>,
+    others: BTreeMap<NodeId, Vec<Ty>>, // failed to unify
     queue: Vec<Constraint>,
     progress: Progress,
     error: bool,
 }
 
 impl<'a> Typechecker<'a> {
-    pub fn with_provider(provider: TypeProvider<'a>) -> Self {
+    pub fn with_provider(provider: impl TypeProvider<'a> + 'a) -> Self {
         Typechecker {
-            provider,
-            nodes: Default::default(),
+            provider: Rc::new(RefCell::new(provider)),
             keys: Default::default(),
             unify: Default::default(),
             groups: Default::default(),
@@ -128,10 +98,6 @@ impl<'a> Typechecker<'a> {
             progress: Default::default(),
             error: false,
         }
-    }
-
-    pub fn insert_nodes(&mut self, nodes: impl IntoIterator<Item = NodeId>) {
-        self.nodes.extend(nodes);
     }
 
     pub fn insert_constraints(&mut self, constraints: impl IntoIterator<Item = Constraint>) {
@@ -166,14 +132,6 @@ impl<'a> Typechecker<'a> {
                         ty_groups.assign_node_to_index(node, index);
                     }
                 }
-            }
-        }
-
-        // Any remaining nodes have unknown types
-        for &node in &self.nodes {
-            if ty_groups.index_of(node).is_none() {
-                let index = ty_groups.insert_group(Ty::Unknown);
-                ty_groups.assign_node_to_index(node, index);
             }
         }
 
@@ -272,7 +230,7 @@ impl Typechecker<'_> {
 
         for bound in bounds {
             // Use a temporary node for the bound while resolving.
-            let temp_node = (self.provider.copy_node.borrow_mut())(bound.node);
+            let temp_node = self.provider.borrow_mut().copy_node(bound.node);
 
             // Get the current type of the node, if there is one, without
             // actually unifying it with anything.
@@ -288,7 +246,7 @@ impl Typechecker<'_> {
                 substitutions: bound.substitutions.clone(),
             })]);
 
-            let instances = self.provider.get_trait_instances.borrow_mut()(bound.tr);
+            let instances = self.provider.borrow_mut().get_trait_instances(bound.tr);
 
             let mut candidates = Vec::new();
             for (instance, parameters) in instances {
@@ -319,7 +277,7 @@ impl Typechecker<'_> {
             }
 
             if candidates.len() != 1 {
-                self.provider.flag_unresolved.borrow_mut()(temp_node, bound);
+                self.provider.borrow_mut().flag_unresolved(temp_node, bound);
 
                 continue;
             }
@@ -330,7 +288,9 @@ impl Typechecker<'_> {
             *self = copy;
 
             self.progress.set();
-            self.provider.flag_resolved.borrow_mut()(temp_node, bound, instance);
+            self.provider
+                .borrow_mut()
+                .flag_resolved(temp_node, bound, instance);
         }
 
         self.progress.take()
@@ -429,8 +389,7 @@ impl Typechecker<'_> {
                 if let Some(substitution) = substitutions.0.get(parameter).cloned() {
                     *ty = substitution;
                 } else {
-                    let copy = (self.provider.copy_node.borrow_mut())(*parameter);
-                    self.nodes.insert(copy);
+                    let copy = self.provider.borrow_mut().copy_node(*parameter);
                     substitutions.0.insert(*parameter, Ty::Of(copy));
                     *ty = Ty::Of(copy);
                 }
