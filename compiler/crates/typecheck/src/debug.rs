@@ -104,7 +104,7 @@ pub fn write_graph(
             .unique()
             .map(|ty| ty.to_debug_string(provider))
             .collect::<Vec<_>>()
-            .join("\n");
+            .join(" or ");
 
         writeln!(w, "subgraph group{index}[\"<code>{description}</code>\"]")?;
 
