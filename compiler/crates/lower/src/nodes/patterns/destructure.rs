@@ -15,8 +15,4 @@ impl Visit for DestructurePattern {
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         todo!()
     }
-
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

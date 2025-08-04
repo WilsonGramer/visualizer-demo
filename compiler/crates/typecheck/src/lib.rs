@@ -143,8 +143,8 @@ impl Typechecker<'_> {
     fn run(&mut self) {
         loop {
             let progress = self
-                .run_tys()
-                .or_else(|| self.run_instantiations())
+                .run_instantiations()
+                .or_else(|| self.run_tys())
                 .or_else(|| self.run_bounds());
             // TODO: run_defaults(), etc.
 
@@ -412,9 +412,8 @@ impl Typechecker<'_> {
             }
             (other, ty @ &mut Ty::Of(node)) | (ty @ &mut Ty::Of(node), other) => {
                 let key = self.key_for_node(node);
-                if let Some(mut existing) = self.groups.insert(key, other.clone()) {
-                    self.unify_tys(ty, &mut existing)?;
-                }
+                let existing = self.groups.insert(key, other.clone());
+                assert!(existing.is_none());
 
                 *ty = other.clone();
 

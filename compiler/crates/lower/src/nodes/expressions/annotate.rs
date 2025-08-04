@@ -19,8 +19,4 @@ impl Visit for AnnotateExpression {
         visitor.constraint(Constraint::Ty(value, Ty::Of(ty)));
         visitor.constraint(Constraint::Ty(id, Ty::Of(ty)));
     }
-
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

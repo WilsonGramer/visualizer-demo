@@ -18,25 +18,25 @@ impl Visit for InstanceDefinitionStatement {
     }
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
-        let attributes =
-            InstanceAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
+        visitor.with_definition(|visitor| {
+            let attributes =
+                InstanceAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
 
-        let Some((trait_node, trait_parameters)) =
-            visitor.resolve_name(&self.constraints.bound.r#trait.value, id, |definition| {
-                match definition {
-                    Definition::Trait(definition) => Some((
-                        (definition.node, definition.parameters.clone()),
-                        "trait in instance definition",
-                    )),
-                    _ => None,
-                }
-            })
-        else {
-            visitor.fact(id, Fact::marker("unresolvedTraitName"));
-            return;
-        };
+            let Some((trait_node, trait_parameters)) =
+                visitor.resolve_name(&self.constraints.bound.r#trait.value, id, |definition| {
+                    match definition {
+                        Definition::Trait(definition) => Some((
+                            (definition.node, definition.parameters.clone()),
+                            "trait in instance definition",
+                        )),
+                        _ => None,
+                    }
+                })
+            else {
+                visitor.fact(id, Fact::marker("unresolvedTraitName"));
+                return;
+            };
 
-        let (value, constraints, substitutions) = visitor.with_definition(|visitor| {
             visitor.current_definition().implicit_type_parameters = true;
 
             let parameters = self
@@ -72,33 +72,25 @@ impl Visit for InstanceDefinitionStatement {
 
             let value = visitor.child(&self.value, id, "valueInInstanceDefinition");
 
-            (
+            let constraints = visitor.current_definition().take_constraints();
+
+            visitor.define_instance(InstanceDefinition {
+                node: id,
+                comments: self.comments.clone(),
+                attributes,
+                tr: trait_node,
+                substitutions: substitutions.clone(),
+                constraints,
                 value,
-                visitor.current_definition().take_constraints(),
-                substitutions,
-            )
+            });
+
+            visitor.constraints(vec![
+                Constraint::Instantiation(Instantiation {
+                    substitutions: Substitutions::from(substitutions.clone()),
+                    constraints: vec![Constraint::Ty(id, Ty::Of(trait_node))],
+                }),
+                Constraint::Ty(id, Ty::Of(value)),
+            ]);
         });
-
-        visitor.define_instance(InstanceDefinition {
-            node: id,
-            comments: self.comments.clone(),
-            attributes,
-            tr: trait_node,
-            substitutions: substitutions.clone(),
-            constraints,
-            value,
-        });
-
-        visitor.constraints(vec![
-            Constraint::Instantiation(Instantiation {
-                substitutions: Substitutions::from(substitutions.clone()),
-                constraints: vec![Constraint::Ty(id, Ty::Of(trait_node))],
-            }),
-            Constraint::Ty(id, Ty::Of(value)),
-        ]);
-    }
-
-    fn is_typed(&self) -> bool {
-        true
     }
 }

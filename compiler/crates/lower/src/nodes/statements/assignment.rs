@@ -43,7 +43,7 @@ impl Visit for AssignmentStatement {
             }
         }
 
-        let pattern = visitor.child(&self.pattern, value, "assignmentPattern");
+        let pattern = visitor.child(&self.pattern, id, "assignmentPattern");
 
         visitor.constraint(Constraint::Ty(value, Ty::Of(pattern)));
         visitor.fact(id, Fact::marker("assignmentToPattern"));

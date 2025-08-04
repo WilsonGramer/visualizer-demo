@@ -98,7 +98,8 @@ pub struct Result {
     pub facts: BTreeMap<NodeId, HashSet<Fact>>,
     pub definitions: BTreeMap<NodeId, Definition>,
     pub instances: BTreeMap<NodeId, Vec<NodeId>>,
-    pub constraints: Vec<Constraint>,
+    pub definition_constraints: Vec<Constraint>,
+    pub program_constraints: Vec<Constraint>,
 }
 
 pub struct Visitor<'a> {
@@ -109,7 +110,8 @@ pub struct Visitor<'a> {
     facts: BTreeMap<NodeId, HashSet<Fact>>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
-    constraints: Vec<Constraint>,
+    definition_constraints: Vec<Constraint>,
+    program_constraints: Vec<Constraint>,
     current_definition: Option<VisitorCurrentDefinition>,
 }
 
@@ -123,7 +125,8 @@ impl<'a> Visitor<'a> {
             facts: Default::default(),
             scopes: vec![Scope::default()],
             instances: Default::default(),
-            constraints: Default::default(),
+            definition_constraints: Default::default(),
+            program_constraints: Default::default(),
             current_definition: None,
         }
     }
@@ -153,7 +156,8 @@ impl<'a> Visitor<'a> {
             spans: self.spans,
             definitions,
             instances: instance_ids,
-            constraints: self.constraints,
+            definition_constraints: self.definition_constraints,
+            program_constraints: self.program_constraints,
             facts: self.facts,
         }
     }
@@ -193,11 +197,17 @@ impl<'a> Visitor<'a> {
     }
 
     pub fn constraint(&mut self, constraint: Constraint) {
-        self.constraints.push(constraint);
+        if self.current_definition.is_some() {
+            self.definition_constraints.push(constraint);
+        } else {
+            self.program_constraints.push(constraint);
+        }
     }
 
     pub fn constraints(&mut self, constraints: impl IntoIterator<Item = Constraint>) {
-        self.constraints.extend(constraints);
+        for constraint in constraints {
+            self.constraint(constraint);
+        }
     }
 }
 

@@ -17,34 +17,34 @@ impl Visit for TraitDefinitionStatement {
     }
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
-        let attributes =
-            TraitAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
+        visitor.with_definition(|visitor| {
+            let attributes =
+                TraitAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
 
-        let parameters = self
-            .parameters
-            .as_ref()
-            .map(|parameters| parameters.0.as_slice())
-            .unwrap_or_default()
-            .iter()
-            .map(|parameter| {
-                let id = visitor.child(
-                    &(parameter.range, "parameterName"),
-                    id,
-                    "parameterInTraitDefinition",
-                );
+            let parameters = self
+                .parameters
+                .as_ref()
+                .map(|parameters| parameters.0.as_slice())
+                .unwrap_or_default()
+                .iter()
+                .map(|parameter| {
+                    let id = visitor.child(
+                        &(parameter.range, "parameterName"),
+                        id,
+                        "parameterInTraitDefinition",
+                    );
 
-                visitor.define_name(
-                    &parameter.value,
-                    Definition::TypeParameter(TypeParameterDefinition { node: id }),
-                );
+                    visitor.define_name(
+                        &parameter.value,
+                        Definition::TypeParameter(TypeParameterDefinition { node: id }),
+                    );
 
-                visitor.constraint(Constraint::Ty(id, Ty::Parameter(id)));
+                    visitor.constraint(Constraint::Ty(id, Ty::Parameter(id)));
 
-                id
-            })
-            .collect::<Vec<_>>();
+                    id
+                })
+                .collect::<Vec<_>>();
 
-        let (ty, constraints) = visitor.with_definition(|visitor| {
             let ty = visitor.child(&self.constraints.r#type, id, "typeInTraitDefinition");
 
             visitor
@@ -65,24 +65,20 @@ impl Visit for TraitDefinitionStatement {
                 }
             }
 
-            (ty, visitor.current_definition().take_constraints())
+            let constraints = visitor.current_definition().take_constraints();
+
+            visitor.define_name(
+                &self.name.value,
+                Definition::Trait(TraitDefinition {
+                    node: id,
+                    comments: self.comments.clone(),
+                    attributes,
+                    parameters,
+                    constraints,
+                }),
+            );
+
+            visitor.constraint(Constraint::Ty(id, Ty::Of(ty)));
         });
-
-        visitor.define_name(
-            &self.name.value,
-            Definition::Trait(TraitDefinition {
-                node: id,
-                comments: self.comments.clone(),
-                attributes,
-                parameters,
-                constraints,
-            }),
-        );
-
-        visitor.constraint(Constraint::Ty(id, Ty::Of(ty)));
-    }
-
-    fn is_typed(&self) -> bool {
-        true
     }
 }

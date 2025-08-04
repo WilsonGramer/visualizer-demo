@@ -17,8 +17,4 @@ impl Visit for UnitPattern {
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         visitor.constraints(constraints_for_unit(id));
     }
-
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

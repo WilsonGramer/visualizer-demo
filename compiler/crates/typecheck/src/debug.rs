@@ -11,6 +11,7 @@ pub fn write_graph(
     ty_groups: &TyGroups,
     facts: &BTreeMap<NodeId, HashSet<Fact>>,
     provider: &FeedbackProvider<'_>,
+    filter: impl Fn(NodeId) -> bool,
 ) -> fmt::Result {
     let node_id = |node: NodeId| format!("node{}", node.0);
 
@@ -27,7 +28,11 @@ pub fn write_graph(
 
     let mut visited_relations = BTreeMap::<_, BTreeSet<_>>::new();
 
-    for node in ty_groups.nodes().chain(facts.keys().copied()) {
+    for node in ty_groups
+        .nodes()
+        .chain(facts.keys().copied())
+        .filter(|&node| filter(node))
+    {
         let Some(node_facts) = facts.get(&node) else {
             continue;
         };
@@ -82,15 +87,10 @@ pub fn write_graph(
         writeln!(w, "{}@{{ label: {:?} }}", node_id(node), description)?;
     }
 
-    let visited = visited_relations
-        .into_keys()
-        .flat_map(|(node, parent)| [node, parent])
-        .collect::<BTreeSet<_>>();
-
     for (index, group_tys) in ty_groups.groups() {
         let nodes = ty_groups
             .nodes_in_group(index)
-            .filter(|node| visited.contains(node))
+            .filter(|&node| filter(node))
             .collect::<Vec<_>>();
 
         if nodes.is_empty() {

@@ -12,4 +12,8 @@ impl Visit for PlaceholderExpression {
     }
 
     fn visit(&self, _id: NodeId, _visitor: &mut Visitor<'_>) {}
+
+    fn is_typed(&self) -> bool {
+        true
+    }
 }

@@ -23,8 +23,4 @@ impl Visit for TuplePattern {
 
         visitor.constraint(constraints_for_tuple(id, elements));
     }
-
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

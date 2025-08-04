@@ -16,7 +16,5 @@ impl Visit for OrPattern {
         todo!()
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
+
 }

@@ -43,8 +43,4 @@ impl Visit for VariableExpression {
             visitor.fact(id, Fact::marker("unresolvedVariableName"));
         }
     }
-
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

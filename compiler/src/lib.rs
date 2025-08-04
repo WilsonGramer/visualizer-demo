@@ -57,11 +57,13 @@ pub fn compile(
 
     let mut lowered = wipple_compiler_lower::visit(&source_file, make_span);
 
-    let constraints = mem::take(&mut lowered.constraints);
+    let definition_constraints = mem::take(&mut lowered.definition_constraints);
+    let program_constraints = mem::take(&mut lowered.program_constraints);
 
     let ty_groups = {
         let mut typechecker = Typechecker::with_provider(TypeProvider(&mut lowered));
-        typechecker.insert_constraints(constraints);
+        typechecker.insert_constraints(definition_constraints);
+        typechecker.insert_constraints(program_constraints);
         typechecker.to_ty_groups()
     };
 
@@ -134,7 +136,8 @@ pub fn compile(
     // Display type graph
 
     let mut graph = String::new();
-    debug::write_graph(&mut graph, &ty_groups, &lowered.facts, &provider).unwrap();
+    let filter = |node| lowered.typed_nodes.contains(&node);
+    debug::write_graph(&mut graph, &ty_groups, &lowered.facts, &provider, filter).unwrap();
 
     display_graph(graph);
 
