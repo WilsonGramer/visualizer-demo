@@ -1,8 +1,10 @@
 import mermaid from "mermaid";
-import initCompiler, { compile } from "wipple-compiler";
+import initCompiler, { compile } from "wipple-visualizer";
 import "./style.css";
+import { AnsiUp } from "ansi_up";
 
 mermaid.initialize({ startOnLoad: false });
+const ansi = new AnsiUp();
 
 const debounce = (timeout: number, f: () => void) => {
     let timeoutId: number | undefined;
@@ -14,7 +16,7 @@ const debounce = (timeout: number, f: () => void) => {
 
 const code = document.querySelector("#code") as HTMLTextAreaElement;
 const graph = document.querySelector("#graph") as HTMLDivElement;
-const log = document.querySelector("#log") as HTMLDivElement;
+const output = document.querySelector("#output") as HTMLDivElement;
 
 const query = new URLSearchParams(window.location.search);
 if (query.has("code")) {
@@ -28,17 +30,10 @@ const update = async () => {
 
     await initCompiler();
 
-    const [syntaxError, graphString, tys] = compile(code.value);
-
-    if (syntaxError) {
-        graph.innerHTML = "";
-        log.innerText = syntaxError;
-    } else {
-        const { svg } = await mermaid.render("graphSvg", graphString);
-        graph.innerHTML = svg;
-
-        log.innerText = tys;
-    }
+    const [outputString, graphString] = compile(code.value);
+    const { svg } = await mermaid.render("graphSvg", graphString);
+    graph.innerHTML = svg;
+    output.innerHTML = ansi.ansi_to_html(outputString);
 };
 
 update();

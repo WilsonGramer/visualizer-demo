@@ -2,10 +2,10 @@ use crate::{
     definitions::{Definition, TypeParameterDefinition},
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{ParameterType, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::{Fact, NodeId},
+use wipple_visualizer_syntax::{ParameterType, Range};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    Fact, NodeId,
 };
 
 impl Visit for ParameterType {
@@ -19,7 +19,7 @@ impl Visit for ParameterType {
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         let existing = visitor.resolve_name(&self.name.value, id, |definition| match definition {
-            Definition::TypeParameter(definition) => Some((definition.node, "parameter type")),
+            Definition::TypeParameter(definition) => Some((definition.node, "parameterType")),
             _ => None,
         });
 
@@ -39,7 +39,7 @@ impl Visit for ParameterType {
 
                     visitor.constraint(Constraint::Ty(id, Ty::Parameter(id)));
                 } else {
-                    visitor.fact(id, Fact::marker("unresolvedParameterType"));
+                    visitor.fact(id, Fact::new("unresolvedParameterType", ()));
                 }
             }
         }

@@ -1,8 +1,8 @@
 use crate::visitor::{Visit, Visitor};
-use wipple_compiler_syntax::{AnnotateExpression, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::NodeId,
+use wipple_visualizer_syntax::{AnnotateExpression, Range};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    NodeId,
 };
 
 impl Visit for AnnotateExpression {

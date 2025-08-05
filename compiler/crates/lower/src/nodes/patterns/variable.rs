@@ -2,8 +2,8 @@ use crate::{
     definitions::{Definition, VariableDefinition},
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{Range, VariablePattern};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{Range, VariablePattern};
+use wipple_visualizer_typecheck::NodeId;
 
 impl Visit for VariablePattern {
     fn name(&self) -> &'static str {

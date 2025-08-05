@@ -2,8 +2,8 @@ use crate::{
     constraints::constraints_for_function,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{FunctionExpression, Range};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{FunctionExpression, Range};
+use wipple_visualizer_typecheck::NodeId;
 
 impl Visit for FunctionExpression {
     fn name(&self) -> &'static str {
@@ -31,7 +31,4 @@ impl Visit for FunctionExpression {
         visitor.constraints(constraints_for_function(id, inputs, output));
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

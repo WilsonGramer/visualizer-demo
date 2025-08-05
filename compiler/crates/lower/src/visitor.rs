@@ -1,13 +1,10 @@
 use crate::definitions::{Definition, InstanceDefinition};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, HashMap},
     rc::Rc,
 };
-use wipple_compiler_syntax::{self as syntax, Range};
-use wipple_compiler_typecheck::{
-    constraints::Constraint,
-    util::{Fact, NodeId, Span},
-};
+use wipple_visualizer_syntax::{self as syntax, Range};
+use wipple_visualizer_typecheck::{Constraint, Fact, NodeId, Span};
 
 #[enum_delegate::register]
 #[enum_delegate::implement_for(syntax::Constraint, enum Constraint {
@@ -76,7 +73,7 @@ pub trait Visit {
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>);
 
-    fn is_typed(&self) -> bool {
+    fn hide(&self) -> bool {
         false
     }
 }
@@ -95,9 +92,8 @@ impl Visit for (Range, &'static str) {
 
 pub struct Result {
     pub next_id: NodeId,
-    pub typed_nodes: BTreeSet<NodeId>,
     pub spans: BTreeMap<NodeId, Span>,
-    pub facts: BTreeMap<NodeId, HashSet<Fact>>,
+    pub facts: BTreeMap<NodeId, Vec<Fact>>,
     pub definitions: BTreeMap<NodeId, Definition>,
     pub instances: BTreeMap<NodeId, Vec<NodeId>>,
     pub definition_constraints: Vec<Constraint>,
@@ -107,9 +103,8 @@ pub struct Result {
 pub struct Visitor<'a> {
     make_span: Box<dyn Fn(Range) -> Span + 'a>,
     next_id: NodeId,
-    typed_nodes: BTreeSet<NodeId>, // FIXME: Remove
     spans: BTreeMap<NodeId, Span>,
-    facts: BTreeMap<NodeId, HashSet<Fact>>,
+    facts: BTreeMap<NodeId, Vec<Fact>>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
     definition_constraints: Vec<Constraint>,
@@ -122,7 +117,6 @@ impl<'a> Visitor<'a> {
         Visitor {
             next_id: NodeId(0),
             make_span: Box::new(make_span),
-            typed_nodes: Default::default(),
             spans: Default::default(),
             facts: Default::default(),
             scopes: vec![Scope::default()],
@@ -154,7 +148,6 @@ impl<'a> Visitor<'a> {
 
         Result {
             next_id: self.next_id,
-            typed_nodes: self.typed_nodes,
             spans: self.spans,
             definitions,
             instances: instance_ids,
@@ -170,14 +163,21 @@ impl<'a> Visitor<'a> {
         let id = self.next_id;
         self.next_id.0 += 1;
 
-        self.spans.insert(id, (self.make_span)(range));
-        self.fact(id, Fact::marker(name));
+        let span = (self.make_span)(range);
+        self.spans.insert(id, span.clone());
+
+        self.fact(id, Fact::new(name, ()));
+        self.fact(id, Fact::new("span", span));
 
         id
     }
 
     pub fn fact(&mut self, node: NodeId, fact: Fact) {
-        self.facts.entry(node).or_default().insert(fact);
+        self.facts.entry(node).or_default().push(fact);
+    }
+
+    pub fn hide(&mut self, node: NodeId) {
+        self.fact(node, Fact::hidden());
     }
 
     pub fn child(&mut self, node: &impl Visit, parent: NodeId, relation: &'static str) -> NodeId {
@@ -185,8 +185,8 @@ impl<'a> Visitor<'a> {
 
         self.relation(id, parent, relation);
 
-        if node.is_typed() {
-            self.typed_nodes.insert(id);
+        if node.hide() {
+            self.hide(id);
         }
 
         node.visit(id, self);
@@ -195,7 +195,7 @@ impl<'a> Visitor<'a> {
     }
 
     pub fn relation(&mut self, child: NodeId, parent: NodeId, relation: &'static str) {
-        self.fact(child, Fact::with_node(parent, relation));
+        self.fact(child, Fact::new(relation, parent));
     }
 
     pub fn constraint(&mut self, constraint: Constraint) {

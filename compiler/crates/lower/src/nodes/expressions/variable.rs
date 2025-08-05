@@ -3,11 +3,8 @@ use crate::{
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{Range, VariableExpression};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Instantiation, Substitutions, Ty},
-    util::{Fact, NodeId},
-};
+use wipple_visualizer_syntax::{Range, VariableExpression};
+use wipple_visualizer_typecheck::{Constraint, Fact, Instantiation, NodeId, Substitutions, Ty};
 
 impl Visit for VariableExpression {
     fn name(&self) -> &'static str {
@@ -23,7 +20,7 @@ impl Visit for VariableExpression {
             visitor.resolve_name(&self.variable.value, id, |definition| match definition {
                 Definition::Variable(definition) => Some((
                     Constraint::Ty(id, Ty::Of(definition.node)),
-                    "resolved variable name",
+                    "resolvedVariableName",
                 )),
                 Definition::Constant(definition) => Some((
                     Constraint::Instantiation(Instantiation {
@@ -34,7 +31,7 @@ impl Visit for VariableExpression {
                         )
                         .collect(),
                     }),
-                    "resolved constant name",
+                    "resolvedConstantName",
                 )),
                 _ => None,
             });
@@ -42,7 +39,7 @@ impl Visit for VariableExpression {
         if let Some(constraint) = constraint {
             visitor.constraint(constraint);
         } else {
-            visitor.fact(id, Fact::marker("unresolvedVariableName"));
+            visitor.fact(id, Fact::new("unresolvedVariableName", ()));
         }
     }
 }

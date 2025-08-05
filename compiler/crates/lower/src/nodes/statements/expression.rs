@@ -1,10 +1,10 @@
 use crate::visitor::{Visit, Visitor};
-use wipple_compiler_syntax::{ExpressionStatement, Range};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{ExpressionStatement, Range};
+use wipple_visualizer_typecheck::NodeId;
 
 impl Visit for ExpressionStatement {
     fn name(&self) -> &'static str {
-        "_expressionStatement"
+        "expressionStatement"
     }
 
     fn range(&self) -> Range {
@@ -13,5 +13,9 @@ impl Visit for ExpressionStatement {
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         visitor.child(&self.expression, id, "expressionInExpressionStatement");
+    }
+
+    fn hide(&self) -> bool {
+        true
     }
 }

@@ -2,8 +2,8 @@ use crate::{
     constraints::constraints_for_unit,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{Range, UnitExpression};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{Range, UnitExpression};
+use wipple_visualizer_typecheck::NodeId;
 
 impl Visit for UnitExpression {
     fn name(&self) -> &'static str {
@@ -18,7 +18,4 @@ impl Visit for UnitExpression {
         visitor.constraints(constraints_for_unit(id));
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

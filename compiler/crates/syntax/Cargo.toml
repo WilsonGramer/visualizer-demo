@@ -1,5 +1,5 @@
 [package]
-name = "wipple-compiler-syntax"
+name = "wipple-visualizer-syntax"
 version = "0.0.0"
 edition = "2024"
 

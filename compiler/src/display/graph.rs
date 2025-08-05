@@ -1,21 +1,15 @@
-use crate::{
-    TyGroups,
-    feedback::FeedbackProvider,
-    util::{Fact, NodeId},
-};
 use itertools::Itertools;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
-    fmt::{self, Write},
+    collections::{BTreeMap, BTreeSet},
+    io::{self, Write},
 };
+use wipple_visualizer_typecheck::{DisplayProvider, Fact, NodeId, TyGroups};
 
 pub fn write_graph(
-    w: &mut dyn Write,
+    mut w: impl Write,
     ty_groups: &TyGroups,
-    facts: &BTreeMap<NodeId, HashSet<Fact>>,
-    provider: &FeedbackProvider<'_>,
-    filter: impl Fn(NodeId) -> bool,
-) -> fmt::Result {
+    display: &dyn DisplayProvider,
+) -> io::Result<()> {
     let node_id = |node: NodeId| format!("node{}", node.0);
 
     writeln!(w, "%%{{init: {{'theme':'neutral'}}}}%%")?;
@@ -31,37 +25,30 @@ pub fn write_graph(
 
     let mut visited_relations = BTreeMap::<_, BTreeSet<_>>::new();
 
-    for node in ty_groups
-        .nodes()
-        .chain(facts.keys().copied())
-        .filter(|&node| filter(node))
-    {
-        let Some(node_facts) = facts.get(&node) else {
-            continue;
-        };
-
-        if node_facts.iter().any(Fact::should_ignore) {
+    for node in ty_groups.nodes() {
+        let node_facts = display.node_facts(node);
+        if !filter_facts(node_facts) {
             continue;
         }
 
-        let (node_span, node_source) = provider.node_span_source(node);
+        let (node_span, node_source) = display.node_span_source(node);
 
-        // Also link related nodes
-        for (parent, relation) in node_facts.iter().filter_map(|fact| match fact {
-            Fact::Node(parent, relation) => Some((*parent, relation.as_ref())),
-            _ => None,
-        }) {
-            let Some(parent_facts) = facts.get(&parent) else {
+        for parent in node_facts
+            .iter()
+            .filter_map(|fact| fact.value().downcast_ref::<NodeId>().copied())
+        {
+            let Some(relation) = get_relation(node_facts, parent) else {
                 continue;
             };
 
-            if parent_facts.iter().any(Fact::should_ignore) {
+            let parent_facts = display.node_facts(parent);
+            if !filter_facts(parent_facts) {
                 continue;
             }
 
             if visited_relations
                 .get(&(node, parent))
-                .is_some_and(|existing| existing.contains(&relation))
+                .is_some_and(|existing| existing.contains(relation))
             {
                 continue;
             }
@@ -69,21 +56,14 @@ pub fn write_graph(
             writeln!(w, "{}-- {} -->{}", node_id(node), relation, node_id(parent))?;
 
             visited_relations
-                .entry((node, parent))
+                .entry((parent, node))
                 .or_default()
                 .insert(relation);
         }
 
-        let facts = node_facts
-            .iter()
-            .filter(|fact| !fact.should_ignore() && !matches!(fact, Fact::Node(_, _)))
-            .map(|fact| fact.to_string())
-            .collect::<Vec<_>>()
-            .join(",\n");
+        let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>");
 
-        let mut description = format!("{node_span:?}\n<pre>{node_source}</pre>\n{facts}");
-
-        if let Some(comments) = provider.node_comments(node) {
+        if let Some(comments) = display.node_comments(node) {
             description.push_str(&comments);
         }
 
@@ -93,7 +73,7 @@ pub fn write_graph(
     for (index, group_tys) in ty_groups.groups() {
         let nodes = ty_groups
             .nodes_in_group(index)
-            .filter(|&node| filter(node))
+            .filter(|&node| filter_facts(display.node_facts(node)))
             .collect::<Vec<_>>();
 
         if nodes.is_empty() {
@@ -105,7 +85,7 @@ pub fn write_graph(
         let description = group_tys
             .iter()
             .unique()
-            .map(|ty| ty.to_debug_string(provider))
+            .map(|ty| ty.display(display))
             .collect::<Vec<_>>()
             .join(" or ");
 
@@ -125,4 +105,19 @@ pub fn write_graph(
     }
 
     Ok(())
+}
+
+fn filter_facts(facts: &[Fact]) -> bool {
+    !facts.is_empty() && !facts.iter().any(Fact::is_hidden)
+}
+
+fn get_relation(facts: &[Fact], parent: NodeId) -> Option<&str> {
+    facts
+        .iter()
+        .find(|fact| {
+            fact.value()
+                .downcast_ref::<NodeId>()
+                .is_some_and(|&node| node == parent)
+        })
+        .map(|fact| fact.name())
 }

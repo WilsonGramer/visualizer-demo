@@ -1,5 +1,5 @@
 {
-    "name": "wipple-demo",
+    "name": "wipple-visualizer-demo",
     "private": true,
     "type": "module",
     "scripts": {
@@ -16,8 +16,9 @@
         "@fontsource-variable/fira-code": "^5.2.6",
         "@fontsource-variable/inter": "^5.2.5",
         "@tailwindcss/vite": "^4.1.8",
+        "ansi_up": "^6.0.6",
         "mermaid": "^11.6.0",
         "tailwindcss": "^4.1.8",
-        "wipple-compiler": "file:../compiler/pkg"
+        "wipple-visualizer": "file:../compiler/pkg"
     }
 }

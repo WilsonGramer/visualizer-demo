@@ -1,10 +1,15 @@
-pub mod constraints;
-pub mod debug;
-pub mod feedback;
-pub mod util;
+mod constraints;
+mod display;
+mod fact;
+mod node;
+mod span;
 
-use crate::util::NodeId;
-use constraints::{Bound, Constraint, Instantiation, Substitutions, Ty};
+pub use constraints::*;
+pub use display::*;
+pub use fact::*;
+pub use node::*;
+pub use span::*;
+
 use ena::unify::InPlaceUnificationTable;
 use std::{
     cell::RefCell,
@@ -21,13 +26,13 @@ pub struct TyGroups {
 }
 
 impl TyGroups {
-    fn insert_group(&mut self, ty: Ty) -> u32 {
+    pub fn insert_group(&mut self, ty: Ty) -> u32 {
         let index = self.tys.len() as u32;
         self.tys.push(vec![ty]);
         index
     }
 
-    fn assign_node_to_index(&mut self, node: NodeId, index: u32) {
+    pub fn assign_node_to_index(&mut self, node: NodeId, index: u32) {
         self.indices.insert(node, index);
     }
 
@@ -68,7 +73,7 @@ pub struct Instance {
     pub constraints: Vec<Constraint>,
 }
 
-pub trait TypeProvider<'a> {
+pub trait TypeProvider {
     fn copy_node(&mut self, node: NodeId) -> NodeId;
     fn get_trait_instances(&mut self, trait_id: NodeId) -> Vec<(NodeId, BTreeMap<NodeId, NodeId>)>;
     fn flag_resolved(&mut self, node: NodeId, bound: Bound, instance: NodeId);
@@ -77,7 +82,7 @@ pub trait TypeProvider<'a> {
 
 #[derive(Clone)]
 pub struct Typechecker<'a> {
-    provider: Rc<RefCell<dyn TypeProvider<'a> + 'a>>,
+    provider: Rc<RefCell<&'a mut (dyn TypeProvider + 'a)>>,
     keys: GroupKeys,
     unify: InPlaceUnificationTable<GroupKey>,
     groups: BTreeMap<GroupKey, Ty>,
@@ -88,7 +93,7 @@ pub struct Typechecker<'a> {
 }
 
 impl<'a> Typechecker<'a> {
-    pub fn with_provider(provider: impl TypeProvider<'a> + 'a) -> Self {
+    pub fn with_provider(provider: &'a mut (dyn TypeProvider + 'a)) -> Self {
         Typechecker {
             provider: Rc::new(RefCell::new(provider)),
             keys: Default::default(),

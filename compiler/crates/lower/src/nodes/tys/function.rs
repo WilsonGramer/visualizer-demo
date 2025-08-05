@@ -2,8 +2,8 @@ use crate::{
     constraints::constraints_for_call,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{FunctionType, Range};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{FunctionType, Range};
+use wipple_visualizer_typecheck::NodeId;
 
 impl Visit for FunctionType {
     fn name(&self) -> &'static str {

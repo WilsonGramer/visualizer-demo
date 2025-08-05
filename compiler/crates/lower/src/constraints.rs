@@ -1,8 +1,5 @@
 use crate::visitor::LazyConstraint;
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::NodeId,
-};
+use wipple_visualizer_typecheck::{Constraint, NodeId, Ty};
 
 pub fn instantiate_constraints(
     node: NodeId,

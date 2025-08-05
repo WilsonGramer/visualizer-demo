@@ -1,6 +1,6 @@
 use crate::visitor::{Visit, Visitor};
-use wipple_compiler_syntax::{IntrinsicExpression, Range};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{IntrinsicExpression, Range};
+use wipple_visualizer_typecheck::NodeId;
 // TODO
 
 impl Visit for IntrinsicExpression {
@@ -16,7 +16,4 @@ impl Visit for IntrinsicExpression {
         todo!()
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

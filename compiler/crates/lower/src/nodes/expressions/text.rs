@@ -3,10 +3,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_compiler_syntax::{Range, TextExpression};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::{Fact, NodeId},
+use wipple_visualizer_syntax::{Range, TextExpression};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    Fact, NodeId,
 };
 
 impl Visit for TextExpression {
@@ -33,11 +33,8 @@ impl Visit for TextExpression {
                 },
             ));
         } else {
-            visitor.fact(id, Fact::marker("missingTextType"));
+            visitor.fact(id, Fact::new("missingTextType", ()));
         }
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

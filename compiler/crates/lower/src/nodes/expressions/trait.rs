@@ -3,11 +3,8 @@ use crate::{
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{Range, TraitExpression};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Instantiation, Substitutions},
-    util::{Fact, NodeId},
-};
+use wipple_visualizer_syntax::{Range, TraitExpression};
+use wipple_visualizer_typecheck::{Constraint, Fact, Instantiation, NodeId, Substitutions};
 
 impl Visit for TraitExpression {
     fn name(&self) -> &'static str {
@@ -23,7 +20,7 @@ impl Visit for TraitExpression {
             visitor.resolve_name(&self.r#type.value, id, |definition| match definition {
                 Definition::Type(_) => todo!(),
                 Definition::Trait(definition) => {
-                    Some((definition.constraints.clone(), "resolved trait name"))
+                    Some((definition.constraints.clone(), "resolvedTraitName"))
                 }
                 _ => None,
             });
@@ -34,11 +31,8 @@ impl Visit for TraitExpression {
                 constraints: instantiate_constraints(id, constraints).collect(),
             }));
         } else {
-            visitor.fact(id, Fact::marker("unresolvedTraitName"));
+            visitor.fact(id, Fact::new("unresolvedTraitName", ()));
         }
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

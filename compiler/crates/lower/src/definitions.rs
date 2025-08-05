@@ -3,8 +3,8 @@ use crate::{
     visitor::LazyConstraint,
 };
 use std::collections::BTreeMap;
-use wipple_compiler_syntax::Comments;
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::Comments;
+use wipple_visualizer_typecheck::NodeId;
 
 #[derive(Clone)]
 pub enum Definition {

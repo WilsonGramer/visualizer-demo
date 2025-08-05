@@ -1,6 +1,6 @@
 use crate::{
     Attribute, BoundConstraint, NeverParenthesized, Parse, Range, Rule, TypeParameterName,
-    constraints::Constraint,
+    Constraint,
     expressions::Expression,
     patterns::Pattern,
     pest_enum,

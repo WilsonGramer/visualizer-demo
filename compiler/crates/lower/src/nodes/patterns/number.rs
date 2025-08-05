@@ -1,6 +1,6 @@
 use crate::visitor::{Visit, Visitor};
-use wipple_compiler_syntax::{NumberPattern, Range};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{NumberPattern, Range};
+use wipple_visualizer_typecheck::NodeId;
 // TODO
 
 impl Visit for NumberPattern {

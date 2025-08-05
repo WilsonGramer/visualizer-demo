@@ -3,10 +3,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_compiler_syntax::{BoundConstraint, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Bound, Constraint, Substitutions},
-    util::{Fact, NodeId},
+use wipple_visualizer_syntax::{BoundConstraint, Range};
+use wipple_visualizer_typecheck::{
+    Bound, Constraint, Substitutions,
+    Fact, NodeId,
 };
 
 impl Visit for BoundConstraint {
@@ -23,12 +23,12 @@ impl Visit for BoundConstraint {
             visitor.resolve_name(&self.r#trait.value, id, |definition| match definition {
                 Definition::Trait(definition) => Some((
                     (definition.node, definition.parameters.clone()),
-                    "resolved trait in bound",
+                    "resolvedTraitInBound",
                 )),
                 _ => None,
             })
         else {
-            visitor.fact(id, Fact::marker("unresolvedTraitInBound"));
+            visitor.fact(id, Fact::new("unresolvedTraitInBound", ()));
             return;
         };
 

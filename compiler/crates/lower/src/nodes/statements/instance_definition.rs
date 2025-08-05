@@ -4,10 +4,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_compiler_syntax::{Constraints, InstanceDefinitionStatement, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Instantiation, Substitutions, Ty},
-    util::{Fact, NodeId},
+use wipple_visualizer_syntax::{Constraints, InstanceDefinitionStatement, Range};
+use wipple_visualizer_typecheck::{
+    Constraint, Instantiation, Substitutions, Ty,
+    Fact, NodeId,
 };
 
 impl Visit for InstanceDefinitionStatement {
@@ -29,13 +29,13 @@ impl Visit for InstanceDefinitionStatement {
                     match definition {
                         Definition::Trait(definition) => Some((
                             (definition.node, definition.parameters.clone()),
-                            "trait in instance definition",
+                            "traitInInstanceDefinition",
                         )),
                         _ => None,
                     }
                 })
             else {
-                visitor.fact(id, Fact::marker("unresolvedTraitName"));
+                visitor.fact(id, Fact::new("unresolvedTraitName", ()));
                 return;
             };
 

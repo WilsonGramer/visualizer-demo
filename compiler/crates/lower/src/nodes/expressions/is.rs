@@ -1,6 +1,6 @@
 use crate::visitor::{Visit, Visitor};
-use wipple_compiler_syntax::{IsExpression, Range};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{IsExpression, Range};
+use wipple_visualizer_typecheck::NodeId;
 // TODO
 
 impl Visit for IsExpression {
@@ -16,7 +16,4 @@ impl Visit for IsExpression {
         todo!()
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

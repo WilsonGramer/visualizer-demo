@@ -3,10 +3,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_compiler_syntax::{NumberExpression, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::{Fact, NodeId},
+use wipple_visualizer_syntax::{NumberExpression, Range};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    Fact, NodeId,
 };
 
 impl Visit for NumberExpression {
@@ -33,11 +33,8 @@ impl Visit for NumberExpression {
                 },
             ));
         } else {
-            visitor.fact(id, Fact::marker("missingNumberType"));
+            visitor.fact(id, Fact::new("missingNumberType", ()));
         }
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

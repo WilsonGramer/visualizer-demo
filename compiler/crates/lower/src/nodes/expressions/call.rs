@@ -3,11 +3,8 @@ use crate::{
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{CallExpression, Expression, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Instantiation, Substitutions},
-    util::NodeId,
-};
+use wipple_visualizer_syntax::{CallExpression, Expression, Range};
+use wipple_visualizer_typecheck::{Constraint, Instantiation, NodeId, Substitutions};
 
 impl Visit for CallExpression {
     fn name(&self) -> &'static str {
@@ -63,7 +60,4 @@ impl Visit for CallExpression {
         visitor.constraints(constraints_for_call(function, inputs, id));
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

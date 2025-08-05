@@ -1,4 +1,4 @@
-use crate::{feedback::FeedbackProvider, util::NodeId};
+use crate::{NodeId, display::DisplayProvider};
 use std::{collections::BTreeMap, fmt::Debug};
 
 #[derive(Debug, Clone)]
@@ -9,9 +9,9 @@ pub enum Constraint {
 }
 
 impl Constraint {
-    pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
+    pub fn display(&self, provider: &dyn DisplayProvider) -> String {
         match self {
-            Constraint::Ty(_, ty) => ty.to_debug_string(provider),
+            Constraint::Ty(_, ty) => ty.display(provider),
             Constraint::Instantiation(..) => String::from("(instantiation)"),
             Constraint::Bound(..) => String::from("(bound)"),
         }
@@ -106,7 +106,7 @@ impl Ty {
 }
 
 impl Ty {
-    pub fn to_debug_string(&self, provider: &FeedbackProvider<'_>) -> String {
+    pub fn display(&self, provider: &dyn DisplayProvider) -> String {
         match self {
             Ty::Unknown | Ty::Of(_) => String::from("_"),
             Ty::Parameter(node) => provider.node_span_source(*node).1,
@@ -115,22 +115,22 @@ impl Ty {
                 provider.node_span_source(*name).1,
                 parameters
                     .values()
-                    .map(|parameter| format!(" {}", parameter.to_debug_string(provider)))
+                    .map(|parameter| format!(" {}", parameter.display(provider)))
                     .collect::<String>()
             ),
             Ty::Function { inputs, output } => format!(
                 "{}-> {}",
                 inputs
                     .iter()
-                    .map(|input| format!("{} ", input.to_debug_string(provider)))
+                    .map(|input| format!("{} ", input.display(provider)))
                     .collect::<String>(),
-                output.to_debug_string(provider)
+                output.display(provider)
             ),
             Ty::Tuple { elements } => format!(
                 "({})",
                 elements
                     .iter()
-                    .map(|element| element.to_debug_string(provider))
+                    .map(|element| element.display(provider))
                     .collect::<Vec<_>>()
                     .join(" ; ")
             ),

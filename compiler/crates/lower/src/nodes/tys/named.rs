@@ -3,10 +3,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_compiler_syntax::{NamedType, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::{Fact, NodeId},
+use wipple_visualizer_syntax::{NamedType, Range};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    Fact, NodeId,
 };
 
 impl Visit for NamedType {
@@ -21,11 +21,11 @@ impl Visit for NamedType {
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         let Some(type_node) =
             visitor.resolve_name(&self.name.value, id, |definition| match definition {
-                Definition::Type(definition) => Some((definition.node, "resolved named type")),
+                Definition::Type(definition) => Some((definition.node, "resolvedNamedType")),
                 _ => None,
             })
         else {
-            visitor.fact(id, Fact::marker("unresolvedNamedType"));
+            visitor.fact(id, Fact::new("unresolvedNamedType", ()));
             return;
         };
 

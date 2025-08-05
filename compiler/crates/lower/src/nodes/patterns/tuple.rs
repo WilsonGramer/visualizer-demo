@@ -2,8 +2,8 @@ use crate::{
     constraints::constraints_for_tuple,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{Range, TuplePattern};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{Range, TuplePattern};
+use wipple_visualizer_typecheck::NodeId;
 
 impl Visit for TuplePattern {
     fn name(&self) -> &'static str {

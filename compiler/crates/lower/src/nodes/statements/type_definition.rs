@@ -4,10 +4,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_compiler_syntax::{Range, TypeDefinitionStatement};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::NodeId,
+use wipple_visualizer_syntax::{Range, TypeDefinitionStatement};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    NodeId,
 };
 
 impl Visit for TypeDefinitionStatement {

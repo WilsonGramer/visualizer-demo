@@ -2,10 +2,10 @@ use crate::{
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{Range, SetPattern};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::{Fact, NodeId},
+use wipple_visualizer_syntax::{Range, SetPattern};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    Fact, NodeId,
 };
 
 impl Visit for SetPattern {
@@ -30,7 +30,7 @@ impl Visit for SetPattern {
         if let Some(constraint) = constraint {
             visitor.constraint(constraint);
         } else {
-            visitor.fact(id, Fact::marker("unresolvedVariableName"));
+            visitor.fact(id, Fact::new("unresolvedVariableName", ()));
         }
     }
 }

@@ -2,8 +2,8 @@ use crate::{
     constraints::constraints_for_block,
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{BlockExpression, Range, Statement};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{BlockExpression, Range, Statement};
+use wipple_visualizer_typecheck::NodeId;
 
 impl Visit for BlockExpression {
     fn name(&self) -> &'static str {
@@ -30,7 +30,4 @@ impl Visit for BlockExpression {
         visitor.constraints(constraints_for_block(statements, id));
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

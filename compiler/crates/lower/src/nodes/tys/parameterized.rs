@@ -3,10 +3,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_compiler_syntax::{ParameterizedType, ParameterizedTypeElement, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::{Fact, NodeId},
+use wipple_visualizer_syntax::{ParameterizedType, ParameterizedTypeElement, Range};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    Fact, NodeId,
 };
 
 impl Visit for ParameterizedType {
@@ -23,12 +23,12 @@ impl Visit for ParameterizedType {
             visitor.resolve_name(&self.name.value, id, |definition| match definition {
                 Definition::Type(definition) => Some((
                     (definition.node, definition.parameters.clone()),
-                    "resolved parameterized type",
+                    "resolvedParameterizedType",
                 )),
                 _ => None,
             })
         else {
-            visitor.fact(id, Fact::marker("unresolvedParameterizedType"));
+            visitor.fact(id, Fact::new("unresolvedParameterizedType", ()));
             return;
         };
 

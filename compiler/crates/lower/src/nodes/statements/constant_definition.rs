@@ -3,10 +3,10 @@ use crate::{
     definitions::{ConstantDefinition, Definition},
     visitor::{Visit, Visitor},
 };
-use wipple_compiler_syntax::{ConstantDefinitionStatement, Constraints, Range};
-use wipple_compiler_typecheck::{
-    constraints::{Constraint, Ty},
-    util::NodeId,
+use wipple_visualizer_syntax::{ConstantDefinitionStatement, Constraints, Range};
+use wipple_visualizer_typecheck::{
+    Constraint, Ty,
+    NodeId,
 };
 
 impl Visit for ConstantDefinitionStatement {

@@ -1,6 +1,6 @@
 use crate::visitor::{Visit, Visitor};
-use wipple_compiler_syntax::{FormattedTextExpression, Range};
-use wipple_compiler_typecheck::util::NodeId;
+use wipple_visualizer_syntax::{FormattedTextExpression, Range};
+use wipple_visualizer_typecheck::NodeId;
 // TODO
 
 impl Visit for FormattedTextExpression {
@@ -16,7 +16,4 @@ impl Visit for FormattedTextExpression {
         todo!()
     }
 
-    fn is_typed(&self) -> bool {
-        true
-    }
 }

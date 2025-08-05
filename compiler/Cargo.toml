@@ -1,5 +1,5 @@
 [package]
-name = "wipple-compiler"
+name = "wipple-visualizer"
 version = "0.0.0"
 edition = "2024"
 
@@ -10,17 +10,16 @@ workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
 colored = "3"
 console_error_panic_hook = "0.1"
+itertools = "0.14"
 line-col = "0.2"
 syntect = { version = "5", features = ["default-syntaxes", "plist-load", "regex-fancy"], default-features = false }
-tabled = { version = "0.20", features = ["ansi"] }
 wasm-bindgen = "0.2"
-wipple-compiler-lower = { path = "crates/lower" }
-wipple-compiler-syntax = { path = "crates/syntax" }
-wipple-compiler-typecheck = { path = "crates/typecheck" }
+wipple-visualizer-lower = { path = "crates/lower" }
+wipple-visualizer-syntax = { path = "crates/syntax" }
+wipple-visualizer-typecheck = { path = "crates/typecheck" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 clearscreen = "4"
-cli-clipboard = "0.4"
-terminal-light = "1"

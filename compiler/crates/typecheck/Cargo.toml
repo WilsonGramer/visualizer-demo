@@ -1,5 +1,5 @@
 [package]
-name = "wipple-compiler-typecheck"
+name = "wipple-visualizer-typecheck"
 version = "0.0.0"
 edition = "2024"
 
@@ -8,5 +8,4 @@ workspace = true
 
 [dependencies]
 ena = "0.14"
-itertools = "0.14"
 serde = { version = "1", features = ["derive"] }

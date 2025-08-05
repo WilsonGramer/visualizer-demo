@@ -1,6 +1,6 @@
 use crate::visitor::Visitor;
-use wipple_compiler_syntax::{Attribute, AttributeValue};
-use wipple_compiler_typecheck::util::{Fact, NodeId};
+use wipple_visualizer_syntax::{Attribute, AttributeValue};
+use wipple_visualizer_typecheck::{Fact, NodeId};
 
 #[derive(Debug, Clone, Default)]
 pub struct ConstantAttributes {
@@ -65,10 +65,10 @@ impl<'a> AttributeParser<'a> {
                 let node = visitor.node(attribute.range, "attribute");
 
                 if attribute.value.is_some() {
-                    visitor.fact(node, Fact::marker("extraAttributeValue"));
+                    visitor.fact(node, Fact::new("extraAttributeValue", ()));
                 } else {
                     if found {
-                        visitor.fact(node, Fact::marker("duplicateAttribute"));
+                        visitor.fact(node, Fact::new("duplicateAttribute", ()));
 
                         continue;
                     }
@@ -102,7 +102,7 @@ impl<'a> AttributeParser<'a> {
 
                 if let Some(value) = &attribute.value {
                     if result.is_some() {
-                        visitor.fact(node, Fact::marker("duplicateAttribute"));
+                        visitor.fact(node, Fact::new("duplicateAttribute", ()));
 
                         continue;
                     }
@@ -110,10 +110,10 @@ impl<'a> AttributeParser<'a> {
                     result = f(value);
 
                     if result.is_none() {
-                        visitor.fact(node, Fact::marker("mismatchedAttributeValue"));
+                        visitor.fact(node, Fact::new("mismatchedAttributeValue", ()));
                     }
                 } else {
-                    visitor.fact(node, Fact::marker("missingAttributeValue"));
+                    visitor.fact(node, Fact::new("missingAttributeValue", ()));
                 }
             }
         }
