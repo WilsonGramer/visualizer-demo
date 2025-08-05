@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use wipple_visualizer_syntax::{Range, TextExpression};
 use wipple_visualizer_typecheck::{
     Constraint, Ty,
-    Fact, NodeId,
+    NodeId,
 };
 
 impl Visit for TextExpression {
@@ -33,7 +33,7 @@ impl Visit for TextExpression {
                 },
             ));
         } else {
-            visitor.fact(id, Fact::new("missingTextType", ()));
+            visitor.fact(id, "missingTextType", ());
         }
     }
 

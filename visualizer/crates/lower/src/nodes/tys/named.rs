@@ -4,10 +4,7 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_visualizer_syntax::{NamedType, Range};
-use wipple_visualizer_typecheck::{
-    Constraint, Ty,
-    Fact, NodeId,
-};
+use wipple_visualizer_typecheck::{Constraint, NodeId, Ty};
 
 impl Visit for NamedType {
     fn name(&self) -> &'static str {
@@ -25,7 +22,7 @@ impl Visit for NamedType {
                 _ => None,
             })
         else {
-            visitor.fact(id, Fact::new("unresolvedNamedType", ()));
+            visitor.fact(id, "unresolvedNamedType", ());
             return;
         };
 

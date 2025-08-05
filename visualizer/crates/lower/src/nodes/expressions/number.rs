@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use wipple_visualizer_syntax::{NumberExpression, Range};
 use wipple_visualizer_typecheck::{
     Constraint, Ty,
-    Fact, NodeId,
+    NodeId,
 };
 
 impl Visit for NumberExpression {
@@ -33,7 +33,7 @@ impl Visit for NumberExpression {
                 },
             ));
         } else {
-            visitor.fact(id, Fact::new("missingNumberType", ()));
+            visitor.fact(id, "missingNumberType", ());
         }
     }
 

@@ -3,10 +3,7 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_visualizer_syntax::{ParameterType, Range};
-use wipple_visualizer_typecheck::{
-    Constraint, Ty,
-    Fact, NodeId,
-};
+use wipple_visualizer_typecheck::{Constraint, NodeId, Ty};
 
 impl Visit for ParameterType {
     fn name(&self) -> &'static str {
@@ -39,9 +36,13 @@ impl Visit for ParameterType {
 
                     visitor.constraint(Constraint::Ty(id, Ty::Parameter(id)));
                 } else {
-                    visitor.fact(id, Fact::new("unresolvedParameterType", ()));
+                    visitor.fact(id, "unresolvedParameterType", ());
                 }
             }
         }
+    }
+
+    fn hide(&self) -> bool {
+        true
     }
 }

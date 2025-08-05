@@ -1,6 +1,6 @@
 use crate::visitor::Visitor;
 use wipple_visualizer_syntax::{Attribute, AttributeValue};
-use wipple_visualizer_typecheck::{Fact, NodeId};
+use wipple_visualizer_typecheck::NodeId;
 
 #[derive(Debug, Clone, Default)]
 pub struct ConstantAttributes {
@@ -65,10 +65,10 @@ impl<'a> AttributeParser<'a> {
                 let node = visitor.node(attribute.range, "attribute");
 
                 if attribute.value.is_some() {
-                    visitor.fact(node, Fact::new("extraAttributeValue", ()));
+                    visitor.fact(node, "extraAttributeValue", ());
                 } else {
                     if found {
-                        visitor.fact(node, Fact::new("duplicateAttribute", ()));
+                        visitor.fact(node, "duplicateAttribute", ());
 
                         continue;
                     }
@@ -102,7 +102,7 @@ impl<'a> AttributeParser<'a> {
 
                 if let Some(value) = &attribute.value {
                     if result.is_some() {
-                        visitor.fact(node, Fact::new("duplicateAttribute", ()));
+                        visitor.fact(node, "duplicateAttribute", ());
 
                         continue;
                     }
@@ -110,10 +110,10 @@ impl<'a> AttributeParser<'a> {
                     result = f(value);
 
                     if result.is_none() {
-                        visitor.fact(node, Fact::new("mismatchedAttributeValue", ()));
+                        visitor.fact(node, "mismatchedAttributeValue", ());
                     }
                 } else {
-                    visitor.fact(node, Fact::new("missingAttributeValue", ()));
+                    visitor.fact(node, "missingAttributeValue", ());
                 }
             }
         }

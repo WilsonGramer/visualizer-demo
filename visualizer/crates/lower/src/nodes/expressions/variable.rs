@@ -4,7 +4,7 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_visualizer_syntax::{Range, VariableExpression};
-use wipple_visualizer_typecheck::{Constraint, Fact, Instantiation, NodeId, Substitutions, Ty};
+use wipple_visualizer_typecheck::{Constraint, Instantiation, NodeId, Substitutions, Ty};
 
 impl Visit for VariableExpression {
     fn name(&self) -> &'static str {
@@ -39,7 +39,7 @@ impl Visit for VariableExpression {
         if let Some(constraint) = constraint {
             visitor.constraint(constraint);
         } else {
-            visitor.fact(id, Fact::new("unresolvedVariableName", ()));
+            visitor.fact(id, "unresolvedVariableName", ());
         }
     }
 }

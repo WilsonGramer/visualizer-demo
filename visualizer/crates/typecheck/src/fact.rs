@@ -3,6 +3,7 @@ use std::{any::Any, fmt::Debug, rc::Rc};
 
 #[derive(Debug, Clone)]
 pub struct Fact {
+    namespace: Rc<str>,
     name: Rc<str>,
     value: Rc<dyn FactValue>,
 }
@@ -26,11 +27,16 @@ impl dyn FactValue {
 }
 
 impl Fact {
-    pub fn new(name: impl AsRef<str>, value: impl FactValue) -> Self {
+    pub fn new(namespace: impl AsRef<str>, name: impl AsRef<str>, value: impl FactValue) -> Self {
         Fact {
+            namespace: Rc::from(namespace.as_ref()),
             name: Rc::from(name.as_ref()),
             value: Rc::new(value),
         }
+    }
+
+    pub fn namespace(&self) -> &str {
+        &self.namespace
     }
 
     pub fn name(&self) -> &str {
@@ -39,16 +45,6 @@ impl Fact {
 
     pub fn value(&self) -> &dyn FactValue {
         self.value.as_ref()
-    }
-}
-
-impl Fact {
-    pub fn hidden() -> Self {
-        Fact::new("hidden", ())
-    }
-
-    pub fn is_hidden(&self) -> bool {
-        self.name.as_ref() == "hidden"
     }
 }
 

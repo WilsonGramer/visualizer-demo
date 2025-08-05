@@ -5,10 +5,7 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_visualizer_syntax::{Range, TypeDefinitionStatement};
-use wipple_visualizer_typecheck::{
-    Constraint, Ty,
-    NodeId,
-};
+use wipple_visualizer_typecheck::{Constraint, NodeId, Ty};
 
 impl Visit for TypeDefinitionStatement {
     fn name(&self) -> &'static str {
@@ -36,6 +33,8 @@ impl Visit for TypeDefinitionStatement {
                         id,
                         "parameterInTypeDefinition",
                     );
+
+                    visitor.hide(node);
 
                     visitor.define_name(
                         &parameter.value,

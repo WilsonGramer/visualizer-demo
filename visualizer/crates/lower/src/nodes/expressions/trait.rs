@@ -4,7 +4,7 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_visualizer_syntax::{Range, TraitExpression};
-use wipple_visualizer_typecheck::{Constraint, Fact, Instantiation, NodeId, Substitutions};
+use wipple_visualizer_typecheck::{Constraint, Instantiation, NodeId, Substitutions};
 
 impl Visit for TraitExpression {
     fn name(&self) -> &'static str {
@@ -31,8 +31,7 @@ impl Visit for TraitExpression {
                 constraints: instantiate_constraints(id, constraints).collect(),
             }));
         } else {
-            visitor.fact(id, Fact::new("unresolvedTraitName", ()));
+            visitor.fact(id, "unresolvedTraitName", ());
         }
     }
-
 }

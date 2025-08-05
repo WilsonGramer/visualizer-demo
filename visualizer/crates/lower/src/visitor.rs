@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 use wipple_visualizer_syntax::{self as syntax, Range};
-use wipple_visualizer_typecheck::{Constraint, Fact, NodeId, Span};
+use wipple_visualizer_typecheck::{Constraint, Fact, FactValue, NodeId, Span};
 
 #[enum_delegate::register]
 #[enum_delegate::implement_for(syntax::Constraint, enum Constraint {
@@ -166,18 +166,22 @@ impl<'a> Visitor<'a> {
         let span = (self.make_span)(range);
         self.spans.insert(id, span.clone());
 
-        self.fact(id, Fact::new(name, ()));
-        self.fact(id, Fact::new("span", span));
+        self.fact(id, name, ());
+        self.fact(id, "span", span);
 
         id
     }
 
-    pub fn fact(&mut self, node: NodeId, fact: Fact) {
-        self.facts.entry(node).or_default().push(fact);
+    pub fn fact(&mut self, node: NodeId, name: impl AsRef<str>, value: impl FactValue) {
+        self.fact_inner(node, Fact::new("lower", name, value));
     }
 
     pub fn hide(&mut self, node: NodeId) {
-        self.fact(node, Fact::hidden());
+        self.fact_inner(node, Fact::new("lower", "hidden", ()));
+    }
+
+    fn fact_inner(&mut self, node: NodeId, fact: Fact) {
+        self.facts.entry(node).or_default().push(fact);
     }
 
     pub fn child(&mut self, node: &impl Visit, parent: NodeId, relation: &'static str) -> NodeId {
@@ -195,7 +199,7 @@ impl<'a> Visitor<'a> {
     }
 
     pub fn relation(&mut self, child: NodeId, parent: NodeId, relation: &'static str) {
-        self.fact(child, Fact::new(relation, parent));
+        self.fact(child, relation, parent);
     }
 
     pub fn constraint(&mut self, constraint: Constraint) {

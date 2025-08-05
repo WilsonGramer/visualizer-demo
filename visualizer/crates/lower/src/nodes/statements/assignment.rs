@@ -3,7 +3,7 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_visualizer_syntax::{AssignmentStatement, Pattern, Range};
-use wipple_visualizer_typecheck::{Constraint, Fact, NodeId, Ty};
+use wipple_visualizer_typecheck::{Constraint, NodeId, Ty};
 
 impl Visit for AssignmentStatement {
     fn name(&self) -> &'static str {
@@ -37,7 +37,7 @@ impl Visit for AssignmentStatement {
                 })
             {
                 visitor.constraint(constraint);
-                visitor.fact(id, Fact::new("assignmentToConstant", ()));
+                visitor.fact(id, "assignmentToConstant", ());
                 return;
             }
         }
@@ -45,7 +45,7 @@ impl Visit for AssignmentStatement {
         let pattern = visitor.child(&self.pattern, id, "assignmentPattern");
 
         visitor.constraint(Constraint::Ty(value, Ty::Of(pattern)));
-        visitor.fact(id, Fact::new("assignmentToPattern", ()));
+        visitor.fact(id, "assignmentToPattern", ());
     }
 
     fn hide(&self) -> bool {

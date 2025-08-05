@@ -3,6 +3,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     io::{self, Write},
 };
+use wipple_visualizer_lower::fact_is_hidden;
 use wipple_visualizer_typecheck::{DisplayProvider, Fact, NodeId, TyGroups};
 
 pub fn write_graph(
@@ -24,9 +25,24 @@ pub fn write_graph(
         "classDef error fill:#ff000010,stroke:#ff0000,stroke-dasharray:10;"
     )?;
 
-    let mut visited_relations = BTreeMap::<_, BTreeSet<_>>::new();
-
+    // Also show nodes that are in the same group as any node in `nodes`
+    let mut visited_groups = BTreeSet::new();
+    let mut visited_nodes = BTreeSet::new();
     for &node in nodes {
+        visited_nodes.insert(node);
+
+        if let Some(group_index) = ty_groups.index_of(node) {
+            visited_groups.insert(group_index);
+            visited_nodes.extend(ty_groups.nodes_in_group(group_index));
+        }
+    }
+
+    let mut visited_relations = BTreeMap::<_, BTreeSet<_>>::new();
+    for node in ty_groups.nodes() {
+        if !visited_nodes.contains(&node) {
+            continue;
+        }
+
         let node_facts = display.node_facts(node);
         if !filter_facts(node_facts) {
             continue;
@@ -76,10 +92,11 @@ pub fn write_graph(
     }
 
     for (index, group_tys) in ty_groups.groups() {
-        let nodes = ty_groups
-            .nodes_in_group(index)
-            .filter(|&node| nodes.contains(&node) && filter_facts(display.node_facts(node)))
-            .collect::<Vec<_>>();
+        if !visited_groups.contains(&index) {
+            continue;
+        }
+
+        let nodes = ty_groups.nodes_in_group(index).collect::<Vec<_>>();
 
         if nodes.is_empty() {
             continue;
@@ -97,6 +114,11 @@ pub fn write_graph(
         writeln!(w, "subgraph group{index}[\"<code>{description}</code>\"]")?;
 
         for node in nodes {
+            let node_facts = display.node_facts(node);
+            if !filter_facts(node_facts) {
+                continue;
+            }
+
             writeln!(w, "{}", node_id(node))?;
         }
 
@@ -113,7 +135,7 @@ pub fn write_graph(
 }
 
 fn filter_facts(facts: &[Fact]) -> bool {
-    !facts.is_empty() && !facts.iter().any(Fact::is_hidden)
+    !facts.is_empty() && !facts.iter().any(fact_is_hidden)
 }
 
 fn get_relation(facts: &[Fact], parent: NodeId) -> Option<&str> {

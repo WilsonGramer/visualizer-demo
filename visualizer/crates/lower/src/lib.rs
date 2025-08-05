@@ -6,7 +6,7 @@ pub mod visitor;
 
 use crate::visitor::{Result, Visitor};
 use wipple_visualizer_syntax::{Range, SourceFile, Statement};
-use wipple_visualizer_typecheck::Span;
+use wipple_visualizer_typecheck::{Fact, Span};
 
 pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     let mut visitor = Visitor::new(make_span);
@@ -23,4 +23,8 @@ pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     }
 
     visitor.finish()
+}
+
+pub fn fact_is_hidden(fact: &Fact) -> bool {
+    fact.namespace() == "lower" && fact.name() == "hidden"
 }

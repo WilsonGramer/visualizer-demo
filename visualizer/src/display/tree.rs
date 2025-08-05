@@ -1,6 +1,7 @@
 use colored::Colorize;
 use std::io::{self, Write};
-use wipple_visualizer_typecheck::{DisplayProvider, Fact, NodeId};
+use wipple_visualizer_lower::fact_is_hidden;
+use wipple_visualizer_typecheck::{DisplayProvider, NodeId};
 
 pub fn write_tree(
     mut w: impl Write,
@@ -9,7 +10,7 @@ pub fn write_tree(
 ) -> io::Result<()> {
     for &node in nodes {
         let facts = display.node_facts(node);
-        if facts.is_empty() || facts.iter().any(Fact::is_hidden) {
+        if facts.is_empty() || facts.iter().any(fact_is_hidden) {
             continue;
         }
 
@@ -18,7 +19,7 @@ pub fn write_tree(
         writeln!(w, "{}: {}", format!("{node:?}").bold(), source.blue())?;
 
         for fact in facts {
-            write!(w, "  {}", fact.name())?;
+            write!(w, "  {}.{}", fact.namespace(), fact.name())?;
 
             let value = fact.value();
 

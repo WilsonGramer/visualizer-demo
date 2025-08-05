@@ -4,10 +4,7 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_visualizer_syntax::{BoundConstraint, Range};
-use wipple_visualizer_typecheck::{
-    Bound, Constraint, Substitutions,
-    Fact, NodeId,
-};
+use wipple_visualizer_typecheck::{Bound, Constraint, NodeId, Substitutions};
 
 impl Visit for BoundConstraint {
     fn name(&self) -> &'static str {
@@ -28,7 +25,7 @@ impl Visit for BoundConstraint {
                 _ => None,
             })
         else {
-            visitor.fact(id, Fact::new("unresolvedTraitInBound", ()));
+            visitor.fact(id, "unresolvedTraitInBound", ());
             return;
         };
 

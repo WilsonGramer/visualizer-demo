@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use wipple_visualizer_syntax::{ParameterizedType, ParameterizedTypeElement, Range};
 use wipple_visualizer_typecheck::{
     Constraint, Ty,
-    Fact, NodeId,
+    NodeId,
 };
 
 impl Visit for ParameterizedType {
@@ -28,7 +28,7 @@ impl Visit for ParameterizedType {
                 _ => None,
             })
         else {
-            visitor.fact(id, Fact::new("unresolvedParameterizedType", ()));
+            visitor.fact(id, "unresolvedParameterizedType", ());
             return;
         };
 

@@ -5,10 +5,7 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_visualizer_syntax::{Constraints, InstanceDefinitionStatement, Range};
-use wipple_visualizer_typecheck::{
-    Constraint, Instantiation, Substitutions, Ty,
-    Fact, NodeId,
-};
+use wipple_visualizer_typecheck::{Constraint, Instantiation, NodeId, Substitutions, Ty};
 
 impl Visit for InstanceDefinitionStatement {
     fn name(&self) -> &'static str {
@@ -35,7 +32,7 @@ impl Visit for InstanceDefinitionStatement {
                     }
                 })
             else {
-                visitor.fact(id, Fact::new("unresolvedTraitName", ()));
+                visitor.fact(id, "unresolvedTraitName", ());
                 return;
             };
 

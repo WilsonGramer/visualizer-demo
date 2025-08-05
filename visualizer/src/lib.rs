@@ -6,7 +6,7 @@ use std::{
     mem,
 };
 use wasm_bindgen::prelude::*;
-use wipple_visualizer_lower::definitions::Definition;
+use wipple_visualizer_lower::{definitions::Definition, fact_is_hidden};
 use wipple_visualizer_syntax::{Parse, Range};
 use wipple_visualizer_typecheck::{Fact, NodeId, Span, Ty, Typechecker};
 
@@ -87,7 +87,7 @@ pub fn compile(
         .facts
         .iter()
         .filter(|(node, facts)| {
-            if facts.iter().any(Fact::is_hidden) {
+            if facts.iter().any(fact_is_hidden) {
                 return false;
             }
 
@@ -117,7 +117,7 @@ pub fn compile(
                 .facts
                 .entry(node)
                 .or_default()
-                .push(Fact::new("unknownType", ()));
+                .push(Fact::new("typecheck", "unknownType", ()));
 
             let group_index = ty_groups.insert_group(Ty::Unknown);
             ty_groups.assign_node_to_index(node, group_index);
@@ -137,7 +137,7 @@ pub fn compile(
                 .facts
                 .entry(node)
                 .or_default()
-                .push(Fact::new("type", ty.clone()));
+                .push(Fact::new("typecheck", "type", ty.clone()));
         }
 
         if all_incomplete {
@@ -146,7 +146,7 @@ pub fn compile(
                 .facts
                 .entry(node)
                 .or_default()
-                .push(Fact::new("incompleteType", ()));
+                .push(Fact::new("typecheck", "incompleteType", ()));
         }
     }
 
@@ -205,16 +205,16 @@ impl wipple_visualizer_typecheck::TypeProvider for Provider<'_> {
         instance: NodeId,
     ) {
         let facts = self.lowered.facts.entry(node).or_default();
-        facts.push(Fact::new("resolvedTrait", bound.tr));
-        facts.push(Fact::new("resolvedTrait", instance));
+        facts.push(Fact::new("typecheck", "resolvedTrait", bound.tr));
+        facts.push(Fact::new("typecheck", "resolvedTrait", instance));
     }
 
     fn flag_unresolved(&mut self, node: NodeId, bound: wipple_visualizer_typecheck::Bound) {
-        self.lowered
-            .facts
-            .entry(node)
-            .or_default()
-            .push(Fact::new("unresolvedTrait", bound.tr));
+        self.lowered.facts.entry(node).or_default().push(Fact::new(
+            "typecheck",
+            "unresolvedTrait",
+            bound.tr,
+        ));
     }
 }
 

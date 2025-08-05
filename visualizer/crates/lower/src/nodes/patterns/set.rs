@@ -5,7 +5,7 @@ use crate::{
 use wipple_visualizer_syntax::{Range, SetPattern};
 use wipple_visualizer_typecheck::{
     Constraint, Ty,
-    Fact, NodeId,
+    NodeId,
 };
 
 impl Visit for SetPattern {
@@ -30,7 +30,7 @@ impl Visit for SetPattern {
         if let Some(constraint) = constraint {
             visitor.constraint(constraint);
         } else {
-            visitor.fact(id, Fact::new("unresolvedVariableName", ()));
+            visitor.fact(id, "unresolvedVariableName", ());
         }
     }
 }

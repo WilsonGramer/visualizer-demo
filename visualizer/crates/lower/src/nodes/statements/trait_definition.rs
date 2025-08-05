@@ -4,10 +4,7 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_visualizer_syntax::{Constraints, Range, TraitDefinitionStatement};
-use wipple_visualizer_typecheck::{
-    Bound, Constraint, Substitutions, Ty,
-    NodeId,
-};
+use wipple_visualizer_typecheck::{Bound, Constraint, NodeId, Substitutions, Ty};
 
 impl Visit for TraitDefinitionStatement {
     fn name(&self) -> &'static str {
@@ -30,20 +27,22 @@ impl Visit for TraitDefinitionStatement {
                 .unwrap_or_default()
                 .iter()
                 .map(|parameter| {
-                    let id = visitor.child(
+                    let node = visitor.child(
                         &(parameter.range, "parameterName"),
                         id,
                         "parameterInTraitDefinition",
                     );
 
+                    visitor.hide(node);
+
                     visitor.define_name(
                         &parameter.value,
-                        Definition::TypeParameter(TypeParameterDefinition { node: id }),
+                        Definition::TypeParameter(TypeParameterDefinition { node }),
                     );
 
-                    visitor.constraint(Constraint::Ty(id, Ty::Parameter(id)));
+                    visitor.constraint(Constraint::Ty(node, Ty::Parameter(node)));
 
-                    id
+                    node
                 })
                 .collect::<Vec<_>>();
 
