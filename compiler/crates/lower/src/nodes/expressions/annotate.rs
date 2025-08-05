@@ -1,7 +1,9 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{AnnotateExpression, Range};
-use wipple_compiler_trace::NodeId;
-use wipple_compiler_typecheck::constraints::{Constraint, Ty};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    util::NodeId,
+};
 
 impl Visit for AnnotateExpression {
     fn name(&self) -> &'static str {

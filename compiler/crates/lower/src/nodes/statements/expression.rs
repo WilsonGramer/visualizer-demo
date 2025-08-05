@@ -1,6 +1,6 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{ExpressionStatement, Range};
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_typecheck::util::NodeId;
 
 impl Visit for ExpressionStatement {
     fn name(&self) -> &'static str {

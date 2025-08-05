@@ -1674,7 +1674,6 @@ dependencies = [
  "wasm-bindgen",
  "wipple-compiler-lower",
  "wipple-compiler-syntax",
- "wipple-compiler-trace",
  "wipple-compiler-typecheck",
 ]
 
@@ -1684,7 +1683,6 @@ version = "0.0.0"
 dependencies = [
  "enum_delegate",
  "wipple-compiler-syntax",
- "wipple-compiler-trace",
  "wipple-compiler-typecheck",
 ]
 
@@ -1699,19 +1697,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "wipple-compiler-trace"
-version = "0.0.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "wipple-compiler-typecheck"
 version = "0.0.0"
 dependencies = [
  "ena",
  "itertools 0.14.0",
- "wipple-compiler-trace",
+ "serde",
 ]
 
 [[package]]

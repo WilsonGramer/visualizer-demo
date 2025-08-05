@@ -1,7 +1,9 @@
 pub mod constraints;
 pub mod debug;
 pub mod feedback;
+pub mod util;
 
+use crate::util::NodeId;
 use constraints::{Bound, Constraint, Instantiation, Substitutions, Ty};
 use ena::unify::InPlaceUnificationTable;
 use std::{
@@ -11,7 +13,6 @@ use std::{
     mem,
     rc::Rc,
 };
-use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone, Default)]
 pub struct TyGroups {

@@ -5,8 +5,10 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{Range, TypeDefinitionStatement};
-use wipple_compiler_trace::NodeId;
-use wipple_compiler_typecheck::constraints::{Constraint, Ty};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    util::NodeId,
+};
 
 impl Visit for TypeDefinitionStatement {
     fn name(&self) -> &'static str {

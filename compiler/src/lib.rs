@@ -3,8 +3,10 @@ use std::{collections::BTreeSet, mem};
 use wasm_bindgen::prelude::*;
 use wipple_compiler_lower::definitions::Definition;
 use wipple_compiler_syntax::{Parse, Range};
-use wipple_compiler_trace::{Fact, NodeId, Span};
-use wipple_compiler_typecheck::{Typechecker, debug};
+use wipple_compiler_typecheck::{
+    Typechecker, debug,
+    util::{Fact, NodeId, Span},
+};
 
 #[wasm_bindgen(js_name = "compile")]
 pub fn compile_wasm(source: String) -> Vec<String> {

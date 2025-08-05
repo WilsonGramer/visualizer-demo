@@ -4,8 +4,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{Range, VariableExpression};
-use wipple_compiler_trace::{Fact, NodeId};
-use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions, Ty};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Instantiation, Substitutions, Ty},
+    util::{Fact, NodeId},
+};
 
 impl Visit for VariableExpression {
     fn name(&self) -> &'static str {

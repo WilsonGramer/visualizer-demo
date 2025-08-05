@@ -4,8 +4,10 @@ use std::{
     rc::Rc,
 };
 use wipple_compiler_syntax::{self as syntax, Range};
-use wipple_compiler_trace::{Fact, NodeId, Span};
-use wipple_compiler_typecheck::constraints::Constraint;
+use wipple_compiler_typecheck::{
+    constraints::Constraint,
+    util::{Fact, NodeId, Span},
+};
 
 #[enum_delegate::register]
 #[enum_delegate::implement_for(syntax::Constraint, enum Constraint {

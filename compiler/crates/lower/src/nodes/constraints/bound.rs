@@ -4,8 +4,10 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{BoundConstraint, Range};
-use wipple_compiler_trace::{Fact, NodeId};
-use wipple_compiler_typecheck::constraints::{Bound, Constraint, Substitutions};
+use wipple_compiler_typecheck::{
+    constraints::{Bound, Constraint, Substitutions},
+    util::{Fact, NodeId},
+};
 
 impl Visit for BoundConstraint {
     fn name(&self) -> &'static str {

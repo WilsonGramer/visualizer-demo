@@ -4,8 +4,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{ConstantDefinitionStatement, Constraints, Range};
-use wipple_compiler_trace::NodeId;
-use wipple_compiler_typecheck::constraints::{Constraint, Ty};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    util::NodeId,
+};
 
 impl Visit for ConstantDefinitionStatement {
     fn name(&self) -> &'static str {

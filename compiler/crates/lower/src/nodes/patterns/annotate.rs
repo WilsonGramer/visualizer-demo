@@ -1,7 +1,9 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{AnnotatePattern, Range};
-use wipple_compiler_trace::NodeId;
-use wipple_compiler_typecheck::constraints::{Constraint, Ty};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    util::NodeId,
+};
 
 impl Visit for AnnotatePattern {
     fn name(&self) -> &'static str {

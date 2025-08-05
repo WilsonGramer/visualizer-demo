@@ -4,7 +4,7 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::Comments;
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_typecheck::util::NodeId;
 
 #[derive(Clone)]
 pub enum Definition {

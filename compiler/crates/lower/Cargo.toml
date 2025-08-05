@@ -9,5 +9,4 @@ workspace = true
 [dependencies]
 enum_delegate = "0.2"
 wipple-compiler-syntax = { path = "../syntax" }
-wipple-compiler-trace = { path = "../trace" }
 wipple-compiler-typecheck = { path = "../typecheck" }

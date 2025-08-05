@@ -3,7 +3,7 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{Range, UnitExpression};
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_typecheck::util::NodeId;
 
 impl Visit for UnitExpression {
     fn name(&self) -> &'static str {

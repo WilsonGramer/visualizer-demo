@@ -4,8 +4,10 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{NumberExpression, Range};
-use wipple_compiler_trace::{Fact, NodeId};
-use wipple_compiler_typecheck::constraints::{Constraint, Ty};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    util::{Fact, NodeId},
+};
 
 impl Visit for NumberExpression {
     fn name(&self) -> &'static str {

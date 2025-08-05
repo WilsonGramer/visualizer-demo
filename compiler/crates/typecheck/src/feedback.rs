@@ -1,9 +1,11 @@
-use crate::constraints::Constraint;
+use crate::{
+    constraints::Constraint,
+    util::{Fact, NodeId, Span},
+};
 use std::{
     collections::{BTreeMap, HashSet},
     rc::Rc,
 };
-use wipple_compiler_trace::{Fact, NodeId, Span};
 
 #[derive(Clone)]
 pub struct Constant {

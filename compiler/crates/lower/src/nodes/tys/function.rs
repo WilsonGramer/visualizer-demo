@@ -3,7 +3,7 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{FunctionType, Range};
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_typecheck::util::NodeId;
 
 impl Visit for FunctionType {
     fn name(&self) -> &'static str {

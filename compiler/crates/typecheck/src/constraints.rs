@@ -1,6 +1,5 @@
-use crate::feedback::FeedbackProvider;
+use crate::{feedback::FeedbackProvider, util::NodeId};
 use std::{collections::BTreeMap, fmt::Debug};
-use wipple_compiler_trace::NodeId;
 
 #[derive(Debug, Clone)]
 pub enum Constraint {

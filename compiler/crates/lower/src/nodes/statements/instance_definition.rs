@@ -5,8 +5,10 @@ use crate::{
 };
 use std::collections::BTreeMap;
 use wipple_compiler_syntax::{Constraints, InstanceDefinitionStatement, Range};
-use wipple_compiler_trace::{Fact, NodeId};
-use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions, Ty};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Instantiation, Substitutions, Ty},
+    util::{Fact, NodeId},
+};
 
 impl Visit for InstanceDefinitionStatement {
     fn name(&self) -> &'static str {

@@ -1,10 +1,13 @@
-use crate::{TyGroups, feedback::FeedbackProvider};
+use crate::{
+    TyGroups,
+    feedback::FeedbackProvider,
+    util::{Fact, NodeId},
+};
 use itertools::Itertools;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fmt::{self, Write},
 };
-use wipple_compiler_trace::{Fact, NodeId};
 
 pub fn write_graph(
     w: &mut dyn Write,

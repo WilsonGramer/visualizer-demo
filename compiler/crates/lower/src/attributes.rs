@@ -1,6 +1,6 @@
 use crate::visitor::Visitor;
 use wipple_compiler_syntax::{Attribute, AttributeValue};
-use wipple_compiler_trace::{Fact, NodeId};
+use wipple_compiler_typecheck::util::{Fact, NodeId};
 
 #[derive(Debug, Clone, Default)]
 pub struct ConstantAttributes {

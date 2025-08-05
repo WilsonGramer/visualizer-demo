@@ -6,7 +6,7 @@ pub mod visitor;
 
 use crate::visitor::{Result, Visitor};
 use wipple_compiler_syntax::{Range, SourceFile, Statement};
-use wipple_compiler_trace::Span;
+use wipple_compiler_typecheck::util::Span;
 
 pub fn visit(file: &SourceFile, make_span: impl Fn(Range) -> Span) -> Result {
     let mut visitor = Visitor::new(make_span);

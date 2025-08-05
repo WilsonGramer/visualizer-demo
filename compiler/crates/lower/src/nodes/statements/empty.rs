@@ -1,6 +1,6 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{EmptyStatement, Range};
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_typecheck::util::NodeId;
 
 impl Visit for EmptyStatement {
     fn name(&self) -> &'static str {

@@ -1,6 +1,6 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{Range, VariantPattern};
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_typecheck::util::NodeId;
 // TODO
 
 impl Visit for VariantPattern {

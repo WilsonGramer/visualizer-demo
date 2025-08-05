@@ -1,6 +1,6 @@
 use crate::visitor::{Visit, Visitor};
 use wipple_compiler_syntax::{OrPattern, Range};
-use wipple_compiler_trace::NodeId;
+use wipple_compiler_typecheck::util::NodeId;
 // TODO
 
 impl Visit for OrPattern {
@@ -15,6 +15,4 @@ impl Visit for OrPattern {
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         todo!()
     }
-
-
 }

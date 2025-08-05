@@ -4,8 +4,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{CallExpression, Expression, Range};
-use wipple_compiler_trace::NodeId;
-use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Instantiation, Substitutions},
+    util::NodeId,
+};
 
 impl Visit for CallExpression {
     fn name(&self) -> &'static str {

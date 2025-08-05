@@ -18,7 +18,6 @@ tabled = { version = "0.20", features = ["ansi"] }
 wasm-bindgen = "0.2"
 wipple-compiler-lower = { path = "crates/lower" }
 wipple-compiler-syntax = { path = "crates/syntax" }
-wipple-compiler-trace = { path = "crates/trace" }
 wipple-compiler-typecheck = { path = "crates/typecheck" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

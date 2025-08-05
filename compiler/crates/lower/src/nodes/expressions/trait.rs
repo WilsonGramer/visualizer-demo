@@ -4,8 +4,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{Range, TraitExpression};
-use wipple_compiler_trace::{Fact, NodeId};
-use wipple_compiler_typecheck::constraints::{Constraint, Instantiation, Substitutions};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Instantiation, Substitutions},
+    util::{Fact, NodeId},
+};
 
 impl Visit for TraitExpression {
     fn name(&self) -> &'static str {

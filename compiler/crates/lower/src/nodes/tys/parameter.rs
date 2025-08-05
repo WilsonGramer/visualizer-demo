@@ -3,8 +3,10 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use wipple_compiler_syntax::{ParameterType, Range};
-use wipple_compiler_trace::{Fact, NodeId};
-use wipple_compiler_typecheck::constraints::{Constraint, Ty};
+use wipple_compiler_typecheck::{
+    constraints::{Constraint, Ty},
+    util::{Fact, NodeId},
+};
 
 impl Visit for ParameterType {
     fn name(&self) -> &'static str {
