@@ -19,6 +19,6 @@
         "ansi_up": "^6.0.6",
         "mermaid": "^11.6.0",
         "tailwindcss": "^4.1.8",
-        "wipple-visualizer": "file:../compiler/pkg"
+        "wipple-visualizer": "file:../visualizer/pkg"
     }
 }

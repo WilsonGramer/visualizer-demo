@@ -9,7 +9,7 @@ export default defineConfig({
         fs: {
             allow: [
                 searchForWorkspaceRoot(process.cwd()),
-                path.resolve(__dirname, "../compiler/pkg"),
+                path.resolve(__dirname, "../visualizer/pkg"),
             ],
         },
     },

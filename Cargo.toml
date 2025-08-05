@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
-    "compiler",
-    "compiler/crates/*",
+    "visualizer",
+    "visualizer/crates/*",
 ]
 
 [workspace.lints.rust]

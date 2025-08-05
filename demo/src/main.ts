@@ -31,10 +31,16 @@ const update = async () => {
     await initCompiler();
 
     const [outputString, graphString] = compile(code.value);
-    const { svg } = await mermaid.render("graphSvg", graphString);
-    graph.innerHTML = svg;
+
+    if (graphString) {
+        const { svg } = await mermaid.render("graphSvg", graphString);
+        graph.innerHTML = svg;
+    } else {
+        graph.innerHTML = "";
+    }
+
     output.innerHTML = ansi.ansi_to_html(outputString);
 };
 
 update();
-code.addEventListener("input", debounce(500, update));
+code.addEventListener("input", debounce(300, update));

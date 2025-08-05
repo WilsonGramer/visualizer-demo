@@ -3,13 +3,13 @@ version: "3"
 tasks:
     dev:
         cmds:
-            - task: dev:compiler
+            - task: dev:visualizer
             - task: dev:app
 
-    dev:compiler:
-        dir: compiler
+    dev:visualizer:
+        dir: visualizer
         cmds:
-            - task: build:compiler
+            - task: build:visualizer
               vars:
                   CLI_ARGS: "--dev"
 
@@ -21,11 +21,11 @@ tasks:
 
     build:
         cmds:
-            - task: build:compiler
+            - task: build:visualizer
             - task: build:app
 
-    build:compiler:
-        dir: compiler
+    build:visualizer:
+        dir: visualizer
         cmds:
             - wasm-pack build --target web {{.CLI_ARGS}}
 
