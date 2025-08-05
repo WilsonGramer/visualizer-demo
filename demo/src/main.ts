@@ -24,7 +24,7 @@ if (query.has("code")) {
     code.value = query.get("code")!;
 }
 
-const update = async () => {
+const update = debounce(300, async () => {
     const url = new URL(window.location.href);
     url.searchParams.set("code", code.value);
     window.history.replaceState({}, "", url.toString());
@@ -50,9 +50,9 @@ const update = async () => {
     }
 
     output.innerHTML = ansi.ansi_to_html(outputString);
-};
+});
 
-code.addEventListener("input", debounce(300, update));
-code.addEventListener("selectionchange", debounce(300, update));
+code.addEventListener("input", update);
+code.addEventListener("selectionchange", update);
 
 update();
