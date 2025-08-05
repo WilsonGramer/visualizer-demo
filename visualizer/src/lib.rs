@@ -1,5 +1,6 @@
 mod display;
 
+use itertools::Itertools;
 use std::{
     io::{self, Write},
     mem,
@@ -10,13 +11,17 @@ use wipple_visualizer_syntax::{Parse, Range};
 use wipple_visualizer_typecheck::{Fact, NodeId, Span, Ty, Typechecker};
 
 #[wasm_bindgen(js_name = "compile")]
-pub fn compile_wasm(source: String) -> Vec<String> {
+pub fn compile_wasm(source: String, filter: Option<Vec<u32>>) -> Vec<String> {
     console_error_panic_hook::set_once();
     colored::control::set_override(true);
 
+    let filter = filter
+        .and_then(|filter| filter.into_iter().collect_tuple())
+        .map(|(start, end)| Filter::Range(start, end));
+
     let mut output = Vec::new();
     let mut graph = Vec::new();
-    compile("input", &source, &mut output, Some(&mut graph)).unwrap();
+    compile("input", &source, filter, &mut output, Some(&mut graph)).unwrap();
 
     vec![
         String::from_utf8(output).unwrap(),
@@ -24,9 +29,16 @@ pub fn compile_wasm(source: String) -> Vec<String> {
     ]
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Filter<'a> {
+    Range(u32, u32),
+    Lines(&'a [u32]),
+}
+
 pub fn compile(
     path: &str,
     source: &str,
+    filter: Option<Filter<'_>>,
     mut w: impl Write,
     graph: Option<impl Write>,
 ) -> io::Result<()> {
@@ -74,7 +86,24 @@ pub fn compile(
         .lowered
         .facts
         .iter()
-        .filter(|(_, facts)| !facts.iter().any(Fact::is_hidden))
+        .filter(|(node, facts)| {
+            if facts.iter().any(Fact::is_hidden) {
+                return false;
+            }
+
+            let Some(filter) = filter else {
+                return true;
+            };
+
+            let span = provider.lowered.spans.get(node).unwrap();
+
+            match filter {
+                Filter::Range(start, end) => {
+                    span.range.start <= (end as usize) && span.range.end >= (start as usize)
+                }
+                Filter::Lines(lines) => lines.contains(&(span.start_line_col.0 as u32)),
+            }
+        })
         .map(|(&node, _)| node)
         .collect::<Vec<_>>();
 
@@ -121,10 +150,10 @@ pub fn compile(
         }
     }
 
-    display::write_tree(w, nodes, &provider)?;
+    display::write_tree(w, &nodes, &provider)?;
 
     if let Some(graph) = graph {
-        display::write_graph(graph, &ty_groups, &provider)?;
+        display::write_graph(graph, &nodes, &ty_groups, &provider)?;
     }
 
     Ok(())

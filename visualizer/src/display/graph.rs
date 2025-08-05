@@ -7,6 +7,7 @@ use wipple_visualizer_typecheck::{DisplayProvider, Fact, NodeId, TyGroups};
 
 pub fn write_graph(
     mut w: impl Write,
+    nodes: &[NodeId],
     ty_groups: &TyGroups,
     display: &dyn DisplayProvider,
 ) -> io::Result<()> {
@@ -25,7 +26,7 @@ pub fn write_graph(
 
     let mut visited_relations = BTreeMap::<_, BTreeSet<_>>::new();
 
-    for node in ty_groups.nodes() {
+    for &node in nodes {
         let node_facts = display.node_facts(node);
         if !filter_facts(node_facts) {
             continue;
@@ -37,6 +38,10 @@ pub fn write_graph(
             .iter()
             .filter_map(|fact| fact.value().downcast_ref::<NodeId>().copied())
         {
+            if !nodes.contains(&parent) {
+                continue;
+            }
+
             let Some(relation) = get_relation(node_facts, parent) else {
                 continue;
             };
@@ -73,7 +78,7 @@ pub fn write_graph(
     for (index, group_tys) in ty_groups.groups() {
         let nodes = ty_groups
             .nodes_in_group(index)
-            .filter(|&node| filter_facts(display.node_facts(node)))
+            .filter(|&node| nodes.contains(&node) && filter_facts(display.node_facts(node)))
             .collect::<Vec<_>>();
 
         if nodes.is_empty() {

@@ -15,8 +15,9 @@ const debounce = (timeout: number, f: () => void) => {
 };
 
 const code = document.querySelector("#code") as HTMLTextAreaElement;
+const status = document.querySelector("#status") as HTMLParagraphElement;
 const graph = document.querySelector("#graph") as HTMLDivElement;
-const output = document.querySelector("#output") as HTMLDivElement;
+const output = document.querySelector("#output") as HTMLPreElement;
 
 const query = new URLSearchParams(window.location.search);
 if (query.has("code")) {
@@ -30,7 +31,16 @@ const update = async () => {
 
     await initCompiler();
 
-    const [outputString, graphString] = compile(code.value);
+    const filter =
+        code.selectionStart !== code.selectionEnd
+            ? Uint32Array.from([code.selectionStart, code.selectionEnd])
+            : undefined;
+
+    status.innerText = filter
+        ? "Filtering by selection"
+        : "Showing all code (select code to filter)";
+
+    const [outputString, graphString] = compile(code.value, filter);
 
     if (graphString) {
         const { svg } = await mermaid.render("graphSvg", graphString);
@@ -42,5 +52,7 @@ const update = async () => {
     output.innerHTML = ansi.ansi_to_html(outputString);
 };
 
-update();
 code.addEventListener("input", debounce(300, update));
+code.addEventListener("selectionchange", debounce(300, update));
+
+update();

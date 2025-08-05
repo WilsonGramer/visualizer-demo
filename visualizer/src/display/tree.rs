@@ -4,10 +4,10 @@ use wipple_visualizer_typecheck::{DisplayProvider, Fact, NodeId};
 
 pub fn write_tree(
     mut w: impl Write,
-    nodes: impl IntoIterator<Item = NodeId>,
+    nodes: &[NodeId],
     display: &dyn DisplayProvider,
 ) -> io::Result<()> {
-    for node in nodes {
+    for &node in nodes {
         let facts = display.node_facts(node);
         if facts.is_empty() || facts.iter().any(Fact::is_hidden) {
             continue;

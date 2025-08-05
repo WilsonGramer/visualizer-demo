@@ -5,6 +5,9 @@ use std::{fs, io, path::PathBuf};
 struct Args {
     path: PathBuf,
 
+    #[clap(short = 'l', long = "line")]
+    filter_lines: Vec<u32>,
+
     #[clap(short, long)]
     graph: Option<PathBuf>,
 }
@@ -13,6 +16,9 @@ fn main() -> io::Result<()> {
     let args = Args::parse();
 
     let source = fs::read_to_string(&args.path)?;
+
+    let filter = (!args.filter_lines.is_empty())
+        .then_some(wipple_visualizer::Filter::Lines(&args.filter_lines));
 
     clearscreen::clear().unwrap();
 
@@ -30,6 +36,7 @@ fn main() -> io::Result<()> {
     let result = wipple_visualizer::compile(
         &args.path.display().to_string(),
         &source,
+        filter,
         io::stdout(),
         mermaid_process.as_mut().map(|p| p.stdin.as_mut().unwrap()),
     );
