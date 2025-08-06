@@ -1,5 +1,5 @@
 [package]
-name = "visualizer-typecheck"
+name = "visualizer-db"
 version = "0.0.0"
 edition = "2024"
 
@@ -7,5 +7,5 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-ena = "0.14"
-visualizer-db = { path = "../db" }
+colored = "3"
+serde = { version = "1", features = ["derive"] }

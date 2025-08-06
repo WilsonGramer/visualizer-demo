@@ -1,0 +1,10 @@
+[package]
+name = "wipple-syntax"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+from-pest = "0.3"
+pest = "2"
+pest_derive = "2"
+pest-ast = "0.3"

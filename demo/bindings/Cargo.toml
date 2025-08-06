@@ -1,0 +1,24 @@
+[package]
+name = "demo-bindings"
+version = "0.0.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+colored = "3"
+console_error_panic_hook = "0.1"
+itertools = "0.14"
+line-col = "0.2"
+visualizer = { path = "../../visualizer" }
+wasm-bindgen = "0.2"
+wipple-syntax = { path = "../../wipple/syntax" }
+wipple-visit = { path = "../../wipple/visit" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+clearscreen = "4"

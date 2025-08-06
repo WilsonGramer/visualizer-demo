@@ -1,21 +1,11 @@
-use crate::{NodeId, display::DisplayProvider};
 use std::{collections::BTreeMap, fmt::Debug};
+use visualizer_db::{Db, FactValue, NodeId};
 
 #[derive(Debug, Clone)]
 pub enum Constraint {
     Ty(NodeId, Ty),
     Instantiation(Instantiation),
     Bound(Bound),
-}
-
-impl Constraint {
-    pub fn display(&self, provider: &dyn DisplayProvider) -> String {
-        match self {
-            Constraint::Ty(_, ty) => ty.display(provider),
-            Constraint::Instantiation(..) => String::from("(instantiation)"),
-            Constraint::Bound(..) => String::from("(bound)"),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -105,36 +95,40 @@ impl Ty {
     }
 }
 
-impl Ty {
-    pub fn display(&self, provider: &dyn DisplayProvider) -> String {
-        match self {
+impl FactValue for Ty {
+    fn display(&self, db: &Db) -> Option<String> {
+        Some(match self {
             Ty::Unknown | Ty::Of(_) => String::from("_"),
-            Ty::Parameter(node) => provider.node_span_source(*node).1,
+            Ty::Parameter(node) => db.get::<String>(*node, "source").unwrap().clone(),
             Ty::Named { name, parameters } => format!(
                 "{}{}",
-                provider.node_span_source(*name).1,
+                db.get::<String>(*name, "source").unwrap(),
                 parameters
                     .values()
-                    .map(|parameter| format!(" {}", parameter.display(provider)))
+                    .map(|parameter| format!(" {}", parameter.display(db).unwrap()))
                     .collect::<String>()
             ),
             Ty::Function { inputs, output } => format!(
                 "{}-> {}",
                 inputs
                     .iter()
-                    .map(|input| format!("{} ", input.display(provider)))
+                    .map(|input| format!("{} ", input.display(db).unwrap()))
                     .collect::<String>(),
-                output.display(provider)
+                output.display(db).unwrap()
             ),
             Ty::Tuple { elements } => format!(
                 "({})",
                 elements
                     .iter()
-                    .map(|element| element.display(provider))
+                    .map(|element| element.display(db).unwrap())
                     .collect::<Vec<_>>()
                     .join(" ; ")
             ),
-        }
+        })
+    }
+
+    fn is_code(&self) -> bool {
+        true
     }
 }
 
@@ -155,6 +149,12 @@ impl From<BTreeMap<NodeId, NodeId>> for Substitutions {
                 .map(|(parameter, node)| (parameter, Ty::Of(node)))
                 .collect(),
         )
+    }
+}
+
+impl FactValue for Substitutions {
+    fn display(&self, _db: &Db) -> Option<String> {
+        Some(String::from("Substitutions(..)"))
     }
 }
 
