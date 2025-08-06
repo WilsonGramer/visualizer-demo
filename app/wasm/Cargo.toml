@@ -1,0 +1,21 @@
+[package]
+name = "app-wasm"
+version = "0.0.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+colored = "3"
+console_error_panic_hook = "0.1"
+itertools = "0.14"
+visualizer = { path = "../../visualizer" }
+wasm-bindgen = "0.2"
+wipple = { path = "../../wipple" }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

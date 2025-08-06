@@ -53,6 +53,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "app-wasm"
+version = "0.0.0"
+dependencies = [
+ "colored",
+ "console_error_panic_hook",
+ "itertools 0.14.0",
+ "visualizer",
+ "wasm-bindgen",
+ "wipple",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -183,19 +195,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-bindings"
-version = "0.0.0"
+name = "derive-where"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef941ded77d15ca19b40374869ac6000af1c9f2a4c0f3d4c70926287e6364a8f"
 dependencies = [
- "clap",
- "clearscreen",
- "colored",
- "console_error_panic_hook",
- "itertools 0.14.0",
- "line-col",
- "visualizer",
- "wasm-bindgen",
- "wipple-syntax",
- "wipple-visit",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.101",
 ]
 
 [[package]]
@@ -702,25 +709,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "visualizer"
 version = "0.0.0"
 dependencies = [
- "itertools 0.14.0",
- "visualizer-db",
- "visualizer-typecheck",
-]
-
-[[package]]
-name = "visualizer-db"
-version = "0.0.0"
-dependencies = [
- "colored",
- "serde",
-]
-
-[[package]]
-name = "visualizer-typecheck"
-version = "0.0.0"
-dependencies = [
+ "derive-where",
  "ena",
- "visualizer-db",
+ "itertools 0.14.0",
 ]
 
 [[package]]
@@ -884,6 +875,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d135d17ab770252ad95e9a872d365cf3090e3be864a34ab46f48555993efc904"
 
 [[package]]
+name = "wipple"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "clearscreen",
+ "line-col",
+ "visualizer",
+ "wipple-db",
+ "wipple-syntax",
+ "wipple-visit",
+]
+
+[[package]]
+name = "wipple-db"
+version = "0.0.0"
+dependencies = [
+ "colored",
+ "itertools 0.14.0",
+ "serde",
+ "visualizer",
+]
+
+[[package]]
 name = "wipple-syntax"
 version = "0.0.0"
 dependencies = [
@@ -899,6 +913,7 @@ version = "0.0.0"
 dependencies = [
  "enum_delegate",
  "visualizer",
+ "wipple-db",
  "wipple-syntax",
 ]
 

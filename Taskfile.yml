@@ -3,33 +3,34 @@ version: "3"
 tasks:
     dev:
         cmds:
-            - task: dev:bindings
             - task: dev:app
 
-    dev:bindings:
-        cmds:
-            - task: build:bindings
-              vars:
-                  CLI_ARGS: "--dev"
-
     dev:app:
-        dir: demo/app
-        run: once
+        deps:
+            - dev:app:wasm
+        dir: app
         cmds:
             - npm run dev -- --open
 
-    build:
+    dev:app:wasm:
         cmds:
-            - task: build:bindings
-            - task: build:app
+            - task: build:app:wasm
+              vars:
+                  CLI_ARGS: "--dev"
 
-    build:bindings:
-        dir: demo/bindings
-        cmds:
-            - wasm-pack build --target web {{.CLI_ARGS}}
+    build:
+        deps:
+            - build:app
 
     build:app:
-        dir: demo/app
+        deps:
+            - build:app:wasm
+        dir: app
         cmds:
             - npm install
             - npm run build
+
+    build:app:wasm:
+        dir: app/wasm
+        cmds:
+            - wasm-pack build --target web {{.CLI_ARGS}}

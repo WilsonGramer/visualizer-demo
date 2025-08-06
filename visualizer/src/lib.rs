@@ -1,52 +1,31 @@
-pub mod graph;
+mod constraints;
+mod groups;
+mod solve;
+mod visualize;
 
-pub use visualizer_db as db;
-pub use visualizer_typecheck as typecheck;
+pub use constraints::*;
+pub use groups::*;
+pub use solve::*;
+pub use visualize::*;
 
-use crate::graph::write_graph;
-use std::io::{self, Write};
-use visualizer_db::{Db, Span};
-use visualizer_typecheck::TyGroups;
+use std::{fmt::Debug, hash::Hash};
 
-#[derive(Debug, Clone, Copy)]
-pub enum Filter<'a> {
-    Range(u32, u32),
-    Lines(&'a [u32]),
-}
+pub trait Db: Sized + 'static {
+    type Node: Debug + Copy + Eq + Ord + Hash;
 
-pub fn visualize(
-    db: &Db,
-    ty_groups: &TyGroups,
-    filter: Option<Filter<'_>>,
-    w: impl Write,
-    graph: Option<impl Write>,
-) -> io::Result<()> {
-    let nodes = db
-        .nodes()
-        .filter(|&node| !db.is_hidden(node))
-        .filter(|&node| {
-            let Some(filter) = filter else {
-                return true;
-            };
+    fn typed_nodes(&mut self) -> impl Iterator<Item = Self::Node>;
 
-            let Some(span) = db.get::<Span>(node, "span") else {
-                return false;
-            };
+    fn clone_node(&mut self, node: Self::Node) -> Self::Node;
 
-            match filter {
-                Filter::Range(start, end) => {
-                    span.range.start <= (end as usize) && span.range.end >= (start as usize)
-                }
-                Filter::Lines(lines) => lines.contains(&(span.start_line_col.0 as u32)),
-            }
-        })
-        .collect::<Vec<_>>();
+    fn get_trait_instances(
+        &mut self,
+        trait_id: Self::Node,
+    ) -> Vec<(Self::Node, Substitutions<Self>)>;
 
-    db.write(w, &nodes)?;
+    fn flag_resolved(&mut self, node: Self::Node, bound: Bound<Self>, instance: Self::Node);
+    fn flag_unresolved(&mut self, node: Self::Node, bound: Bound<Self>);
 
-    if let Some(graph) = graph {
-        write_graph(graph, db, ty_groups, &nodes)?;
-    }
-
-    Ok(())
+    fn flag_type(&mut self, node: Self::Node, ty: Ty<Self>);
+    fn flag_incomplete_type(&mut self, node: Self::Node);
+    fn flag_unknown_type(&mut self, node: Self::Node);
 }

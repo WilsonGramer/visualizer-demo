@@ -1,0 +1,13 @@
+[package]
+name = "wipple-db"
+version = "0.0.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+colored = "3"
+itertools = "0.14"
+visualizer = { path = "../../../visualizer" }
+serde = { version = "1", features = ["derive"] }

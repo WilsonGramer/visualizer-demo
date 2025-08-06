@@ -1,0 +1,13 @@
+[package]
+name = "wipple-visit"
+version = "0.0.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+enum_delegate = "0.2"
+visualizer = { path = "../../../visualizer" }
+wipple-syntax = { path = "../syntax" }
+wipple-db = { path = "../db" }
