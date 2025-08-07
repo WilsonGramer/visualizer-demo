@@ -1043,7 +1043,9 @@ dependencies = [
  "anyhow",
  "itertools 0.14.0",
  "regex",
+ "visualizer",
  "wipple-db",
+ "wipple-syntax",
 ]
 
 [[package]]

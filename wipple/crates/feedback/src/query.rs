@@ -1,4 +1,7 @@
-use crate::{File, parser::Term};
+use crate::{
+    File,
+    parser::{Arg, Term},
+};
 use std::{borrow::Cow, collections::HashMap};
 use wipple_db::{Db, FactValue, NodeId};
 
@@ -6,10 +9,12 @@ impl File {
     pub fn query<'a>(
         &self,
         db: &'a Db,
+        matches: impl Fn(&dyn FactValue, &str) -> bool,
     ) -> impl Iterator<Item = HashMap<String, &'a dyn FactValue>> + 'a {
         let mut result = Vec::new();
         query_inner(
             db,
+            &matches,
             &self.terms,
             &HashMap::new(),
             &HashMap::new(),
@@ -22,6 +27,7 @@ impl File {
 
 fn query_inner<'a>(
     db: &'a Db,
+    matches: &dyn Fn(&dyn FactValue, &str) -> bool,
     terms: &[Term],
     nodes: &HashMap<String, NodeId>,
     values: &HashMap<String, &'a dyn FactValue>,
@@ -45,21 +51,32 @@ fn query_inner<'a>(
             };
 
             for (nodes, fact) in facts {
-                let values = if let Some(key) = &next.key {
+                let values = if let Some(arg) = &next.arg {
                     let value = fact.value();
 
-                    if values.get(key).is_some_and(|other| !other.eq(value)) {
-                        continue;
-                    }
+                    match arg {
+                        Arg::Variable(variable) => {
+                            if values.get(variable).is_some_and(|other| !other.eq(value)) {
+                                continue;
+                            }
 
-                    let mut values = values.clone();
-                    values.insert(key.clone(), value);
-                    Cow::Owned(values)
+                            let mut values = values.clone();
+                            values.insert(variable.clone(), value);
+                            Cow::Owned(values)
+                        }
+                        Arg::Value(pattern) => {
+                            if !matches(value, pattern) {
+                                continue;
+                            }
+
+                            Cow::Borrowed(values)
+                        }
+                    }
                 } else {
                     Cow::Borrowed(values)
                 };
 
-                query_inner(db, terms, &nodes, &values, result);
+                query_inner(db, matches, terms, &nodes, &values, result);
             }
         }
         None => result.push(values.clone()),

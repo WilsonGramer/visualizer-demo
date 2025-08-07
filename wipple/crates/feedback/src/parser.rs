@@ -12,7 +12,13 @@ pub struct File {
 pub struct Term {
     pub node: String,
     pub fact: String,
-    pub key: Option<String>,
+    pub arg: Option<Arg>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Arg {
+    Variable(String),
+    Value(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,7 +33,8 @@ static FILE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static TERM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"^(?<node>[A-Za-z_]+)\.(?<fact>[A-Za-z_]+)(\((?<value>[A-Za-z_]+)\))?$"#).unwrap()
+    Regex::new(r#"^(?<node>[A-Za-z_]+)\.(?<fact>[A-Za-z_]+)(\((?<value>`[^`]*`|[A-Za-z_]+)\))?$"#)
+        .unwrap()
 });
 
 static LINK_REGEX: LazyLock<Regex> =
@@ -54,7 +61,13 @@ impl FromStr for File {
                 Ok(Term {
                     node: captures.name("node").unwrap().as_str().to_string(),
                     fact: captures.name("fact").unwrap().as_str().to_string(),
-                    key: captures.name("value").map(|c| c.as_str().to_string()),
+                    arg: captures.name("value").map(|c| {
+                        if c.as_str().starts_with("`") {
+                            Arg::Value(c.as_str()[1..(c.len() - 1)].to_string())
+                        } else {
+                            Arg::Variable(c.as_str().to_string())
+                        }
+                    }),
                 })
             })
             .collect::<anyhow::Result<Vec<Term>>>()?;
