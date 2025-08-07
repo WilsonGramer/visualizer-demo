@@ -1,136 +1,154 @@
-mod db;
 mod fact;
 mod node;
+mod query;
 mod span;
+mod write;
 
-pub use db::*;
 pub use fact::*;
 pub use node::*;
+pub use query::*;
 pub use span::*;
+pub use write::*;
 
-use colored::Colorize;
-use std::io::{self, Write};
-use visualizer::TyGroups;
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    rc::Rc,
+};
+use visualizer::{Bound, Substitutions, Ty};
 
-#[derive(Debug, Clone, Copy)]
-pub enum Filter<'a> {
-    Range(u32, u32),
-    Lines(&'a [u32]),
+#[derive(Debug, Clone, Default)]
+pub struct Db {
+    next_id: u32,
+    facts: HashMap<Rc<str>, BTreeMap<NodeId, Vec<Fact>>>,
 }
 
 impl Db {
-    pub fn write(
-        &self,
-        ty_groups: &TyGroups<Db>,
-        filter: Option<Filter<'_>>,
-        mut w: impl Write,
-        graph: Option<impl Write>,
-    ) -> io::Result<()> {
-        let nodes = self
-            .nodes()
-            .filter(|&node| !self.is_hidden(node))
-            .filter(|&node| {
-                let Some(filter) = filter else {
-                    return true;
-                };
+    pub fn new() -> Self {
+        Default::default()
+    }
 
-                let Some(span) = self.get::<Span>(node, "span") else {
-                    return false;
-                };
+    pub fn node(&mut self) -> NodeId {
+        let id = NodeId(self.next_id);
+        self.next_id += 1;
+        id
+    }
 
-                match filter {
-                    Filter::Range(start, end) => {
-                        span.range.start <= (end as usize) && span.range.end >= (start as usize)
-                    }
-                    Filter::Lines(lines) => lines.contains(&(span.start_line_col.0 as u32)),
-                }
-            })
-            .collect::<Vec<_>>();
+    pub fn fact(&mut self, node: NodeId, fact: Fact) {
+        self.facts
+            .entry(fact.name.clone())
+            .or_default()
+            .entry(node)
+            .or_default()
+            .push(fact);
+    }
 
-        for &node in &nodes {
-            let facts = self.iter(node).collect::<Vec<_>>();
+    pub fn nodes(&self) -> impl Iterator<Item = NodeId> {
+        self.facts
+            .values()
+            .flat_map(|facts| facts.keys())
+            .cloned()
+            .collect::<BTreeSet<_>>() // deduplicate
+            .into_iter()
+    }
 
-            if facts.iter().copied().any(Fact::is_hidden) {
-                continue;
-            }
+    pub fn all(&self, name: &str) -> impl Iterator<Item = (NodeId, &Fact)> {
+        self.facts
+            .get(name)
+            .into_iter()
+            .flatten()
+            .flat_map(|(&node, facts)| facts.iter().map(move |fact| (node, fact)))
+    }
 
-            let Some(source) = self.get::<String>(node, "source") else {
-                continue;
-            };
+    pub fn iter(&self, node: NodeId) -> impl Iterator<Item = &Fact> {
+        self.facts
+            .values()
+            .filter_map(move |facts| facts.get(&node))
+            .flatten()
+    }
 
-            writeln!(w, "{}: {}", format!("{node:?}").bold(), source.blue())?;
+    pub fn iter_by(&self, node: NodeId, name: &str) -> impl Iterator<Item = &Fact> {
+        self.facts
+            .get(name)
+            .and_then(|facts| facts.get(&node))
+            .into_iter()
+            .flatten()
+    }
 
-            for fact in facts {
-                write!(w, "  {}", fact.name())?;
+    pub fn iter_of<T: FactValue>(&self, node: NodeId, name: &str) -> impl Iterator<Item = &T> {
+        self.iter_by(node, name)
+            .filter_map(|fact| fact.value().downcast_ref::<T>())
+    }
 
-                let value = fact.value();
+    pub fn get<T: FactValue>(&self, node: NodeId, name: &str) -> Option<&T> {
+        self.facts
+            .get(name)?
+            .get(&node)?
+            .iter()
+            .find_map(|fact| fact.value().downcast_ref::<T>())
+    }
 
-                if let Some(str) = value.display(self) {
-                    if value.is_code() {
-                        writeln!(w, "({})", str.blue())?;
-                    } else {
-                        writeln!(w, "({str})")?;
-                    }
-                } else {
-                    writeln!(w)?;
-                }
-            }
+    pub fn clone_node(&mut self, node: NodeId) -> NodeId {
+        let new_id = self.node();
+
+        let node_facts = self.iter(node).cloned().collect::<Vec<_>>();
+        for fact in node_facts {
+            self.fact(new_id, fact);
         }
 
-        if let Some(mut graph) = graph {
-            visualizer::write_graph(&mut graph, Ctx(self), ty_groups, &nodes)?;
-        }
+        new_id
+    }
 
-        Ok(())
+    pub fn is_hidden(&self, node: NodeId) -> bool {
+        self.iter(node).any(Fact::is_hidden)
     }
 }
 
-struct Ctx<'a>(&'a Db);
-
-impl<'a> visualizer::WriteGraphContext<'a> for Ctx<'a> {
+impl visualizer::Db for Db {
     type Node = NodeId;
-    type Db = Db;
 
-    fn format_node(&self, node: Self::Node) -> String {
-        format!("node{}", node.0)
+    fn typed_nodes(&mut self) -> impl Iterator<Item = Self::Node> {
+        self.nodes()
+            .filter(|&node| !self.is_hidden(node) && self.get::<()>(node, "untyped").is_none())
     }
 
-    fn format_ty(&self, ty: &visualizer::Ty<Self::Db>) -> String {
-        ty.display(self.0).unwrap()
+    fn clone_node(&mut self, node: Self::Node) -> Self::Node {
+        self.clone_node(node)
     }
 
-    fn include_node(&self, node: Self::Node) -> bool {
-        !self.0.is_hidden(node)
-    }
-
-    fn related_nodes(&self, node: Self::Node) -> Vec<(Self::Node, String)> {
-        self.0
-            .iter(node)
-            .filter_map(|fact| {
-                Some((
-                    *fact.value().downcast_ref::<NodeId>()?,
-                    fact.name().to_string(),
-                ))
+    fn get_trait_instances(
+        &mut self,
+        trait_id: Self::Node,
+    ) -> Vec<(Self::Node, Substitutions<Self>)> {
+        self.iter_of(trait_id, "instance")
+            .map(|&node| {
+                (
+                    node,
+                    self.get::<Substitutions<Self>>(node, "substitutions")
+                        .unwrap()
+                        .clone(),
+                )
             })
             .collect()
     }
 
-    fn node_span_source(&self, node: Self::Node) -> Option<(String, String)> {
-        let span = self.0.get::<Span>(node, "span")?;
-
-        let source = self.0.get::<String>(node, "source")?;
-
-        // Remove comments
-        let source = source
-            .lines()
-            .skip_while(|line| line.is_empty() || line.starts_with("--"))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        Some((format!("{span:?}"), source.clone()))
+    fn flag_resolved(&mut self, node: Self::Node, bound: Bound<Self>, instance: Self::Node) {
+        self.fact(node, Fact::new("resolvedTrait", bound.tr));
+        self.fact(node, Fact::new("resolvedTrait", instance));
     }
 
-    fn node_comments(&self, node: Self::Node) -> Option<String> {
-        self.0.get::<String>(node, "comments").cloned()
+    fn flag_unresolved(&mut self, node: Self::Node, bound: Bound<Self>) {
+        self.fact(node, Fact::new("unresolvedTrait", bound.tr));
+    }
+
+    fn flag_type(&mut self, node: Self::Node, ty: Ty<Self>) {
+        self.fact(node, Fact::new("type", ty));
+    }
+
+    fn flag_incomplete_type(&mut self, node: Self::Node) {
+        self.fact(node, Fact::new("incompleteType", ()));
+    }
+
+    fn flag_unknown_type(&mut self, node: Self::Node) {
+        self.fact(node, Fact::new("unknownType", ()));
     }
 }

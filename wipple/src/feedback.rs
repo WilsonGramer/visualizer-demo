@@ -1,47 +1,44 @@
-mod parser;
-mod query;
-
-pub use parser::File;
-
-use itertools::Itertools;
+use colored::Colorize;
+use std::io::{self, Write};
 use visualizer::Ty;
-use wipple_db::{Db, FactValue, Span};
-use wipple_syntax::{Parse, Type};
+use wipple_db::{Db, FactValue, MarkdownQueryExt, Query};
+use wipple_syntax::Parse;
 
-pub fn iter_feedback<'a>(
-    db: &Db,
-    files: impl IntoIterator<Item = &'a File>,
-) -> impl Iterator<Item = (Span, String)> {
-    let mut feedback = Vec::new();
-    for file in files {
-        for values in file.query(db, |value, s| matches(value, s, db)) {
-            let mut body = file.body.clone();
-            for link in file.links.iter().rev() {
-                if let Some(value) = values.get(&link.name).and_then(|value| value.display(db)) {
-                    body.replace_range(
-                        link.range.clone(),
-                        &if link.code {
-                            format!("`{value}`")
-                        } else {
-                            value
-                        },
-                    );
-                }
-            }
+#[derive(rust_embed::RustEmbed)]
+#[folder = "feedback"]
+struct Feedback;
 
-            if let Some(span) = values
-                .get("span")
-                .and_then(|value| value.downcast_ref::<Span>())
-            {
-                feedback.push((span.clone(), body));
-            }
-        }
+pub fn write_feedback(db: &Db, mut output: impl Write) -> io::Result<()> {
+    let queries = Feedback::iter()
+        .filter(|path| path.ends_with(".md"))
+        .map(|path| {
+            let markdown = String::from_utf8(Feedback::get(&path).unwrap().data.to_vec()).unwrap();
+
+            Query::markdown(&markdown, matcher)
+                .unwrap_or_else(|| panic!("invalid feedback file: {path}"))
+        });
+
+    for (span, message) in queries.flat_map(|query| query.run(db)) {
+        let message = textwrap::wrap(
+            &message,
+            textwrap::Options::new(80)
+                .initial_indent("    ")
+                .subsequent_indent("    "),
+        )
+        .join("\n");
+
+        writeln!(
+            output,
+            "{}\n\n{}\n",
+            format!("{span:?}").bold().underline(),
+            message
+        )?;
     }
 
-    feedback.into_iter().unique()
+    Ok(())
 }
 
-fn matches(value: &dyn FactValue, s: &str, db: &Db) -> bool {
+fn matcher(db: &Db, value: &dyn FactValue, s: &str) -> bool {
     if let Some(other) = value.downcast_ref::<String>() {
         return s == other;
     }
@@ -49,9 +46,11 @@ fn matches(value: &dyn FactValue, s: &str, db: &Db) -> bool {
     if let Some(ty) = value
         .downcast_ref::<Ty<Db>>()
         .and_then(|ty| TyMatcher::from_ty(ty, db))
-        && let Some(other) = Type::parse(s).ok().and_then(TyMatcher::from_syntax)
+        && let Some(other) = wipple_syntax::Type::parse(s)
+            .ok()
+            .and_then(TyMatcher::from_syntax)
     {
-        return ty.unify(&other);
+        return ty.unifies_with(&other);
     }
 
     false
@@ -97,20 +96,22 @@ impl TyMatcher {
         })
     }
 
-    fn from_syntax(ty: Type) -> Option<Self> {
+    fn from_syntax(ty: wipple_syntax::Type) -> Option<Self> {
         Some(match ty {
-            Type::Placeholder(_) => TyMatcher::Placeholder,
-            Type::Unit(_) => TyMatcher::Unit,
-            Type::Named(ty) => TyMatcher::Named(ty.name.value.clone(), Vec::new()),
-            Type::Parameterized(ty) => TyMatcher::Named(
+            wipple_syntax::Type::Placeholder(_) => TyMatcher::Placeholder,
+            wipple_syntax::Type::Unit(_) => TyMatcher::Unit,
+            wipple_syntax::Type::Named(ty) => TyMatcher::Named(ty.name.value.clone(), Vec::new()),
+            wipple_syntax::Type::Parameterized(ty) => TyMatcher::Named(
                 ty.name.value.clone(),
                 ty.parameters
                     .into_iter()
                     .filter_map(|ty| TyMatcher::from_syntax(ty.0))
                     .collect(),
             ),
-            Type::Block(ty) => TyMatcher::Block(Box::new(TyMatcher::from_syntax(*ty.output)?)),
-            Type::Function(ty) => TyMatcher::Function(
+            wipple_syntax::Type::Block(ty) => {
+                TyMatcher::Block(Box::new(TyMatcher::from_syntax(*ty.output)?))
+            }
+            wipple_syntax::Type::Function(ty) => TyMatcher::Function(
                 ty.inputs
                     .0
                     .into_iter()
@@ -118,8 +119,8 @@ impl TyMatcher {
                     .collect(),
                 Box::new(TyMatcher::from_syntax(*ty.output)?),
             ),
-            Type::Parameter(ty) => TyMatcher::Parameter(ty.name.value.clone()),
-            Type::Tuple(ty) => TyMatcher::Tuple(
+            wipple_syntax::Type::Parameter(ty) => TyMatcher::Parameter(ty.name.value.clone()),
+            wipple_syntax::Type::Tuple(ty) => TyMatcher::Tuple(
                 ty.elements
                     .into_iter()
                     .filter_map(TyMatcher::from_syntax)
@@ -128,7 +129,7 @@ impl TyMatcher {
         })
     }
 
-    fn unify(&self, other: &Self) -> bool {
+    fn unifies_with(&self, other: &Self) -> bool {
         match (self, other) {
             (TyMatcher::Placeholder, _) | (_, TyMatcher::Placeholder) => true,
             (TyMatcher::Unit, TyMatcher::Unit) => true,
@@ -141,10 +142,10 @@ impl TyMatcher {
                     && left_params
                         .iter()
                         .zip(right_params.iter())
-                        .all(|(left, right)| left.unify(right))
+                        .all(|(left, right)| left.unifies_with(right))
             }
             (TyMatcher::Block(left_output), TyMatcher::Block(right_output)) => {
-                left_output.unify(right_output)
+                left_output.unifies_with(right_output)
             }
             (
                 TyMatcher::Function(left_inputs, left_output),
@@ -154,8 +155,8 @@ impl TyMatcher {
                     && left_inputs
                         .iter()
                         .zip(right_inputs.iter())
-                        .all(|(left, right)| left.unify(right))
-                    && left_output.unify(right_output)
+                        .all(|(left, right)| left.unifies_with(right))
+                    && left_output.unifies_with(right_output)
             }
             (TyMatcher::Parameter(left_name), TyMatcher::Parameter(right_name)) => {
                 left_name == right_name
@@ -165,7 +166,7 @@ impl TyMatcher {
                     && left_elements
                         .iter()
                         .zip(right_elements.iter())
-                        .all(|(left, right)| left.unify(right))
+                        .all(|(left, right)| left.unifies_with(right))
             }
             _ => false,
         }

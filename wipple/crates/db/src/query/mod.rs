@@ -1,33 +1,55 @@
-use crate::{
-    File,
-    parser::{Arg, Term},
-};
+mod markdown;
+pub use markdown::*;
+
+use crate::{Db, FactValue, NodeId};
 use std::{borrow::Cow, collections::HashMap};
-use wipple_db::{Db, FactValue, NodeId};
 
-impl File {
-    pub fn query<'a>(
-        &self,
-        db: &'a Db,
-        matches: impl Fn(&dyn FactValue, &str) -> bool,
-    ) -> impl Iterator<Item = HashMap<String, &'a dyn FactValue>> + 'a {
-        let mut result = Vec::new();
-        query_inner(
-            db,
-            &matches,
-            &self.terms,
-            &HashMap::new(),
-            &HashMap::new(),
-            &mut result,
-        );
+pub struct Query<'a, T>(Box<dyn Fn(&Db) -> Vec<T> + 'a>);
 
-        result.into_iter()
+impl<'a, T> Query<'a, T> {
+    pub fn new(f: impl Fn(&Db) -> Vec<T> + 'a) -> Self {
+        Query(Box::new(f))
     }
+
+    pub fn run(&self, db: &Db) -> Vec<T> {
+        (self.0)(db)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Term {
+    pub node: String,
+    pub fact: String,
+    pub arg: Option<Arg>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Arg {
+    Variable(String),
+    Value(String),
+}
+
+pub fn query<'a>(
+    terms: &[Term],
+    db: &'a Db,
+    matcher: impl Fn(&'a Db, &dyn FactValue, &str) -> bool,
+) -> impl Iterator<Item = HashMap<String, &'a dyn FactValue>> + 'a {
+    let mut result = Vec::new();
+    query_inner(
+        db,
+        &matcher,
+        terms,
+        &HashMap::new(),
+        &HashMap::new(),
+        &mut result,
+    );
+
+    result.into_iter()
 }
 
 fn query_inner<'a>(
     db: &'a Db,
-    matches: &dyn Fn(&dyn FactValue, &str) -> bool,
+    matcher: &dyn Fn(&'a Db, &dyn FactValue, &str) -> bool,
     terms: &[Term],
     nodes: &HashMap<String, NodeId>,
     values: &HashMap<String, &'a dyn FactValue>,
@@ -56,7 +78,7 @@ fn query_inner<'a>(
 
                     match arg {
                         Arg::Variable(variable) => {
-                            if values.get(variable).is_some_and(|other| !other.eq(value)) {
+                            if values.get(variable).is_some() {
                                 continue;
                             }
 
@@ -65,7 +87,7 @@ fn query_inner<'a>(
                             Cow::Owned(values)
                         }
                         Arg::Value(pattern) => {
-                            if !matches(value, pattern) {
+                            if !matcher(db, value, pattern) {
                                 continue;
                             }
 
@@ -76,7 +98,7 @@ fn query_inner<'a>(
                     Cow::Borrowed(values)
                 };
 
-                query_inner(db, matches, terms, &nodes, &values, result);
+                query_inner(db, matcher, terms, &nodes, &values, result);
             }
         }
         None => result.push(values.clone()),

@@ -12,12 +12,6 @@ impl Debug for NodeId {
 }
 
 impl FactValue for NodeId {
-    fn eq(&self, other: &dyn FactValue) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .is_some_and(|other| self == other)
-    }
-
     fn display(&self, _db: &Db) -> Option<String> {
         Some(format!("{self:?}"))
     }

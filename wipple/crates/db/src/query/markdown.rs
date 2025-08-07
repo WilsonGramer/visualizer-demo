@@ -1,31 +1,67 @@
+use crate::{
+    Db, FactValue, Span,
+    query::{Arg, Query, Term, query},
+};
 use regex::Regex;
 use std::{ops::Range, str::FromStr, sync::LazyLock};
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct File {
-    pub terms: Vec<Term>,
-    pub body: String,
-    pub links: Vec<Link>,
+pub trait MarkdownQueryExt<'a>: Sized {
+    fn markdown(
+        markdown: &str,
+        matcher: impl Fn(&Db, &dyn FactValue, &str) -> bool + 'a,
+    ) -> Option<Self>;
+}
+
+impl<'a> MarkdownQueryExt<'a> for Query<'a, (Span, String)> {
+    fn markdown(
+        markdown: &str,
+        matcher: impl Fn(&Db, &dyn FactValue, &str) -> bool + 'a,
+    ) -> Option<Self> {
+        let file = File::from_str(markdown).ok()?;
+
+        Some(Query::new(move |db| {
+            let mut result = Vec::new();
+            for values in query(&file.terms, db, &matcher) {
+                let mut body = file.body.clone();
+                for link in file.links.iter().rev() {
+                    if let Some(value) = values.get(&link.name).and_then(|value| value.display(db))
+                    {
+                        body.replace_range(
+                            link.range.clone(),
+                            &if link.code {
+                                format!("`{value}`")
+                            } else {
+                                value
+                            },
+                        );
+                    }
+                }
+
+                if let Some(span) = values
+                    .get("span")
+                    .and_then(|value| value.downcast_ref::<Span>())
+                {
+                    result.push((span.clone(), body));
+                }
+            }
+
+            result
+        }))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Term {
-    pub node: String,
-    pub fact: String,
-    pub arg: Option<Arg>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Arg {
-    Variable(String),
-    Value(String),
+struct File {
+    terms: Vec<Term>,
+    body: String,
+    links: Vec<Link>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Link {
-    pub range: Range<usize>,
-    pub name: String,
-    pub code: bool,
+struct Link {
+    range: Range<usize>,
+    name: String,
+    code: bool,
 }
 
 static FILE_REGEX: LazyLock<Regex> = LazyLock::new(|| {

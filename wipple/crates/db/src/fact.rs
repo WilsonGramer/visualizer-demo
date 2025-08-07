@@ -9,8 +9,6 @@ pub struct Fact {
 }
 
 pub trait FactValue: Any + Debug {
-    fn eq(&self, other: &dyn FactValue) -> bool;
-
     fn display(&self, db: &Db) -> Option<String>;
 
     fn is_code(&self) -> bool {
@@ -46,46 +44,24 @@ impl Fact {
 }
 
 impl FactValue for () {
-    fn eq(&self, other: &dyn FactValue) -> bool {
-        other.is::<Self>()
-    }
-
     fn display(&self, _db: &Db) -> Option<String> {
         None
     }
 }
 
 impl FactValue for String {
-    fn eq(&self, other: &dyn FactValue) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .is_some_and(|other| self == other)
-    }
-
     fn display(&self, _db: &Db) -> Option<String> {
         Some(self.clone())
     }
 }
 
 impl FactValue for u32 {
-    fn eq(&self, other: &dyn FactValue) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .is_some_and(|other| self == other)
-    }
-
     fn display(&self, _db: &Db) -> Option<String> {
         Some(self.to_string())
     }
 }
 
 impl FactValue for Ty<Db> {
-    fn eq(&self, other: &dyn FactValue) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .is_some_and(|other| self == other)
-    }
-
     fn display(&self, db: &Db) -> Option<String> {
         Some(match self {
             Ty::Unknown | Ty::Of(_) => String::from("_"),
@@ -123,12 +99,6 @@ impl FactValue for Ty<Db> {
 }
 
 impl FactValue for Substitutions<Db> {
-    fn eq(&self, other: &dyn FactValue) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .is_some_and(|other| self == other)
-    }
-
     fn display(&self, _db: &Db) -> Option<String> {
         Some(String::from("Substitutions(..)"))
     }
