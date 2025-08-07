@@ -1,10 +1,16 @@
 pub use wipple_db as db;
+pub use wipple_feedback as feedback;
 pub use wipple_syntax as syntax;
 pub use wipple_visit as visit;
 
+use colored::Colorize;
 use db::{Db, Filter, Span};
 use std::io::{self, Write};
 use syntax::{Parse, Range};
+
+#[derive(rust_embed::RustEmbed)]
+#[folder = "feedback"]
+struct Feedback;
 
 pub fn run(
     path: &str,
@@ -47,7 +53,30 @@ pub fn run(
     solver.insert(info.top_level_constraints);
     let ty_groups = solver.finish();
 
-    db.write(&ty_groups, filter, output, graph)?;
+    let feedback_files = Feedback::iter()
+        .filter(|path| path.ends_with(".md"))
+        .map(|path| String::from_utf8(Feedback::get(&path).unwrap().data.to_vec()).unwrap())
+        .map(|s| s.parse().expect("invalid feedback file"))
+        .collect::<Vec<_>>();
+
+    for (span, message) in feedback::iter_feedback(&db, &feedback_files) {
+        let message = textwrap::wrap(
+            &message,
+            textwrap::Options::new(80)
+                .initial_indent("    ")
+                .subsequent_indent("    "),
+        )
+        .join("\n");
+
+        writeln!(
+            output,
+            "{}\n\n{}\n",
+            format!("{span:?}").bold().underline(),
+            message
+        )?;
+    }
+
+    db.write(&ty_groups, filter, &mut output, graph)?;
 
     Ok(())
 }

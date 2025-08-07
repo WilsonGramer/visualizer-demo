@@ -5,9 +5,13 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+colored = "3"
 line-col = "0.2"
+rust-embed = { version = "8", features = ["debug-embed"] }
+textwrap = "0.16"
 visualizer = { path = "../visualizer" }
 wipple-db = { path = "crates/db" }
+wipple-feedback = { path = "crates/feedback" }
 wipple-syntax = { path = "crates/syntax" }
 wipple-visit = { path = "crates/visit" }
 

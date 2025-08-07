@@ -40,6 +40,14 @@ impl Db {
             .into_iter()
     }
 
+    pub fn all(&self, name: &str) -> impl Iterator<Item = (NodeId, &Fact)> {
+        self.facts
+            .get(name)
+            .into_iter()
+            .flatten()
+            .flat_map(|(&node, facts)| facts.iter().map(move |fact| (node, fact)))
+    }
+
     pub fn iter(&self, node: NodeId) -> impl Iterator<Item = &Fact> {
         self.facts
             .values()
@@ -47,12 +55,16 @@ impl Db {
             .flatten()
     }
 
-    pub fn iter_by<T: FactValue>(&self, node: NodeId, name: &str) -> impl Iterator<Item = &T> {
+    pub fn iter_by(&self, node: NodeId, name: &str) -> impl Iterator<Item = &Fact> {
         self.facts
             .get(name)
             .and_then(|facts| facts.get(&node))
             .into_iter()
             .flatten()
+    }
+
+    pub fn iter_of<T: FactValue>(&self, node: NodeId, name: &str) -> impl Iterator<Item = &T> {
+        self.iter_by(node, name)
             .filter_map(|fact| fact.value().downcast_ref::<T>())
     }
 
@@ -96,7 +108,7 @@ impl visualizer::Db for Db {
         &mut self,
         trait_id: Self::Node,
     ) -> Vec<(Self::Node, Substitutions<Self>)> {
-        self.iter_by(trait_id, "instance")
+        self.iter_of(trait_id, "instance")
             .map(|&node| {
                 (
                     node,
