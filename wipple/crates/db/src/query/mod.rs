@@ -75,7 +75,14 @@ fn query_inner(
                     .collect(),
             };
 
-            let mut visited = false;
+            if next.not {
+                if facts.is_empty() {
+                    query_inner(db, matcher, terms, values, result);
+                } else {
+                    return;
+                }
+            }
+
             for (mut values, fact) in facts {
                 if let Some(arg) = &next.arg {
                     match arg {
@@ -98,11 +105,6 @@ fn query_inner(
                 }
 
                 query_inner(db, matcher, terms, &values, result);
-                visited = true;
-            }
-
-            if !visited && next.not {
-                query_inner(db, matcher, terms, values, result);
             }
         }
         None => result.push(values.clone()),
