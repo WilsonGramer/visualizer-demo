@@ -2,8 +2,8 @@ use crate::{
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_db::NodeId;
 use visualizer::{Constraint, Ty};
+use wipple_db::NodeId;
 use wipple_syntax::{AssignmentStatement, Pattern, Range};
 
 impl Visit for AssignmentStatement {
@@ -20,7 +20,7 @@ impl Visit for AssignmentStatement {
 
         // Try assigning to an existing constant if possible
         if let Pattern::Variable(pattern) = &self.pattern {
-            if let Some(constraint) =
+            if let Some((definition, constraint)) =
                 visitor.peek_name(&pattern.variable.value, |definition| match definition {
                     Definition::Constant(definition) => {
                         let ty = match definition.value {
@@ -32,13 +32,13 @@ impl Visit for AssignmentStatement {
 
                         // Ensure the value is assignable to the constant's
                         // type
-                        Some(Constraint::Ty(value, Ty::Of(ty)))
+                        Some((definition.node, Constraint::Ty(value, Ty::Of(ty))))
                     }
                     _ => None,
                 })
             {
+                visitor.fact(id, "assignmentToConstant", definition);
                 visitor.constraint(constraint);
-                visitor.fact(id, "assignmentToConstant", ());
                 return;
             }
         }
