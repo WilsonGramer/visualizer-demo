@@ -106,7 +106,7 @@ impl Db {
 impl visualizer::Db for Db {
     type Node = NodeId;
 
-    fn typed_nodes(&mut self) -> impl Iterator<Item = Self::Node> {
+    fn typed_nodes(&self) -> impl Iterator<Item = Self::Node> {
         self.nodes()
             .filter(|&node| !self.is_hidden(node) && self.get::<()>(node, "untyped").is_none())
     }

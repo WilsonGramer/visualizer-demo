@@ -8,9 +8,31 @@ pub enum Constraint<Db: crate::Db> {
     Bound(Bound<Db>),
 }
 
+impl<Db: crate::Db> Constraint<Db> {
+    pub fn traverse_mut(&mut self, f: &mut impl FnMut(&mut Ty<Db>)) {
+        match self {
+            Constraint::Ty(_, ty) => f(ty),
+            Constraint::Instantiation(instantiation) => {
+                for constraint in &mut instantiation.constraints {
+                    constraint.traverse_mut(f);
+                }
+
+                for ty in instantiation.substitutions.0.values_mut() {
+                    f(ty);
+                }
+            }
+            Constraint::Bound(bound) => {
+                for ty in bound.substitutions.0.values_mut() {
+                    f(ty);
+                }
+            }
+        }
+    }
+}
+
 #[derive_where(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Ty<Db: crate::Db> {
-    Unknown,
+    Unknown(Db::Node),
     Of(Db::Node),
     Parameter(Db::Node),
     Named {
@@ -37,7 +59,7 @@ impl<Db: crate::Db> Ty<Db> {
         f(self);
 
         match self {
-            Ty::Unknown | Ty::Of(_) | Ty::Parameter(_) => {}
+            Ty::Unknown(_) | Ty::Of(_) | Ty::Parameter(_) => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters.values() {
                     parameter.traverse(f);
@@ -62,7 +84,7 @@ impl<Db: crate::Db> Ty<Db> {
         f(self);
 
         match self {
-            Ty::Unknown | Ty::Of(_) | Ty::Parameter(_) => {}
+            Ty::Unknown(_) | Ty::Of(_) | Ty::Parameter(_) => {}
             Ty::Named { parameters, .. } => {
                 for parameter in parameters.values_mut() {
                     parameter.traverse_mut(f);

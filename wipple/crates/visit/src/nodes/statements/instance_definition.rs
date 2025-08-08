@@ -4,8 +4,8 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_db::NodeId;
 use visualizer::{Constraint, Instantiation, Substitutions, Ty};
+use wipple_db::NodeId;
 use wipple_syntax::{Constraints, InstanceDefinitionStatement, Range};
 
 impl Visit for InstanceDefinitionStatement {
@@ -36,6 +36,8 @@ impl Visit for InstanceDefinitionStatement {
                 visitor.fact(id, "unresolvedTraitName", ());
                 return;
             };
+
+            visitor.fact(trait_node, "instance", id);
 
             visitor.current_definition().implicit_type_parameters = true;
 

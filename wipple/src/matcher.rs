@@ -33,7 +33,7 @@ enum TyMatcher {
 impl TyMatcher {
     fn from_ty(ty: &Ty<Db>, db: &Db) -> Option<Self> {
         Some(match ty {
-            Ty::Unknown | Ty::Of(_) => TyMatcher::Placeholder,
+            Ty::Unknown(_) | Ty::Of(_) => TyMatcher::Placeholder,
             Ty::Parameter(parameter) => {
                 TyMatcher::Parameter(db.get::<String>(*parameter, "source")?.clone())
             }
@@ -95,7 +95,8 @@ impl TyMatcher {
 
     fn unifies_with(&self, other: &Self) -> bool {
         match (self, other) {
-            (TyMatcher::Placeholder, _) | (_, TyMatcher::Placeholder) => true,
+            (_, TyMatcher::Placeholder) => true,
+            (TyMatcher::Placeholder, _) => false,
             (TyMatcher::Unit, TyMatcher::Unit) => true,
             (
                 TyMatcher::Named(left_name, left_params),

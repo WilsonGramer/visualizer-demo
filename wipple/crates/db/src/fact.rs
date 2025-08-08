@@ -71,7 +71,7 @@ impl FactValue for u32 {
 impl FactValue for Ty<Db> {
     fn display(&self, db: &Db) -> Option<String> {
         Some(match self {
-            Ty::Unknown | Ty::Of(_) => String::from("_"),
+            Ty::Unknown(_) | Ty::Of(_) => String::from("_"),
             Ty::Parameter(node) => db.get::<String>(*node, "source").unwrap().clone(),
             Ty::Named { name, parameters } => format!(
                 "{}{}",

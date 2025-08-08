@@ -94,8 +94,7 @@ impl Visit for (Range, &'static str) {
 pub struct ProgramInfo {
     pub definitions: BTreeMap<NodeId, Definition>,
     pub instances: BTreeMap<NodeId, Vec<NodeId>>,
-    pub definition_constraints: Vec<Constraint<Db>>,
-    pub top_level_constraints: Vec<Constraint<Db>>,
+    pub constraints: Vec<Constraint<Db>>,
 }
 
 pub struct Visitor<'a> {
@@ -103,8 +102,7 @@ pub struct Visitor<'a> {
     get_span_source: Box<dyn Fn(Range) -> (Span, String) + 'a>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
-    definition_constraints: Vec<Constraint<Db>>,
-    program_constraints: Vec<Constraint<Db>>,
+    constraints: Vec<Constraint<Db>>,
     current_definition: Option<VisitorCurrentDefinition>,
 }
 
@@ -115,8 +113,7 @@ impl<'a> Visitor<'a> {
             get_span_source: Box::new(get_span_source),
             scopes: vec![Scope::default()],
             instances: Default::default(),
-            definition_constraints: Default::default(),
-            program_constraints: Default::default(),
+            constraints: Default::default(),
             current_definition: None,
         }
     }
@@ -147,8 +144,7 @@ impl<'a> Visitor<'a> {
         ProgramInfo {
             definitions,
             instances: instance_ids,
-            definition_constraints: self.definition_constraints,
-            top_level_constraints: self.program_constraints,
+            constraints: self.constraints,
         }
     }
 }
@@ -193,11 +189,7 @@ impl<'a> Visitor<'a> {
     }
 
     pub fn constraint(&mut self, constraint: Constraint<Db>) {
-        if self.current_definition.is_some() {
-            self.definition_constraints.push(constraint);
-        } else {
-            self.program_constraints.push(constraint);
-        }
+        self.constraints.push(constraint);
     }
 
     pub fn constraints(&mut self, constraints: impl IntoIterator<Item = Constraint<Db>>) {

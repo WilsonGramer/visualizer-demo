@@ -1,6 +1,7 @@
 use crate::{Constraint, Group, GroupKey, GroupKeys, Instantiation, Substitutions, Ty, TyGroups};
 use derive_where::derive_where;
 use ena::unify::InPlaceUnificationTable;
+use itertools::Itertools;
 use std::{cell::RefCell, collections::BTreeMap, fmt::Debug, mem, rc::Rc};
 
 #[derive_where(Debug, Clone)]
@@ -80,7 +81,7 @@ impl<'a, Db: crate::Db> Solver<'a, Db> {
             if ty_groups.index_of(node).is_none() {
                 db.flag_unknown_type(node);
 
-                let group_index = ty_groups.insert_group(Ty::Unknown);
+                let group_index = ty_groups.insert_group(Ty::Unknown(node));
                 ty_groups.assign_node_to_index(node, group_index);
             }
 
@@ -108,10 +109,11 @@ impl<Db: crate::Db> Solver<'_, Db> {
     fn run(&mut self) {
         loop {
             let progress = self
-                .run_instantiations()
-                .or_else(|| self.run_tys())
-                .or_else(|| self.run_bounds());
-            // TODO: run_defaults(), etc.
+                .run_tys()
+                .or_else(|| self.run_instantiations())
+                .or_else(|| self.run_bounds())
+                // TODO: run_defaults(), etc.
+                .or_else(|| self.fill_with_unknown());
 
             match progress {
                 Progress::Progressed => continue,
@@ -119,7 +121,11 @@ impl<Db: crate::Db> Solver<'_, Db> {
             }
         }
 
-        assert!(self.queue.is_empty());
+        assert!(
+            self.queue.is_empty(),
+            "constraints remaining in the queue: {:#?}",
+            self.queue
+        );
     }
 
     fn run_tys(&mut self) -> Progress {
@@ -173,8 +179,10 @@ impl<Db: crate::Db> Solver<'_, Db> {
 
         for instantiation in instantiations {
             let constraints = self.apply_instantiation(instantiation);
-            self.queue.extend(constraints);
-            self.progress.set();
+            if !constraints.is_empty() {
+                self.queue.extend(constraints);
+                self.progress.set();
+            }
         }
 
         self.progress.take()
@@ -197,14 +205,6 @@ impl<Db: crate::Db> Solver<'_, Db> {
             // Use a temporary node for the bound while resolving.
             let temp_node = self.db.borrow_mut().clone_node(bound.node);
 
-            // Get the current type of the node, if there is one, without
-            // actually unifying it with anything.
-            let mut bound_ty = Ty::Of(bound.node);
-            self.try_apply_ty(&mut bound_ty, &mut self.unify.clone());
-            if bound_ty != Ty::Of(bound.node) {
-                self.insert([Constraint::Ty(temp_node, bound_ty.clone())])
-            }
-
             // Instantiate the bound with the trait's type.
             self.insert([Constraint::Instantiation(Instantiation {
                 constraints: vec![Constraint::Ty(temp_node, Ty::Of(bound.tr))],
@@ -223,14 +223,11 @@ impl<Db: crate::Db> Solver<'_, Db> {
                 // To resolve an instance, we need to satisfy the bound's
                 // substitutions, the instance's substitutions, and the node's
                 // type. All three are applied to the temporary node, so they
-                // will unify.
-                copy.queue = vec![Constraint::Instantiation(Instantiation {
-                    constraints: vec![Constraint::Ty(temp_node, Ty::Of(instance))],
+                // will unify. Recursive bounds will also be resolved here.
+                copy.insert([Constraint::Instantiation(Instantiation {
                     substitutions,
-                })];
-
-                // Recursive bounds will be resolved here.
-                copy.run();
+                    constraints: vec![Constraint::Ty(temp_node, Ty::Of(instance))],
+                })]);
 
                 if copy.error {
                     // Bound and instance constraints didn't unify; try the next
@@ -255,6 +252,27 @@ impl<Db: crate::Db> Solver<'_, Db> {
             self.db
                 .borrow_mut()
                 .flag_resolved(temp_node, bound, instance);
+        }
+
+        self.progress.take()
+    }
+
+    fn fill_with_unknown(&mut self) -> Progress {
+        // Give all nodes that aren't in a group at this point a type of
+        // `Unknown`.
+
+        let nodes = self
+            .db
+            .borrow()
+            .typed_nodes()
+            .filter(|&node| self.try_key_for_node(node).is_none())
+            .collect::<Vec<_>>();
+
+        for node in nodes {
+            self.unify_tys(&mut Ty::Of(node), &mut Ty::Unknown(node))
+                .unwrap();
+
+            self.progress.set();
         }
 
         self.progress.take()
@@ -315,39 +333,55 @@ impl<Db: crate::Db> Solver<'_, Db> {
     }
 
     fn apply_instantiation(&mut self, mut instantiation: Instantiation<Db>) -> Vec<Constraint<Db>> {
-        let mut unify = self.unify.clone();
-
-        instantiation
+        let (constraints, requeue): (Vec<_>, Vec<_>) = instantiation
             .constraints
             .into_iter()
-            .map(|mut constraint| {
-                match &mut constraint {
-                    Constraint::Ty(_, ty) => {
-                        self.instantiate_ty(ty, &mut instantiation.substitutions, &mut unify);
-                    }
-                    Constraint::Instantiation(..) => {
-                        panic!("cannot have nested instantiations")
-                    }
-                    Constraint::Bound(bound) => {
-                        for ty in bound.substitutions.0.values_mut() {
-                            self.instantiate_ty(ty, &mut instantiation.substitutions, &mut unify);
+            .partition_map(|mut constraint| {
+                use itertools::Either::*;
+
+                let mut incomplete = false;
+                constraint.traverse_mut(&mut |ty| {
+                    self.try_apply_ty(ty, &mut self.unify.clone());
+
+                    // If the type refers to other nodes (definitions) that we
+                    // didn't substitute in, it needs to wait for those
+                    // definitions to have types, so requeue it.
+                    ty.traverse(&mut |ty| {
+                        if let Ty::Of(node) = ty {
+                            if !instantiation.substitutions.0.contains_key(node) {
+                                incomplete = true;
+                            }
                         }
-                    }
+                    });
+                });
+
+                if incomplete {
+                    Right(constraint)
+                } else {
+                    Left(constraint)
                 }
+            });
+
+        if !requeue.is_empty() {
+            self.queue.push(Constraint::Instantiation(Instantiation {
+                substitutions: instantiation.substitutions.clone(),
+                constraints: requeue,
+            }));
+        }
+
+        constraints
+            .into_iter()
+            .map(|mut constraint| {
+                constraint.traverse_mut(&mut |ty| {
+                    self.instantiate_applied_ty(ty, &mut instantiation.substitutions);
+                });
 
                 constraint
             })
             .collect()
     }
 
-    fn instantiate_ty(
-        &mut self,
-        ty: &mut Ty<Db>,
-        substitutions: &mut Substitutions<Db>,
-        unify: &mut InPlaceUnificationTable<GroupKey<Db>>,
-    ) {
-        self.try_apply_ty(ty, unify);
-
+    fn instantiate_applied_ty(&mut self, ty: &mut Ty<Db>, substitutions: &mut Substitutions<Db>) {
         ty.traverse_mut(&mut |ty| {
             if let Ty::Parameter(parameter) = ty {
                 if let Some(substitution) = substitutions.0.get(parameter).cloned() {

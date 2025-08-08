@@ -52,8 +52,7 @@ pub fn run(
     });
 
     let mut solver = visualizer::Solver::new(&mut db);
-    solver.insert(info.definition_constraints);
-    solver.insert(info.top_level_constraints);
+    solver.insert(info.constraints);
     let ty_groups = solver.finish();
 
     for (query, span) in queries {

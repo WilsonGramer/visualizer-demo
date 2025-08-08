@@ -13,7 +13,7 @@ use std::{fmt::Debug, hash::Hash};
 pub trait Db: Sized + 'static {
     type Node: Debug + Copy + Eq + Ord + Hash;
 
-    fn typed_nodes(&mut self) -> impl Iterator<Item = Self::Node>;
+    fn typed_nodes(&self) -> impl Iterator<Item = Self::Node>;
 
     fn clone_node(&mut self, node: Self::Node) -> Self::Node;
 
