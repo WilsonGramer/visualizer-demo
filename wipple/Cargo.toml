@@ -3,16 +3,18 @@ name = "wipple"
 version = "0.0.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
+anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 colored = "3"
-line-col = "0.2"
+line-index = "0.1"
+regex = "1"
 rust-embed = { version = "8", features = ["debug-embed"] }
 textwrap = "0.16"
 visualizer = { path = "../visualizer" }
 wipple-db = { path = "crates/db" }
 wipple-syntax = { path = "crates/syntax" }
 wipple-visit = { path = "crates/visit" }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-clearscreen = "4"

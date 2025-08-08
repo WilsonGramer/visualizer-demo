@@ -1,20 +1,27 @@
-mod feedback;
+pub mod feedback;
+pub mod matcher;
+pub mod queries;
+pub mod span;
 
 pub use wipple_db as db;
 pub use wipple_syntax as syntax;
 pub use wipple_visit as visit;
 
-use db::{Db, Filter, Span};
-use std::io::{self, Write};
+use crate::{queries::run_query, span::ParsedSpan};
+use colored::Colorize;
+use db::{Db, Filter};
+use line_index::LineIndex;
+use std::io::Write;
 use syntax::{Parse, Range};
 
 pub fn run(
     path: &str,
     source: &str,
     filter: Option<Filter<'_>>,
+    queries: impl IntoIterator<Item = (String, ParsedSpan)>,
     mut output: impl Write,
     graph: Option<impl Write>,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let source_file = match syntax::SourceFile::parse(source) {
         Ok(source_file) => source_file,
         Err(error) => {
@@ -23,7 +30,7 @@ pub fn run(
         }
     };
 
-    let line_col = line_col::LineColLookup::new(source);
+    let line_index = LineIndex::new(source);
 
     let mut db = Db::new();
 
@@ -32,12 +39,12 @@ pub fn run(
             panic!("node has no range");
         };
 
-        let span = Span {
+        let span = ParsedSpan::Range {
             path: path.to_string(),
             range: start..end,
-            start_line_col: line_col.get(start),
-            end_line_col: line_col.get(end),
-        };
+        }
+        .to_span(&line_index)
+        .expect("invalid span");
 
         let source = source[start..end].to_string();
 
@@ -49,9 +56,40 @@ pub fn run(
     solver.insert(info.top_level_constraints);
     let ty_groups = solver.finish();
 
+    for (query, span) in queries {
+        let span = span
+            .to_span(&line_index)
+            .ok_or_else(|| anyhow::format_err!("invalid span: {span}"))?;
+
+        let outputs = run_query(&query, &db, span)?;
+
+        writeln!(
+            output,
+            "{}\n",
+            format!("Result of query '{query}':").bold().underline()
+        )?;
+
+        if outputs.is_empty() {
+            writeln!(output, "    no outputs")?;
+        } else {
+            for output_span in outputs {
+                writeln!(
+                    output,
+                    "    {}: {}",
+                    output_span,
+                    source[output_span.range.clone()].blue()
+                )?;
+            }
+        }
+
+        writeln!(output)?;
+    }
+
     feedback::write_feedback(&db, &mut output)?;
 
-    db.write(&ty_groups, filter, &mut output, graph)?;
+    writeln!(output, "{}\n", "Facts:".bold().underline())?;
+
+    db.write(&ty_groups, filter, "  ", &mut output, graph)?;
 
     Ok(())
 }

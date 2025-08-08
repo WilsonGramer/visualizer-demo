@@ -18,6 +18,7 @@ impl Db {
         &self,
         ty_groups: &TyGroups<Db>,
         filter: Option<Filter<'_>>,
+        indent: &str,
         mut w: impl Write,
         graph: Option<impl Write>,
     ) -> io::Result<()> {
@@ -53,10 +54,15 @@ impl Db {
                 continue;
             };
 
-            writeln!(w, "{}: {}", format!("{node:?}").bold(), source.blue())?;
+            writeln!(
+                w,
+                "{indent}{}: {}",
+                format!("{node:?}").bold(),
+                source.blue()
+            )?;
 
             for fact in facts {
-                write!(w, "  {}", fact.name())?;
+                write!(w, "{indent}{indent}{}", fact.name())?;
 
                 let value = fact.value();
 

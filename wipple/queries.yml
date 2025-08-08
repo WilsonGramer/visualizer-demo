@@ -1,0 +1,9 @@
+definition:
+  - |
+    node.span(input)
+    node.resolvedVariableName(variable)
+    variable.span(output)
+  - |
+    node.span(input)
+    node.resolvedConstantName(variable)
+    variable.span(output)

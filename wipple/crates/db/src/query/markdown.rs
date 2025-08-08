@@ -1,27 +1,28 @@
 use crate::{
     Db, FactValue, Span,
-    query::{Arg, Query, Term, query},
+    query::{Query, Term, query},
 };
+use colored::Colorize;
 use regex::Regex;
 use std::{ops::Range, str::FromStr, sync::LazyLock};
 
 pub trait MarkdownQueryExt<'a>: Sized {
     fn markdown(
         markdown: &str,
-        matcher: impl Fn(&Db, &dyn FactValue, &str) -> bool + 'a,
+        matcher: impl Fn(&Db, &dyn FactValue, &str) -> bool + Send + Sync + 'a,
     ) -> Option<Self>;
 }
 
-impl<'a> MarkdownQueryExt<'a> for Query<'a, (Span, String)> {
+impl<'a> MarkdownQueryExt<'a> for Query<'a, Vec<(Span, String)>> {
     fn markdown(
         markdown: &str,
-        matcher: impl Fn(&Db, &dyn FactValue, &str) -> bool + 'a,
+        matcher: impl Fn(&Db, &dyn FactValue, &str) -> bool + Send + Sync + 'a,
     ) -> Option<Self> {
         let file = File::from_str(markdown).ok()?;
 
-        Some(Query::new(move |db| {
+        Some(Query::new(move |db, initial| {
             let mut result = Vec::new();
-            for values in query(&file.terms, db, &matcher) {
+            for values in query(&file.terms, initial, db, &matcher) {
                 let mut body = file.body.clone();
                 for link in file.links.iter().rev() {
                     if let Some(value) = values.get(&link.name).and_then(|value| value.display(db))
@@ -29,7 +30,7 @@ impl<'a> MarkdownQueryExt<'a> for Query<'a, (Span, String)> {
                         body.replace_range(
                             link.range.clone(),
                             &if link.code {
-                                format!("`{value}`")
+                                format!("`{value}`").blue().to_string()
                             } else {
                                 value
                             },
@@ -68,11 +69,6 @@ static FILE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"^\s*---\n(?<frontmatter>(?s).*)\n---\n(?<body>(?s).*)$"#).unwrap()
 });
 
-static TERM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"^(?<node>[A-Za-z_]+)\.(?<fact>[A-Za-z_]+)(\((?<value>`[^`]*`|[A-Za-z_]+)\))?$"#)
-        .unwrap()
-});
-
 static LINK_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"\[(?<code>`)?(?<name>[A-Za-z_]+)`?\]"#).unwrap());
 
@@ -89,23 +85,7 @@ impl FromStr for File {
 
         let terms = frontmatter
             .lines()
-            .map(|line| {
-                let captures = TERM_REGEX
-                    .captures(line)
-                    .ok_or_else(|| anyhow::format_err!("invalid term: {line}"))?;
-
-                Ok(Term {
-                    node: captures.name("node").unwrap().as_str().to_string(),
-                    fact: captures.name("fact").unwrap().as_str().to_string(),
-                    arg: captures.name("value").map(|c| {
-                        if c.as_str().starts_with("`") {
-                            Arg::Value(c.as_str()[1..(c.len() - 1)].to_string())
-                        } else {
-                            Arg::Variable(c.as_str().to_string())
-                        }
-                    }),
-                })
-            })
+            .map(|line| line.parse())
             .collect::<anyhow::Result<Vec<Term>>>()?;
 
         let links = LINK_REGEX

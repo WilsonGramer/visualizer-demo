@@ -1,4 +1,5 @@
 use crate::Db;
+use dyn_eq::DynEq;
 use std::{any::Any, fmt::Debug, rc::Rc};
 use visualizer::{Substitutions, Ty};
 
@@ -8,13 +9,15 @@ pub struct Fact {
     pub(crate) value: Rc<dyn FactValue>,
 }
 
-pub trait FactValue: Any + Debug {
+pub trait FactValue: Any + Debug + DynEq + Send + Sync {
     fn display(&self, db: &Db) -> Option<String>;
 
     fn is_code(&self) -> bool {
         false
     }
 }
+
+dyn_eq::eq_trait_object!(FactValue);
 
 impl dyn FactValue {
     pub fn is<T: 'static>(&self) -> bool {
@@ -40,6 +43,10 @@ impl Fact {
 
     pub fn value(&self) -> &dyn FactValue {
         self.value.as_ref()
+    }
+
+    pub fn clone_value(&self) -> Rc<dyn FactValue> {
+        self.value.clone()
     }
 }
 

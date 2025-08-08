@@ -19,6 +19,7 @@ type_definition_statement = !{ comments ~ attribute* ~ type_name ~ ":" ~ type_pa
 type_representation = _{
     structure_type_representation
   | enumeration_type_representation
+  | wrapper_type_representation
   | marker_type_representation
 }
 
@@ -28,6 +29,8 @@ field_definition              = !{ variable_name ~ "::" ~ type }
 enumeration_type_representation = ${ "type" ~ (!NEWLINE ~ WHITESPACE)* ~ "{" ~ WHITESPACE* ~ variant_definition ~ ((!NEWLINE ~ WHITESPACE)* ~ NEWLINE ~ WHITESPACE* ~ variant_definition)* ~ WHITESPACE* ~ "}" }
 variant_definition              = ${ variant_name ~ ((!NEWLINE ~ WHITESPACE)* ~ variant_definition_element)* }
 variant_definition_element      = !{ subtype }
+
+wrapper_type_representation = ${ "type" ~ (!NEWLINE ~ WHITESPACE)* ~ subtype }
 
 marker_type_representation = { "type" }
 
@@ -117,7 +120,7 @@ arm = ${ subpattern ~ (!NEWLINE ~ WHITESPACE)* ~ "->" ~ WHITESPACE* ~ subexpress
 
 intrinsic_expression = !{ "intrinsic" ~ text ~ subexpression* }
 
-function_expression        = !{ function_expression_inputs ~ expression_element }
+function_expression        = !{ function_expression_inputs ~ expression }
 function_expression_inputs = ${ subpattern ~ ((!NEWLINE ~ WHITESPACE)* ~ subpattern)* ~ (!NEWLINE ~ WHITESPACE)* ~ "->" }
 
 tuple_expression = !{
@@ -264,7 +267,7 @@ parameter_type = { type_parameter_name }
 
 named_type = { type_name }
 
-function_type        = !{ function_type_inputs ~ type_element }
+function_type        = !{ function_type_inputs ~ type }
 function_type_inputs = ${ subtype ~ ((!NEWLINE ~ WHITESPACE)* ~ subtype)* ~ (!NEWLINE ~ WHITESPACE)* ~ "->" }
 
 block_type = !{ "{" ~ type_element ~ "}" }

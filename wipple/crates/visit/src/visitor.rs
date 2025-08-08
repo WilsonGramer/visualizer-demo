@@ -237,7 +237,7 @@ impl Visitor<'_> {
             .flatten()
             .find_map(|definition| Some((filter(definition)?, definition.source())))?;
 
-        self.relation(definition, node, relation);
+        self.relation(node, definition, relation);
 
         Some(result)
     }

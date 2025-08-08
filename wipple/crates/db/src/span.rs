@@ -1,6 +1,9 @@
 use crate::{Db, FactValue};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, ops::Range};
+use std::{
+    fmt::{Debug, Display},
+    ops::Range,
+};
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Span {
@@ -21,18 +24,28 @@ impl Span {
     }
 }
 
-impl Debug for Span {
+impl Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}:{}:{}",
-            self.path, self.start_line_col.0, self.start_line_col.1
+            "{}:{}:{}-{}:{}",
+            self.path,
+            self.start_line_col.0,
+            self.start_line_col.1,
+            self.end_line_col.0,
+            self.end_line_col.1
         )
+    }
+}
+
+impl Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
     }
 }
 
 impl FactValue for Span {
     fn display(&self, _db: &Db) -> Option<String> {
-        Some(format!("{self:?}"))
+        Some(self.to_string())
     }
 }

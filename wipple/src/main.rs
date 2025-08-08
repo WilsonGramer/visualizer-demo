@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::{fs, io, path::PathBuf};
+use wipple::span::ParsedSpan;
 use wipple_db::Filter;
 
 #[derive(Parser)]
@@ -11,16 +12,20 @@ struct Args {
 
     #[clap(short, long)]
     graph: Option<PathBuf>,
+
+    #[clap(long)]
+    query: Option<String>,
+
+    #[clap(long, requires = "query")]
+    query_span: Option<ParsedSpan>,
 }
 
-fn main() -> io::Result<()> {
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let source = fs::read_to_string(&args.path)?;
 
     let filter = (!args.filter_lines.is_empty()).then_some(Filter::Lines(&args.filter_lines));
-
-    clearscreen::clear().unwrap();
 
     let mut mermaid_process = args
         .graph
@@ -37,6 +42,7 @@ fn main() -> io::Result<()> {
         &args.path.display().to_string(),
         &source,
         filter,
+        args.query.zip(args.query_span),
         io::stdout(),
         mermaid_process.as_mut().map(|p| p.stdin.as_mut().unwrap()),
     );

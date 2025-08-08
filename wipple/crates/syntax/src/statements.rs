@@ -1,6 +1,6 @@
 use crate::{
-    Attribute, BoundConstraint, NeverParenthesized, Parse, Range, Rule, TypeParameterName,
-    Constraint,
+    Attribute, BoundConstraint, Constraint, NeverParenthesized, Parse, Range, Rule,
+    TypeParameterName,
     expressions::Expression,
     patterns::Pattern,
     pest_enum,
@@ -49,6 +49,7 @@ pest_enum! {
         Marker(MarkerTypeRepresentation),
         Structure(StructureTypeRepresentation),
         Enumeration(EnumerationTypeRepresentation),
+        Wrapper(WrapperTypeRepresentation),
     }
 }
 
@@ -114,6 +115,14 @@ pub struct VariantDefinition {
 #[derive(Debug, Clone, PartialEq, FromPest)]
 #[pest_ast(rule(Rule::variant_definition_element))]
 pub struct VariantDefinitionElement(pub Type);
+
+#[derive(Debug, Clone, PartialEq, FromPest)]
+#[pest_ast(rule(Rule::wrapper_type_representation))]
+pub struct WrapperTypeRepresentation {
+    #[pest_ast(outer(with(Range::from)))]
+    pub range: Range,
+    pub r#type: Type,
+}
 
 /// ```wipple
 /// Foo : value => trait (value -> Number)

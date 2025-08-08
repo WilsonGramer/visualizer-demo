@@ -1,18 +1,24 @@
 mod markdown;
+mod yaml;
+
 pub use markdown::*;
+pub use yaml::*;
 
 use crate::{Db, FactValue, NodeId};
-use std::{borrow::Cow, collections::HashMap};
+use regex::Regex;
+use std::{borrow::Cow, collections::HashMap, rc::Rc, str::FromStr, sync::LazyLock};
 
-pub struct Query<'a, T>(Box<dyn Fn(&Db) -> Vec<T> + 'a>);
+pub type QueryValues = HashMap<String, Rc<dyn FactValue>>;
+
+pub struct Query<'a, T>(Box<dyn Fn(&Db, QueryValues) -> T + Send + Sync + 'a>);
 
 impl<'a, T> Query<'a, T> {
-    pub fn new(f: impl Fn(&Db) -> Vec<T> + 'a) -> Self {
+    pub fn new(f: impl Fn(&Db, QueryValues) -> T + Send + Sync + 'a) -> Self {
         Query(Box::new(f))
     }
 
-    pub fn run(&self, db: &Db) -> Vec<T> {
-        (self.0)(db)
+    pub fn run(&self, db: &Db, initial: QueryValues) -> T {
+        (self.0)(db, initial)
     }
 }
 
@@ -29,78 +35,97 @@ pub enum Arg {
     Value(String),
 }
 
-pub fn query<'a>(
+pub fn query(
     terms: &[Term],
-    db: &'a Db,
-    matcher: impl Fn(&'a Db, &dyn FactValue, &str) -> bool,
-) -> impl Iterator<Item = HashMap<String, &'a dyn FactValue>> + 'a {
+    initial: QueryValues,
+    db: &Db,
+    matcher: impl Fn(&Db, &dyn FactValue, &str) -> bool,
+) -> impl Iterator<Item = QueryValues> {
     let mut result = Vec::new();
-    query_inner(
-        db,
-        &matcher,
-        terms,
-        &HashMap::new(),
-        &HashMap::new(),
-        &mut result,
-    );
-
+    query_inner(db, &matcher, terms, &initial, &mut result);
     result.into_iter()
 }
 
-fn query_inner<'a>(
-    db: &'a Db,
-    matcher: &dyn Fn(&'a Db, &dyn FactValue, &str) -> bool,
+fn query_inner(
+    db: &Db,
+    matcher: &dyn Fn(&Db, &dyn FactValue, &str) -> bool,
     terms: &[Term],
-    nodes: &HashMap<String, NodeId>,
-    values: &HashMap<String, &'a dyn FactValue>,
-    result: &mut Vec<HashMap<String, &'a dyn FactValue>>,
+    values: &QueryValues,
+    result: &mut Vec<QueryValues>,
 ) {
     match terms.split_first() {
         Some((next, terms)) => {
-            let facts: Vec<_> = match nodes.get(&next.node).copied() {
+            let facts: Vec<_> = match values
+                .get(&next.node)
+                .and_then(|node| node.downcast_ref::<NodeId>().copied())
+            {
                 Some(node) => db
                     .iter_by(node, &next.fact)
-                    .map(|fact| (Cow::Borrowed(nodes), fact))
+                    .map(|fact| (Cow::Borrowed(values), fact))
                     .collect(),
                 None => db
                     .all(&next.fact)
                     .map(|(node, fact)| {
-                        let mut nodes = nodes.clone();
-                        nodes.insert(next.node.clone(), node);
-                        (Cow::Owned(nodes), fact)
+                        let mut values = values.clone();
+                        values.insert(next.node.clone(), Rc::new(node));
+                        (Cow::Owned(values), fact)
                     })
                     .collect(),
             };
 
-            for (nodes, fact) in facts {
-                let values = if let Some(arg) = &next.arg {
-                    let value = fact.value();
-
+            for (mut values, fact) in facts {
+                if let Some(arg) = &next.arg {
                     match arg {
-                        Arg::Variable(variable) => {
-                            if values.get(variable).is_some() {
-                                continue;
+                        Arg::Variable(variable) => match values.get(variable) {
+                            Some(other) => {
+                                if other.as_ref() != fact.value() {
+                                    continue;
+                                }
                             }
-
-                            let mut values = values.clone();
-                            values.insert(variable.clone(), value);
-                            Cow::Owned(values)
-                        }
+                            None => {
+                                values.to_mut().insert(variable.clone(), fact.clone_value());
+                            }
+                        },
                         Arg::Value(pattern) => {
-                            if !matcher(db, value, pattern) {
+                            if !matcher(db, fact.value(), pattern) {
                                 continue;
                             }
-
-                            Cow::Borrowed(values)
                         }
                     }
-                } else {
-                    Cow::Borrowed(values)
-                };
+                }
 
-                query_inner(db, matcher, terms, &nodes, &values, result);
+                query_inner(db, matcher, terms, &values, result);
             }
         }
         None => result.push(values.clone()),
+    }
+}
+
+impl FromStr for Term {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        static TERM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(
+                r#"^(?<node>[A-Za-z_]+)\.(?<fact>[A-Za-z_]+)(\((?<value>`[^`]*`|[A-Za-z_]+)\))?$"#,
+            )
+            .unwrap()
+        });
+
+        let captures = TERM_REGEX
+            .captures(s)
+            .ok_or_else(|| anyhow::format_err!("invalid term: {s}"))?;
+
+        Ok(Term {
+            node: captures.name("node").unwrap().as_str().to_string(),
+            fact: captures.name("fact").unwrap().as_str().to_string(),
+            arg: captures.name("value").map(|c| {
+                if c.as_str().starts_with("`") {
+                    Arg::Value(c.as_str()[1..(c.len() - 1)].to_string())
+                } else {
+                    Arg::Variable(c.as_str().to_string())
+                }
+            }),
+        })
     }
 }

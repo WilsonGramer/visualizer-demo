@@ -12,7 +12,15 @@ pub fn run(source: String, filter: Option<Vec<u32>>) -> Vec<String> {
 
     let mut output = Vec::new();
     let mut graph = Vec::new();
-    wipple::run("input", &source, filter, &mut output, Some(&mut graph)).unwrap();
+    wipple::run(
+        "input",
+        &source,
+        filter,
+        None,
+        &mut output,
+        Some(&mut graph),
+    )
+    .unwrap();
 
     vec![
         String::from_utf8(output).unwrap(),
