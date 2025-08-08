@@ -90,6 +90,8 @@ impl Db {
     pub fn clone_node(&mut self, node: NodeId) -> NodeId {
         let new_id = self.node();
 
+        self.fact(new_id, Fact::hidden());
+
         let node_facts = self.iter(node).cloned().collect::<Vec<_>>();
         for fact in node_facts {
             self.fact(new_id, fact);
@@ -146,9 +148,5 @@ impl visualizer::Db for Db {
 
     fn flag_incomplete_type(&mut self, node: Self::Node) {
         self.fact(node, Fact::new("incompleteType", ()));
-    }
-
-    fn flag_unknown_type(&mut self, node: Self::Node) {
-        self.fact(node, Fact::new("unknownType", ()));
     }
 }

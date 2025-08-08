@@ -27,5 +27,4 @@ pub trait Db: Sized + 'static {
 
     fn flag_type(&mut self, node: Self::Node, ty: Ty<Self>);
     fn flag_incomplete_type(&mut self, node: Self::Node);
-    fn flag_unknown_type(&mut self, node: Self::Node);
 }

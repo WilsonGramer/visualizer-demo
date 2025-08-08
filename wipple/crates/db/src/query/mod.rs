@@ -24,6 +24,7 @@ impl<'a, T> Query<'a, T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Term {
+    pub not: bool,
     pub node: String,
     pub fact: String,
     pub arg: Option<Arg>,
@@ -58,6 +59,7 @@ fn query_inner(
             let facts: Vec<_> = match values
                 .get(&next.node)
                 .and_then(|node| node.downcast_ref::<NodeId>().copied())
+                .filter(|&node| !db.is_hidden(node))
             {
                 Some(node) => db
                     .iter_by(node, &next.fact)
@@ -73,6 +75,7 @@ fn query_inner(
                     .collect(),
             };
 
+            let mut visited = false;
             for (mut values, fact) in facts {
                 if let Some(arg) = &next.arg {
                     match arg {
@@ -95,6 +98,11 @@ fn query_inner(
                 }
 
                 query_inner(db, matcher, terms, &values, result);
+                visited = true;
+            }
+
+            if !visited && next.not {
+                query_inner(db, matcher, terms, values, result);
             }
         }
         None => result.push(values.clone()),
@@ -107,7 +115,7 @@ impl FromStr for Term {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         static TERM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
             Regex::new(
-                r#"^(?<node>[A-Za-z_]+)\.(?<fact>[A-Za-z_]+)(\((?<value>`[^`]*`|[A-Za-z_]+)\))?$"#,
+                r#"^(?<not>!)?(?<node>[A-Za-z_]+)\.(?<fact>[A-Za-z_]+)(\((?<value>`[^`]*`|[A-Za-z_]+)\))?$"#,
             )
             .unwrap()
         });
@@ -117,6 +125,7 @@ impl FromStr for Term {
             .ok_or_else(|| anyhow::format_err!("invalid term: {s}"))?;
 
         Ok(Term {
+            not: captures.name("not").is_some(),
             node: captures.name("node").unwrap().as_str().to_string(),
             fact: captures.name("fact").unwrap().as_str().to_string(),
             arg: captures.name("value").map(|c| {

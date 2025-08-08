@@ -179,6 +179,10 @@ impl<'a> Visitor<'a> {
             self.hide(id);
         }
 
+        if self.try_current_definition().is_some() {
+            self.db.fact(id, Fact::new("untyped", ()));
+        }
+
         node.visit(id, self);
 
         id

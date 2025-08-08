@@ -3,8 +3,8 @@ use crate::{
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_db::NodeId;
 use visualizer::{Constraint, Instantiation, Substitutions, Ty};
+use wipple_db::NodeId;
 use wipple_syntax::{Range, VariableExpression};
 
 impl Visit for VariableExpression {
@@ -39,8 +39,6 @@ impl Visit for VariableExpression {
 
         if let Some(constraint) = constraint {
             visitor.constraint(constraint);
-        } else {
-            visitor.fact(id, "unresolvedVariableName", ());
         }
     }
 }

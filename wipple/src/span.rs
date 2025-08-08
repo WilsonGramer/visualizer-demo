@@ -21,7 +21,7 @@ impl FromStr for ParsedSpan {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         static LINE_COL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r#"^(?<path>.*):(?<start_line>\d+):(?<start_col>\d+)-(?<end_line>\d+):(?<end_col>\d+)$"#).unwrap()
+            Regex::new(r#"^(?<path>.*):(?<start_line>\d+).(?<start_col>\d+)-(?<end_line>\d+).(?<end_col>\d+)$"#).unwrap()
         });
 
         static RANGE_REGEX: LazyLock<Regex> =
@@ -98,7 +98,7 @@ impl Display for ParsedSpan {
                 start: (start_line, start_col),
                 end: (end_line, end_col),
             } => {
-                write!(f, "{path}:{start_line}:{start_col}-{end_line}:{end_col}")
+                write!(f, "{path}:{start_line}.{start_col}-{end_line}.{end_col}")
             }
             ParsedSpan::Range { path, range } => {
                 write!(f, "{}:{}..{}", path, range.start, range.end)

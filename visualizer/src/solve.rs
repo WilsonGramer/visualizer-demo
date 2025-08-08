@@ -79,8 +79,6 @@ impl<'a, Db: crate::Db> Solver<'a, Db> {
         for node in typed_nodes {
             // Give untyped expressions a default type of `Unknown`
             if ty_groups.index_of(node).is_none() {
-                db.flag_unknown_type(node);
-
                 let group_index = ty_groups.insert_group(Ty::Unknown(node));
                 ty_groups.assign_node_to_index(node, group_index);
             }

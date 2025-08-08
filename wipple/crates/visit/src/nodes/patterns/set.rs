@@ -2,8 +2,8 @@ use crate::{
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_db::NodeId;
 use visualizer::{Constraint, Ty};
+use wipple_db::NodeId;
 use wipple_syntax::{Range, SetPattern};
 
 impl Visit for SetPattern {
@@ -27,8 +27,6 @@ impl Visit for SetPattern {
 
         if let Some(constraint) = constraint {
             visitor.constraint(constraint);
-        } else {
-            visitor.fact(id, "unresolvedVariableName", ());
         }
     }
 }

@@ -95,8 +95,9 @@ impl TyMatcher {
 
     fn unifies_with(&self, other: &Self) -> bool {
         match (self, other) {
-            (_, TyMatcher::Placeholder) => true,
-            (TyMatcher::Placeholder, _) => false,
+            (TyMatcher::Placeholder, TyMatcher::Placeholder) => true,
+            (_, TyMatcher::Placeholder) => false,
+            (TyMatcher::Placeholder, _) => true,
             (TyMatcher::Unit, TyMatcher::Unit) => true,
             (
                 TyMatcher::Named(left_name, left_params),
