@@ -41,12 +41,13 @@ impl Visit for BoundConstraint {
             .zip(parameters)
             .collect::<BTreeMap<_, _>>();
 
-        visitor
-            .current_definition()
-            .constraint(Constraint::Bound(Bound {
+        visitor.current_definition().lazy_constraint(move |node| {
+            Constraint::Bound(Bound {
+                source: node,
                 node: id,
                 tr: trait_node,
-                substitutions: Substitutions::from(substitutions),
-            }));
+                substitutions: Substitutions::from(substitutions.clone()),
+            })
+        });
     }
 }

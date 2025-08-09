@@ -1,5 +1,4 @@
 use crate::{
-    constraints::instantiate_constraints,
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
@@ -25,12 +24,9 @@ impl Visit for VariableExpression {
                 )),
                 Definition::Constant(definition) => Some((
                     Constraint::Instantiation(Instantiation {
+                        source: id,
                         substitutions: Substitutions::replace_all(),
-                        constraints: instantiate_constraints(
-                            id,
-                            definition.constraints.iter().cloned(),
-                        )
-                        .collect(),
+                        constraints: definition.constraints.resolve_for(id),
                     }),
                     "resolvedConstantName",
                 )),

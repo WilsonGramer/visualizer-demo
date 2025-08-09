@@ -1,10 +1,10 @@
 use crate::definitions::{Definition, InstanceDefinition};
 use std::{
     collections::{BTreeMap, HashMap},
-    rc::Rc,
+    sync::Arc,
 };
 use visualizer::Constraint;
-use wipple_db::{Db, Fact, FactValue, NodeId, Span};
+use wipple_db::{Db, Fact, FactValue, LazyConstraints, NodeId, Span};
 use wipple_syntax::{self as syntax, Range};
 
 #[enum_delegate::register]
@@ -94,6 +94,7 @@ impl Visit for (Range, &'static str) {
 pub struct ProgramInfo {
     pub definitions: BTreeMap<NodeId, Definition>,
     pub instances: BTreeMap<NodeId, Vec<NodeId>>,
+    pub generic_constraints: Vec<Constraint<Db>>,
     pub constraints: Vec<Constraint<Db>>,
 }
 
@@ -102,6 +103,7 @@ pub struct Visitor<'a> {
     get_span_source: Box<dyn Fn(Range) -> (Span, String) + 'a>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
+    generic_constraints: Vec<Constraint<Db>>,
     constraints: Vec<Constraint<Db>>,
     current_definition: Option<VisitorCurrentDefinition>,
 }
@@ -113,6 +115,7 @@ impl<'a> Visitor<'a> {
             get_span_source: Box::new(get_span_source),
             scopes: vec![Scope::default()],
             instances: Default::default(),
+            generic_constraints: Default::default(),
             constraints: Default::default(),
             current_definition: None,
         }
@@ -144,6 +147,7 @@ impl<'a> Visitor<'a> {
         ProgramInfo {
             definitions,
             instances: instance_ids,
+            generic_constraints: self.generic_constraints,
             constraints: self.constraints,
         }
     }
@@ -179,7 +183,10 @@ impl<'a> Visitor<'a> {
             self.hide(id);
         }
 
-        if self.try_current_definition().is_some() {
+        if self
+            .try_current_definition()
+            .is_some_and(|definition| !definition.is_typed)
+        {
             self.db.fact(id, Fact::new("untyped", ()));
         }
 
@@ -193,7 +200,11 @@ impl<'a> Visitor<'a> {
     }
 
     pub fn constraint(&mut self, constraint: Constraint<Db>) {
-        self.constraints.push(constraint);
+        if self.try_current_definition().is_some() {
+            self.generic_constraints.push(constraint);
+        } else {
+            self.constraints.push(constraint);
+        }
     }
 
     pub fn constraints(&mut self, constraints: impl IntoIterator<Item = Constraint<Db>>) {
@@ -288,22 +299,24 @@ impl Visitor<'_> {
 
 #[derive(Default)]
 pub struct VisitorCurrentDefinition {
-    constraints: Vec<LazyConstraint>,
+    constraints: LazyConstraints,
     pub implicit_type_parameters: bool,
+    pub is_typed: bool,
 }
-
-pub type LazyConstraint = Rc<dyn Fn(NodeId) -> Constraint<Db>>;
 
 impl VisitorCurrentDefinition {
     pub fn constraint(&mut self, constraint: Constraint<Db>) {
         self.lazy_constraint(move |_| constraint.clone());
     }
 
-    pub fn lazy_constraint(&mut self, constraint: impl Fn(NodeId) -> Constraint<Db> + 'static) {
-        self.constraints.push(Rc::new(constraint));
+    pub fn lazy_constraint(
+        &mut self,
+        constraint: impl Fn(NodeId) -> Constraint<Db> + Send + Sync + 'static,
+    ) {
+        self.constraints.0.push(Arc::new(constraint));
     }
 
-    pub fn take_constraints(&mut self) -> Vec<LazyConstraint> {
+    pub fn take_constraints(&mut self) -> LazyConstraints {
         std::mem::take(&mut self.constraints)
     }
 }

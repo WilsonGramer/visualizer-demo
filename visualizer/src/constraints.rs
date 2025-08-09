@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 use std::collections::BTreeMap;
 
-#[derive_where(Debug, Clone)]
+#[derive_where(Debug, Clone, PartialEq, Eq)]
 pub enum Constraint<Db: crate::Db> {
     Ty(Db::Node, Ty<Db>),
     Instantiation(Instantiation<Db>),
@@ -105,6 +105,30 @@ impl<Db: crate::Db> Ty<Db> {
         }
     }
 
+    pub fn contains_node(&self, node: Db::Node) -> bool {
+        let mut contains_node = false;
+        self.traverse(&mut |ty| {
+            if let Ty::Of(other) = ty
+                && *other == node
+            {
+                contains_node = true;
+            }
+        });
+
+        contains_node
+    }
+
+    pub fn contains_parameter(&self) -> bool {
+        let mut contains_parameter = false;
+        self.traverse(&mut |ty| {
+            if let Ty::Parameter(_) = ty {
+                contains_parameter = true;
+            }
+        });
+
+        contains_parameter
+    }
+
     pub fn is_incomplete(&self) -> bool {
         let mut incomplete = false;
         self.traverse(&mut |ty| {
@@ -137,14 +161,16 @@ impl<Db: crate::Db> From<BTreeMap<Db::Node, Db::Node>> for Substitutions<Db> {
     }
 }
 
-#[derive_where(Debug, Clone)]
+#[derive_where(Debug, Clone, PartialEq, Eq)]
 pub struct Instantiation<Db: crate::Db> {
+    pub source: Db::Node,
     pub substitutions: Substitutions<Db>,
     pub constraints: Vec<Constraint<Db>>,
 }
 
-#[derive_where(Debug, Clone)]
+#[derive_where(Debug, Clone, PartialEq, Eq)]
 pub struct Bound<Db: crate::Db> {
+    pub source: Db::Node,
     pub node: Db::Node,
     pub tr: Db::Node,
     pub substitutions: Substitutions<Db>,

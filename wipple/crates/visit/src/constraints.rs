@@ -1,13 +1,5 @@
-use crate::visitor::LazyConstraint;
 use visualizer::{Constraint, Ty};
 use wipple_db::{Db, NodeId};
-
-pub fn instantiate_constraints(
-    node: NodeId,
-    constraints: impl IntoIterator<Item = LazyConstraint>,
-) -> impl Iterator<Item = Constraint<Db>> {
-    constraints.into_iter().map(move |lazy| lazy(node))
-}
 
 pub fn constraints_for_call(
     function: NodeId,

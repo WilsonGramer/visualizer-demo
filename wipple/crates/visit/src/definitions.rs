@@ -1,8 +1,5 @@
-use crate::{
-    attributes::{ConstantAttributes, InstanceAttributes, TraitAttributes, TypeAttributes},
-    visitor::LazyConstraint,
-};
-use wipple_db::NodeId;
+use crate::attributes::{ConstantAttributes, InstanceAttributes, TraitAttributes, TypeAttributes};
+use wipple_db::{LazyConstraints, NodeId};
 use wipple_syntax::Comments;
 
 #[derive(Clone)]
@@ -25,7 +22,7 @@ pub struct ConstantDefinition {
     pub node: NodeId,
     pub comments: Comments,
     pub attributes: ConstantAttributes,
-    pub constraints: Vec<LazyConstraint>,
+    pub constraints: LazyConstraints,
     pub value: std::result::Result<NodeId, NodeId>, // Ok(node) or Err(type signature)
 }
 
@@ -35,7 +32,7 @@ pub struct TypeDefinition {
     pub comments: Comments,
     pub attributes: TypeAttributes,
     pub parameters: Vec<NodeId>,
-    pub constraints: Vec<LazyConstraint>,
+    pub constraints: LazyConstraints,
 }
 
 #[derive(Clone)]
@@ -44,7 +41,7 @@ pub struct TraitDefinition {
     pub comments: Comments,
     pub attributes: TraitAttributes,
     pub parameters: Vec<NodeId>,
-    pub constraints: Vec<LazyConstraint>,
+    pub constraints: LazyConstraints,
 }
 
 #[derive(Clone)]
@@ -53,8 +50,8 @@ pub struct InstanceDefinition {
     pub comments: Comments,
     pub attributes: InstanceAttributes,
     pub tr: NodeId,
-    pub constraints: Vec<LazyConstraint>,
     pub value: NodeId,
+    // constraints and substitutions are added via facts
 }
 
 #[derive(Clone)]

@@ -4,8 +4,8 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_db::NodeId;
 use visualizer::{Constraint, Ty};
+use wipple_db::NodeId;
 use wipple_syntax::{Range, TypeDefinitionStatement};
 
 impl Visit for TypeDefinitionStatement {
@@ -21,6 +21,8 @@ impl Visit for TypeDefinitionStatement {
         visitor.with_definition(|visitor| {
             let attributes =
                 TypeAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
+
+            visitor.push_scope(id);
 
             let parameters = self
                 .parameters
@@ -46,21 +48,21 @@ impl Visit for TypeDefinitionStatement {
                 })
                 .collect::<Vec<_>>();
 
-            let constraints = visitor.with_definition(|visitor| {
-                visitor.current_definition().lazy_constraint(move |node| {
-                    Constraint::Ty(
-                        node,
-                        Ty::Named {
-                            name: id,
-                            parameters: BTreeMap::new(), // FIXME
-                        },
-                    )
-                });
-
-                // Types don't have additional constraints
-
-                visitor.current_definition().take_constraints()
+            visitor.current_definition().lazy_constraint(move |node| {
+                Constraint::Ty(
+                    node,
+                    Ty::Named {
+                        name: id,
+                        parameters: BTreeMap::new(), // FIXME
+                    },
+                )
             });
+
+            // Types don't have additional constraints
+
+            visitor.pop_scope();
+
+            let constraints = visitor.current_definition().take_constraints();
 
             visitor.define_name(
                 &self.name.value,

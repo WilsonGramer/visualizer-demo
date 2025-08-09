@@ -3,8 +3,8 @@ use crate::{
     definitions::{ConstantDefinition, Definition},
     visitor::{Visit, Visitor},
 };
-use wipple_db::NodeId;
 use visualizer::{Constraint, Ty};
+use wipple_db::NodeId;
 use wipple_syntax::{ConstantDefinitionStatement, Constraints, Range};
 
 impl Visit for ConstantDefinitionStatement {
@@ -21,6 +21,8 @@ impl Visit for ConstantDefinitionStatement {
             let attributes =
                 ConstantAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
 
+            visitor.push_scope(id);
+
             visitor.current_definition().implicit_type_parameters = true;
 
             let ty = visitor.child(&self.constraints.r#type, id, "typeInConstantDefinition");
@@ -34,6 +36,8 @@ impl Visit for ConstantDefinitionStatement {
                     visitor.child(constraint, id, "constraintInConstantDefinition");
                 }
             }
+
+            visitor.pop_scope();
 
             let constraints = visitor.current_definition().take_constraints();
 

@@ -1,10 +1,10 @@
 use crate::{
-    constraints::{constraints_for_call, instantiate_constraints},
+    constraints::constraints_for_call,
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_db::NodeId;
 use visualizer::{Constraint, Instantiation, Substitutions};
+use wipple_db::NodeId;
 use wipple_syntax::{CallExpression, Expression, Range};
 
 impl Visit for CallExpression {
@@ -37,8 +37,9 @@ impl Visit for CallExpression {
                     let function = visitor.child(&(unit_range, "unitName"), id, "unitInUnitCall");
 
                     visitor.constraint(Constraint::Instantiation(Instantiation {
+                        source: id,
                         substitutions: Substitutions::replace_all(),
-                        constraints: instantiate_constraints(id, constraints).collect(),
+                        constraints: constraints.resolve_for(id),
                     }));
 
                     let input = visitor.child(self.function.as_ref(), id, "numberInUnitCall");

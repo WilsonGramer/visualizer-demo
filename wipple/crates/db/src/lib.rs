@@ -1,9 +1,11 @@
+mod constraints;
 mod fact;
 mod node;
 mod query;
 mod span;
 mod write;
 
+pub use constraints::*;
 pub use fact::*;
 pub use node::*;
 pub use query::*;
@@ -14,7 +16,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     rc::Rc,
 };
-use visualizer::{Bound, Substitutions, Ty};
+use visualizer::{Instantiation, Substitutions, Ty};
 
 #[derive(Debug, Clone, Default)]
 pub struct Db {
@@ -87,12 +89,19 @@ impl Db {
             .find_map(|fact| fact.value().downcast_ref::<T>())
     }
 
-    pub fn clone_node(&mut self, node: NodeId) -> NodeId {
+    pub fn clone_node(&mut self, node: NodeId, hide: bool) -> NodeId {
         let new_id = self.node();
 
-        self.fact(new_id, Fact::hidden());
+        if hide {
+            self.fact(new_id, Fact::hidden());
+        }
 
-        let node_facts = self.iter(node).cloned().collect::<Vec<_>>();
+        let node_facts = self
+            .iter(node)
+            .filter(|fact| fact.name() != "untyped")
+            .cloned()
+            .collect::<Vec<_>>();
+
         for fact in node_facts {
             self.fact(new_id, fact);
         }
@@ -113,33 +122,46 @@ impl visualizer::Db for Db {
             .filter(|&node| !self.is_hidden(node) && self.get::<()>(node, "untyped").is_none())
     }
 
-    fn clone_node(&mut self, node: Self::Node) -> Self::Node {
-        self.clone_node(node)
+    fn clone_node(&mut self, node: Self::Node, hide: bool) -> Self::Node {
+        self.clone_node(node, hide)
     }
 
     fn get_trait_instances(
         &mut self,
+        source: Self::Node,
+        node: Self::Node,
         trait_id: Self::Node,
-    ) -> Vec<(Self::Node, Substitutions<Self>)> {
+    ) -> Vec<(Self::Node, Instantiation<Self>)> {
         self.iter_of(trait_id, "instance")
-            .map(|&node| {
-                (
-                    node,
-                    self.get::<Substitutions<Self>>(node, "substitutions")
-                        .unwrap()
-                        .clone(),
-                )
+            .map(|&instance| {
+                let constraints = self
+                    .get::<LazyConstraints>(instance, "constraints")
+                    .unwrap()
+                    .clone();
+
+                let substitutions = self
+                    .get::<Substitutions<Self>>(instance, "substitutions")
+                    .unwrap()
+                    .clone();
+
+                let instantiation = Instantiation {
+                    source,
+                    constraints: constraints.resolve_for(node),
+                    substitutions,
+                };
+
+                (instance, instantiation)
             })
             .collect()
     }
 
-    fn flag_resolved(&mut self, node: Self::Node, bound: Bound<Self>, instance: Self::Node) {
-        self.fact(node, Fact::new("resolvedTrait", bound.tr));
-        self.fact(node, Fact::new("resolvedTrait", instance));
+    fn flag_resolved(&mut self, node: Self::Node, instance: Self::Node, ty: NodeId) {
+        self.fact(node, Fact::new("resolvedTrait", ty));
+        self.fact(ty, Fact::new("resolvedInstance", instance));
     }
 
-    fn flag_unresolved(&mut self, node: Self::Node, bound: Bound<Self>) {
-        self.fact(node, Fact::new("unresolvedTrait", bound.tr));
+    fn flag_unresolved(&mut self, node: Self::Node, ty: NodeId) {
+        self.fact(node, Fact::new("unresolvedTrait", ty));
     }
 
     fn flag_type(&mut self, node: Self::Node, ty: Ty<Self>) {

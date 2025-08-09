@@ -1,10 +1,9 @@
 use crate::{
-    constraints::instantiate_constraints,
     definitions::Definition,
     visitor::{Visit, Visitor},
 };
-use wipple_db::NodeId;
 use visualizer::{Constraint, Instantiation, Substitutions};
+use wipple_db::NodeId;
 use wipple_syntax::{Range, TraitExpression};
 
 impl Visit for TraitExpression {
@@ -28,8 +27,9 @@ impl Visit for TraitExpression {
 
         if let Some(constraints) = constraints {
             visitor.constraint(Constraint::Instantiation(Instantiation {
+                source: id,
                 substitutions: Substitutions::replace_all(),
-                constraints: instantiate_constraints(id, constraints).collect(),
+                constraints: constraints.resolve_for(id),
             }));
         } else {
             visitor.fact(id, "unresolvedTraitName", ());

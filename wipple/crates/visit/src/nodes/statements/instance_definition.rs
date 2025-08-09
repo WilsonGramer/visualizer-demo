@@ -22,6 +22,8 @@ impl Visit for InstanceDefinitionStatement {
             let attributes =
                 InstanceAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
 
+            visitor.push_scope(id);
+
             let Some((trait_node, trait_parameters)) =
                 visitor.resolve_name(&self.constraints.bound.r#trait.value, id, |definition| {
                     match definition {
@@ -56,15 +58,9 @@ impl Visit for InstanceDefinitionStatement {
                     .collect::<BTreeMap<_, _>>(),
             );
 
-            visitor.current_definition().lazy_constraint({
-                let substitutions = substitutions.clone();
-                move |node| {
-                    Constraint::Instantiation(Instantiation {
-                        substitutions: substitutions.clone(),
-                        constraints: vec![Constraint::Ty(node, Ty::Of(trait_node))],
-                    })
-                }
-            });
+            visitor
+                .current_definition()
+                .lazy_constraint(move |node| Constraint::Ty(node, Ty::Of(id)));
 
             if let Some(Constraints(constraints)) = &self.constraints.constraints {
                 for constraint in constraints {
@@ -73,8 +69,11 @@ impl Visit for InstanceDefinitionStatement {
             }
 
             visitor.current_definition().implicit_type_parameters = false;
+            visitor.current_definition().is_typed = true;
 
             let value = visitor.child(&self.value, id, "valueInInstanceDefinition");
+
+            visitor.pop_scope();
 
             let constraints = visitor.current_definition().take_constraints();
 
@@ -83,14 +82,15 @@ impl Visit for InstanceDefinitionStatement {
                 comments: self.comments.clone(),
                 attributes,
                 tr: trait_node,
-                constraints,
                 value,
             });
 
+            visitor.fact(id, "constraints", constraints);
             visitor.fact(id, "substitutions", substitutions.clone());
 
             visitor.constraints(vec![
                 Constraint::Instantiation(Instantiation {
+                    source: id,
                     substitutions,
                     constraints: vec![Constraint::Ty(id, Ty::Of(trait_node))],
                 }),

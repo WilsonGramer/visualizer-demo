@@ -123,4 +123,8 @@ impl<Db: crate::Db> GroupKeys<Db> {
     fn try_node_for_key(&self, key: GroupKey<Db>) -> Option<Db::Node> {
         self.nodes.get(&key).copied()
     }
+
+    pub fn nodes(&self) -> impl Iterator<Item = Db::Node> {
+        self.keys.keys().copied()
+    }
 }
