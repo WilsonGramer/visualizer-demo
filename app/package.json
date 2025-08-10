@@ -16,6 +16,7 @@
         "vite": "^7.1.0"
     },
     "dependencies": {
+        "@dagrejs/dagre": "^1.1.5",
         "@fontsource-variable/fira-code": "^5.2.6",
         "@fontsource-variable/inter": "^5.2.5",
         "@tailwindcss/vite": "^4.1.8",
@@ -23,8 +24,6 @@
         "ansi_up": "^6.0.6",
         "app-wasm": "file:./wasm/pkg",
         "change-case": "^5.4.4",
-        "elkjs": "^0.10.0",
-        "svg-pathdata": "^8.0.0",
         "tailwindcss": "^4.1.8"
     }
 }

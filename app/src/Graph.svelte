@@ -1,5 +1,4 @@
 <script>
-    import ELK from "elkjs/lib/elk.bundled.js";
     import {
         Background,
         Controls,
@@ -10,14 +9,13 @@
         useSvelteFlow,
     } from "@xyflow/svelte";
     import Group, { paddingTop } from "./Group.svelte";
-    import Node, { width, height } from "./Node.svelte";
+    import Node from "./Node.svelte";
     import Edge from "./Edge.svelte";
-    import * as changeCase from "change-case";
+    import * as dagre from "@dagrejs/dagre";
 
     const props = $props();
 
     const sharedProps = {
-        position: { x: 0, y: 0 },
         selectable: false,
         draggable: false,
     };
@@ -31,89 +29,106 @@
         "custom-edge": Edge,
     };
 
-    // Adapted from https://github.com/mermaid-js/mermaid/blob/9322771b5ce48ab45b9ba1fc8b5651e37bb673cb/packages/mermaid-layout-elk/src/render.ts#L765
-    const defaultLayoutOptions = {
-        "elk.algorithm": "layered",
-        "elk.direction": "RIGHT",
-        "elk.hierarchyHandling": "INCLUDE_CHILDREN",
-        "elk.layered.crossingMinimization.forceNodeModelOrder": true,
-        "elk.layered.unnecessaryBendpoints": true,
-        "elk.edgeRouting": "POLYLINE",
-        "spacing.baseValue": 10,
-    };
-
     const { fitView } = useSvelteFlow();
 
-    const elk = new ELK({ defaultLayoutOptions });
+    const layouted = $derived.by(() => {
+        const { nodes, edges, clusters } = $state.snapshot(props);
 
-    let layouted = $state({ nodes: [], edges: [] });
-
-    const onLayout = async () => {
-        const graph = {
-            id: "root",
-            children: props.clusters.map((cluster) => ({
-                ...sharedProps,
-                layoutOptions: {
-                    "elk.padding": `top=${paddingTop},left=10,right=10,bottom=10`,
-                },
-                id: cluster.id,
-                data: cluster,
-                children: props.nodes
-                    .filter((node) => cluster.nodes.includes(node.id))
-                    .map((node) => ({
-                        ...sharedProps,
-                        id: node.id,
-                        data: node.data,
-                        width,
-                        height,
-                    })),
-            })),
-            edges: props.edges.map((edge) => {
-                const label = changeCase.noCase(edge.label).split(" in ")[0];
-
-                return {
-                    ...sharedProps,
-                    id: `edge-${edge.from}-${edge.to}`,
-                    source: edge.from,
-                    target: edge.to,
-                    label,
-                    labels: [{ text: label, width: 100 }],
-                    zIndex: 1,
-                    markerEnd: { type: MarkerType.ArrowClosed },
-                };
-            }),
-        };
+        const nodeSeparation = 150;
+        const nodeLabelFontSize = 10;
+        const nodePadding = 30;
 
         try {
-            const layoutedGraph = await elk.layout(graph);
+            const g = new dagre.graphlib.Graph({ compound: true });
+            g.setGraph({ nodesep: 150 });
+            g.setDefaultEdgeLabel(() => ({}));
 
-            layouted.nodes = layoutedGraph.children.flatMap((cluster) => [
-                {
-                    ...cluster,
-                    type: "custom-group",
-                    position: { x: cluster.x, y: cluster.y },
-                },
-                ...cluster.children?.map((node) => ({
-                    ...node,
-                    type: "custom-node",
-                    position: { x: node.x + cluster.x, y: node.y + cluster.y },
-                })),
-            ]);
+            for (const node of nodes) {
+                g.setNode(node.id, {
+                    width: node.data.source.length * nodeLabelFontSize + nodePadding,
+                    height: nodePadding * 2,
+                });
+            }
 
-            layouted.edges = layoutedGraph.edges.map((edge) => ({
-                ...edge,
-                type: "custom-edge",
-                data: { sections: edge.sections, labels: edge.labels },
-            }));
+            const edgeData = {};
+            for (const edge of edges) {
+                g.setEdge(edge.from, edge.to, {});
+                edgeData[`edge-${edge.from}-${edge.to}`] = edge;
+            }
+
+            for (const cluster of clusters) {
+                g.setNode(cluster.id, {});
+
+                for (const node of cluster.nodes) {
+                    g.setParent(node, cluster.id);
+                }
+            }
+
+            dagre.layout(g);
+
+            requestAnimationFrame(() => {
+                fitView();
+            });
+
+            return {
+                nodes: g.nodes().flatMap((id) => {
+                    const cluster = g.node(id);
+                    const children = g.children(id);
+
+                    if (children.length === 0) {
+                        return [];
+                    }
+
+                    return [
+                        {
+                            ...sharedProps,
+                            id,
+                            type: "custom-group",
+                            data: clusters.find((n) => n.id === id),
+                            position: {
+                                x: cluster.x - cluster.width / 2,
+                                y: cluster.y - cluster.height / 2,
+                            },
+                            width: cluster.width,
+                            height: cluster.height,
+                        },
+                        ...children.map((id) => {
+                            const node = g.node(id);
+
+                            return {
+                                ...sharedProps,
+                                id,
+                                type: "custom-node",
+                                data: nodes.find((n) => n.id === id).data,
+                                position: {
+                                    x: node.x - node.width / 2,
+                                    y: node.y - node.height / 2,
+                                },
+                                width: node.width,
+                                height: node.height,
+                            };
+                        }),
+                    ];
+                }),
+                edges: g.edges().map((edge) => {
+                    const id = `edge-${edge.v}-${edge.w}`;
+
+                    return {
+                        ...sharedProps,
+                        id,
+                        type: "custom-edge",
+                        source: edge.v,
+                        target: edge.w,
+                        label: edgeData[id].label,
+                        zIndex: 1,
+                        markerEnd: { type: MarkerType.ArrowClosed },
+                    };
+                }),
+            };
         } catch (e) {
             console.error(e);
+            return { nodes: [], edges: [] };
         }
-
-        fitView();
-    };
-
-    $effect(() => {
-        onLayout();
     });
 </script>
 
