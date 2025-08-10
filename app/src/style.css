@@ -7,15 +7,4 @@
         --font-sans: "Inter Variable", sans-serif;
         --font-mono: "Fira Code Variable", monospace;
     }
-
-    pre,
-    code {
-        font-family: var(--font-mono) !important;
-    }
-
-    #graph svg {
-        width: 100%;
-        height: auto;
-        margin: 4px;
-    }
 }

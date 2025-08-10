@@ -13,6 +13,7 @@ use db::{Db, Filter};
 use line_index::LineIndex;
 use std::io::Write;
 use syntax::{Parse, Range};
+use visualizer::Graph;
 
 pub fn run(
     path: &str,
@@ -20,7 +21,7 @@ pub fn run(
     filter: Option<Filter<'_>>,
     queries: impl IntoIterator<Item = (String, ParsedSpan)>,
     mut output: impl Write,
-    graph: Option<impl Write>,
+    graph: Option<impl FnOnce(Graph)>,
 ) -> anyhow::Result<()> {
     let source_file = match syntax::SourceFile::parse(source) {
         Ok(source_file) => source_file,

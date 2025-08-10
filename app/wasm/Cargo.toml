@@ -13,6 +13,8 @@ crate-type = ["cdylib", "rlib"]
 colored = "3"
 console_error_panic_hook = "0.1"
 itertools = "0.14"
+serde = "1"
+serde-wasm-bindgen = "0.6"
 visualizer = { path = "../../visualizer" }
 wasm-bindgen = "0.2"
 wipple = { path = "../../wipple" }

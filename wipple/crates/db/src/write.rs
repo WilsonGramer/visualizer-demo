@@ -5,7 +5,7 @@ use crate::{
 };
 use colored::Colorize;
 use std::io::{self, Write};
-use visualizer::TyGroups;
+use visualizer::{Graph, TyGroups};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Filter<'a> {
@@ -20,7 +20,7 @@ impl Db {
         filter: Option<Filter<'_>>,
         indent: &str,
         mut w: impl Write,
-        graph: Option<impl Write>,
+        graph: Option<impl FnOnce(Graph)>,
     ) -> io::Result<()> {
         let nodes = self
             .nodes()
@@ -78,8 +78,8 @@ impl Db {
             }
         }
 
-        if let Some(mut graph) = graph {
-            visualizer::write_graph(&mut graph, Ctx(self), ty_groups, &nodes)?;
+        if let Some(graph) = graph {
+            graph(Graph::generate(Ctx(self), ty_groups, &nodes));
         }
 
         Ok(())
@@ -116,22 +116,24 @@ impl<'a> visualizer::WriteGraphContext<'a> for Ctx<'a> {
             .collect()
     }
 
-    fn node_span_source(&self, node: Self::Node) -> Option<(String, String)> {
-        let span = self.0.get::<Span>(node, "span")?;
+    fn node_data(&self, node: Self::Node) -> serde_json::Value {
+        let span = self.0.get::<Span>(node, "span");
 
-        let source = self.0.get::<String>(node, "source")?;
+        let source = self.0.get::<String>(node, "source").map(|source| {
+            // Remove comments
+            source
+                .lines()
+                .skip_while(|line| line.is_empty() || line.starts_with("--"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
 
-        // Remove comments
-        let source = source
-            .lines()
-            .skip_while(|line| line.is_empty() || line.starts_with("--"))
-            .collect::<Vec<_>>()
-            .join("\n");
+        let comments = self.0.get::<String>(node, "comments");
 
-        Some((format!("{span:?}"), source.clone()))
-    }
-
-    fn node_comments(&self, node: Self::Node) -> Option<String> {
-        self.0.get::<String>(node, "comments").cloned()
+        serde_json::json!({
+            "span": span,
+            "source": source,
+            "comments": comments,
+        })
     }
 }

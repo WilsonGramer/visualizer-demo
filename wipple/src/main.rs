@@ -10,9 +10,6 @@ struct Args {
     #[clap(short = 'l', long = "line")]
     filter_lines: Vec<u32>,
 
-    #[clap(short, long)]
-    graph: Option<PathBuf>,
-
     #[clap(long)]
     query: Option<String>,
 
@@ -27,29 +24,12 @@ fn main() -> anyhow::Result<()> {
 
     let filter = (!args.filter_lines.is_empty()).then_some(Filter::Lines(&args.filter_lines));
 
-    let mut mermaid_process = args
-        .graph
-        .map(|graph| {
-            std::process::Command::new("sh")
-                .arg("-c")
-                .arg(format!("mmdc -i - -o {} --scale 3", graph.display()))
-                .stdin(std::process::Stdio::piped())
-                .spawn()
-        })
-        .transpose()?;
-
-    let result = wipple::run(
+    wipple::run(
         &args.path.display().to_string(),
         &source,
         filter,
         args.query.zip(args.query_span),
         io::stdout(),
-        mermaid_process.as_mut().map(|p| p.stdin.as_mut().unwrap()),
-    );
-
-    if let Some(mut process) = mermaid_process {
-        process.wait()?;
-    }
-
-    result
+        None::<fn(_)>,
+    )
 }

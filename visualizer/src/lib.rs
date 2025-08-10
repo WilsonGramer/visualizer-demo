@@ -1,12 +1,12 @@
 mod constraints;
+mod graph;
 mod groups;
 mod solve;
-mod visualize;
 
 pub use constraints::*;
+pub use graph::*;
 pub use groups::*;
 pub use solve::*;
-pub use visualize::*;
 
 use std::{fmt::Debug, hash::Hash};
 
