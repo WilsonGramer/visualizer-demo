@@ -16,35 +16,14 @@ pub enum Filter<'a> {
 impl Db {
     pub fn write(
         &self,
-        ty_groups: &TyGroups<Db>,
         filter: Option<Filter<'_>>,
         indent: &str,
         mut w: impl Write,
-        graph: Option<impl FnOnce(Graph)>,
     ) -> io::Result<()> {
-        let nodes = self
-            .nodes()
-            .filter(|&node| !self.is_hidden(node))
-            .filter(|&node| {
-                let Some(filter) = filter else {
-                    return true;
-                };
-
-                let Some(span) = self.get::<Span>(node, "span") else {
-                    return false;
-                };
-
-                match filter {
-                    Filter::Range(start, end) => {
-                        span.range.start <= (end as usize) && span.range.end >= (start as usize)
-                    }
-                    Filter::Lines(lines) => lines.contains(&(span.start_line_col.0 as u32)),
-                }
-            })
-            .collect::<Vec<_>>();
+        let nodes = self.filtered_nodes(filter).collect::<Vec<_>>();
 
         for &node in &nodes {
-            let facts = self.iter(node).collect::<Vec<_>>();
+            let mut facts = self.iter(node).collect::<Vec<_>>();
 
             if facts.iter().copied().any(Fact::is_hidden) {
                 continue;
@@ -60,6 +39,8 @@ impl Db {
                 format!("{node:?}").bold(),
                 source.blue()
             )?;
+
+            facts.sort_by_key(|fact| fact.name());
 
             for fact in facts {
                 write!(w, "{indent}{indent}{}", fact.name())?;
@@ -78,11 +59,32 @@ impl Db {
             }
         }
 
-        if let Some(graph) = graph {
-            graph(Graph::generate(Ctx(self), ty_groups, &nodes));
-        }
-
         Ok(())
+    }
+
+    pub fn graph(&self, ty_groups: &TyGroups<Db>, filter: Option<Filter<'_>>) -> Graph {
+        Graph::generate(Ctx(self), ty_groups, self.filtered_nodes(filter))
+    }
+
+    fn filtered_nodes(&self, filter: Option<Filter<'_>>) -> impl Iterator<Item = NodeId> {
+        self.nodes()
+            .filter(|&node| !self.is_hidden(node))
+            .filter(move |&node| {
+                let Some(filter) = filter else {
+                    return true;
+                };
+
+                let Some(span) = self.get::<Span>(node, "span") else {
+                    return false;
+                };
+
+                match filter {
+                    Filter::Range(start, end) => {
+                        span.range.start <= (end as usize) && span.range.end >= (start as usize)
+                    }
+                    Filter::Lines(lines) => lines.contains(&(span.start_line_col.0 as u32)),
+                }
+            })
     }
 }
 

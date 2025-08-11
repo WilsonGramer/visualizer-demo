@@ -24,12 +24,13 @@ fn main() -> anyhow::Result<()> {
 
     let filter = (!args.filter_lines.is_empty()).then_some(Filter::Lines(&args.filter_lines));
 
-    wipple::run(
-        &args.path.display().to_string(),
-        &source,
+    let options = wipple::Options {
+        path: &args.path.display().to_string(),
+        source: &source,
         filter,
-        args.query.zip(args.query_span),
-        io::stdout(),
-        None::<fn(_)>,
-    )
+        queries: Vec::from_iter(args.query.zip(args.query_span)),
+        ..Default::default()
+    };
+
+    wipple::run(options, io::stdout(), None::<fn(_)>)
 }

@@ -15,15 +15,20 @@ use std::io::Write;
 use syntax::{Parse, Range};
 use visualizer::Graph;
 
+#[derive(Default)]
+pub struct Options<'a> {
+    pub path: &'a str,
+    pub source: &'a str,
+    pub filter: Option<Filter<'a>>,
+    pub queries: Vec<(String, ParsedSpan)>,
+}
+
 pub fn run(
-    path: &str,
-    source: &str,
-    filter: Option<Filter<'_>>,
-    queries: impl IntoIterator<Item = (String, ParsedSpan)>,
+    options: Options<'_>,
     mut output: impl Write,
     graph: Option<impl FnOnce(Graph)>,
 ) -> anyhow::Result<()> {
-    let source_file = match syntax::SourceFile::parse(source) {
+    let source_file = match syntax::SourceFile::parse(options.source) {
         Ok(source_file) => source_file,
         Err(error) => {
             write!(output, "syntax error: {error}")?;
@@ -31,32 +36,38 @@ pub fn run(
         }
     };
 
-    let line_index = LineIndex::new(source);
+    let line_index = LineIndex::new(options.source);
 
     let mut db = Db::new();
 
-    let info = visit::visit(&source_file, &mut db, |range: Range| {
-        let Range::Some(start, end) = range else {
-            panic!("node has no range");
-        };
+    let ctx = visit::Ctx {
+        db: &mut db,
+        get_span_source: Box::new(|range: Range| {
+            let Range::Some(start, end) = range else {
+                panic!("node has no range");
+            };
 
-        let span = ParsedSpan::Range {
-            path: path.to_string(),
-            range: start..end,
-        }
-        .to_span(&line_index)
-        .expect("invalid span");
+            let span = ParsedSpan::Range {
+                path: options.path.to_string(),
+                range: start..end,
+            }
+            .to_span(&line_index)
+            .expect("invalid span");
 
-        let source = source[start..end].to_string();
+            let source = options.source[start..end].to_string();
 
-        (span, source)
-    });
+            (span, source)
+        }),
+        show_definitions: true, // TODO: make this an option?
+    };
+
+    let info = visit::visit(&source_file, ctx);
 
     let mut solver = visualizer::Solver::new(&mut db);
     solver.insert(info.constraints);
     let ty_groups = solver.finish();
 
-    for (query, span) in queries {
+    for (query, span) in options.queries {
         let span = span
             .to_span(&line_index)
             .ok_or_else(|| anyhow::format_err!("invalid span: {span}"))?;
@@ -77,7 +88,7 @@ pub fn run(
                     output,
                     "    {}: {}",
                     output_span,
-                    source[output_span.range.clone()].blue()
+                    options.source[output_span.range.clone()].blue()
                 )?;
             }
         }
@@ -89,7 +100,11 @@ pub fn run(
 
     writeln!(output, "{}\n", "Facts:".bold().underline())?;
 
-    db.write(&ty_groups, filter, "  ", &mut output, graph)?;
+    db.write(options.filter, "  ", &mut output)?;
+
+    if let Some(graph) = graph {
+        graph(db.graph(&ty_groups, options.filter));
+    }
 
     Ok(())
 }

@@ -40,7 +40,7 @@
 
         try {
             const g = new dagre.graphlib.Graph({ compound: true });
-            g.setGraph({ nodesep: 150 });
+            g.setGraph({ rankdir: "TD", nodesep: 150 });
             g.setDefaultEdgeLabel(() => ({}));
 
             for (const node of nodes) {

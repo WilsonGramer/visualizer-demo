@@ -5,15 +5,12 @@ pub mod nodes;
 pub mod visitor;
 
 use crate::visitor::{ProgramInfo, Visitor};
-use wipple_db::{Db, Span};
-use wipple_syntax::{Range, SourceFile, Statement};
+use wipple_syntax::{SourceFile, Statement};
 
-pub fn visit(
-    file: &SourceFile,
-    db: &mut Db,
-    get_span_source: impl Fn(Range) -> (Span, String),
-) -> ProgramInfo {
-    let mut visitor = Visitor::new(db, get_span_source);
+pub use crate::visitor::Ctx;
+
+pub fn visit(file: &SourceFile, ctx: Ctx<'_>) -> ProgramInfo {
+    let mut visitor = Visitor::new(ctx);
 
     let source_file = visitor.node(file.range, "sourceFile");
     visitor.hide(source_file);

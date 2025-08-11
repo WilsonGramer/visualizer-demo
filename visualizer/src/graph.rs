@@ -55,12 +55,11 @@ impl Graph {
     pub fn generate<'a, Ctx: WriteGraphContext<'a>>(
         ctx: Ctx,
         ty_groups: &TyGroups<Ctx::Db>,
-        nodes: &[Ctx::Node],
+        nodes: impl IntoIterator<Item = Ctx::Node>,
     ) -> Self {
-        // Also show nodes that are in the same group as any node in `nodes`
         let mut visited_groups = BTreeSet::new();
         let mut visited_nodes = BTreeSet::new();
-        for &node in nodes {
+        for node in nodes {
             if !ctx.include_node(node) {
                 continue;
             }
@@ -68,11 +67,6 @@ impl Graph {
             if let Some(group_index) = ty_groups.index_of(node) {
                 visited_groups.insert(group_index);
                 visited_nodes.insert(node);
-                visited_nodes.extend(
-                    ty_groups
-                        .nodes_in_group(group_index)
-                        .filter(|&node| ctx.include_node(node)),
-                );
             }
         }
 
@@ -113,7 +107,10 @@ impl Graph {
                 continue;
             }
 
-            let nodes_in_group = ty_groups.nodes_in_group(index).collect::<Vec<_>>();
+            let nodes_in_group = ty_groups
+                .nodes_in_group(index)
+                .filter(|node| visited_nodes.contains(node))
+                .collect::<Vec<_>>();
 
             if nodes_in_group.is_empty() {
                 continue;

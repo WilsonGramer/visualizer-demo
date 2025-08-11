@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 use visualizer::Constraint;
-use wipple_db::{Db, Fact, FactValue, LazyConstraint, LazyConstraints, NodeId, Source, Span};
+use wipple_db::{Db, Fact, FactValue, LazyConstraints, NodeId, Source, Span};
 use wipple_syntax::{self as syntax, Range};
 
 #[enum_delegate::register]
@@ -98,9 +98,14 @@ pub struct ProgramInfo {
     pub constraints: Vec<Constraint<Db>>,
 }
 
+pub struct Ctx<'a> {
+    pub db: &'a mut Db,
+    pub get_span_source: Box<dyn Fn(Range) -> (Span, String) + 'a>,
+    pub show_definitions: bool,
+}
+
 pub struct Visitor<'a> {
-    db: &'a mut Db,
-    get_span_source: Box<dyn Fn(Range) -> (Span, String) + 'a>,
+    ctx: Ctx<'a>,
     current_node: Option<NodeId>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
@@ -110,10 +115,9 @@ pub struct Visitor<'a> {
 }
 
 impl<'a> Visitor<'a> {
-    pub fn new(db: &'a mut Db, get_span_source: impl Fn(Range) -> (Span, String) + 'a) -> Self {
+    pub fn new(ctx: Ctx<'a>) -> Self {
         Visitor {
-            db,
-            get_span_source: Box::new(get_span_source),
+            ctx,
             current_node: None,
             scopes: vec![Scope::default()],
             instances: Default::default(),
@@ -143,15 +147,17 @@ impl<'a> Visitor<'a> {
         }
 
         for node in definitions.keys().copied() {
-            self.db.fact(node, Fact::new("untyped", ()));
+            self.ctx.db.fact(node, Fact::new("untyped", ()));
         }
 
         for (node, constraints) in self.generic_constraints {
-            self.db.fact(node, Fact::new("constraints", constraints));
+            self.ctx
+                .db
+                .fact(node, Fact::new("constraints", constraints));
         }
 
         for (&owner, constraints) in &self.constraints {
-            self.db.fact(
+            self.ctx.db.fact(
                 owner,
                 Fact::new(
                     "constraints",
@@ -170,11 +176,11 @@ impl<'a> Visitor<'a> {
 
 impl<'a> Visitor<'a> {
     pub fn node(&mut self, range: Range, name: &'static str) -> NodeId {
-        let node = self.db.node();
+        let node = self.ctx.db.node();
 
         self.fact(node, name, ());
 
-        let (span, source) = (self.get_span_source)(range);
+        let (span, source) = (self.ctx.get_span_source)(range);
         self.fact(node, "span", span);
         self.fact(node, "source", Source(source));
 
@@ -182,11 +188,11 @@ impl<'a> Visitor<'a> {
     }
 
     pub fn fact(&mut self, node: NodeId, name: impl AsRef<str>, value: impl FactValue) {
-        self.db.fact(node, Fact::new(name, value));
+        self.ctx.db.fact(node, Fact::new(name, value));
     }
 
     pub fn hide(&mut self, node: NodeId) {
-        self.db.fact(node, Fact::hidden());
+        self.ctx.db.fact(node, Fact::hidden());
     }
 
     pub fn child(&mut self, node: &impl Visit, parent: NodeId, relation: &'static str) -> NodeId {
@@ -196,7 +202,7 @@ impl<'a> Visitor<'a> {
 
         self.relation(id, parent, relation);
 
-        if node.hide() {
+        if node.hide() || (!self.ctx.show_definitions && self.current_definition.is_some()) {
             self.hide(id);
         }
 
@@ -204,7 +210,7 @@ impl<'a> Visitor<'a> {
             .try_current_definition()
             .is_some_and(|definition| !definition.is_typed)
         {
-            self.db.fact(id, Fact::new("untyped", ()));
+            self.ctx.db.fact(id, Fact::new("untyped", ()));
         }
 
         node.visit(id, self);

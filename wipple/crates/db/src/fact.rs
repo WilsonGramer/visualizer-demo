@@ -67,38 +67,58 @@ impl FactValue for Source {
 
 impl FactValue for Ty<Db> {
     fn display(&self, db: &Db) -> Option<String> {
-        Some(match self {
-            Ty::Unknown(_) | Ty::Of(_) => String::from("_"),
-            Ty::Parameter(node) => db.get::<Source>(*node, "source").unwrap().clone().0,
-            Ty::Named { name, parameters } => format!(
-                "{}{}",
-                db.get::<Source>(*name, "source").unwrap().0,
-                parameters
-                    .values()
-                    .map(|parameter| format!(" {}", parameter.display(db).unwrap()))
-                    .collect::<String>()
-            ),
-            Ty::Function { inputs, output } => format!(
-                "{}-> {}",
-                inputs
-                    .iter()
-                    .map(|input| format!("{} ", input.display(db).unwrap()))
-                    .collect::<String>(),
-                output.display(db).unwrap()
-            ),
-            Ty::Tuple { elements } => format!(
-                "({})",
-                elements
-                    .iter()
-                    .map(|element| element.display(db).unwrap())
-                    .collect::<Vec<_>>()
-                    .join(" ; ")
-            ),
-        })
+        Some(display_ty(self, db, true))
     }
 
     fn is_code(&self) -> bool {
         true
+    }
+}
+
+fn display_ty(ty: &Ty<Db>, db: &Db, root: bool) -> String {
+    match ty {
+        Ty::Unknown(_) | Ty::Of(_) => String::from("_"),
+        Ty::Parameter(node) => db.get::<Source>(*node, "source").unwrap().clone().0,
+        Ty::Named { name, parameters } => {
+            let ty = format_args!(
+                "{}{}",
+                db.get::<Source>(*name, "source").unwrap().0,
+                parameters
+                    .values()
+                    .map(|parameter| format!(" {}", display_ty(parameter, db, false)))
+                    .collect::<String>()
+            );
+
+            if root || parameters.is_empty() {
+                format!("{}", ty)
+            } else {
+                format!("({})", ty)
+            }
+        }
+        Ty::Function { inputs, output } => {
+            let ty = format_args!(
+                "{}-> {}",
+                inputs
+                    .iter()
+                    .map(|input| format!("{} ", display_ty(input, db, false)))
+                    .collect::<String>(),
+                display_ty(output, db, true)
+            );
+
+            if root {
+                format!("{}", ty)
+            } else {
+                format!("({})", ty)
+            }
+        }
+        Ty::Tuple { elements } => format!(
+            "({})",
+            elements
+                .iter()
+                .map(|element| display_ty(element, db, false))
+                .collect::<Vec<_>>()
+                .join(" ; ")
+        ),
     }
 }
 
