@@ -3,7 +3,7 @@ use crate::{
     definitions::{Definition, TraitDefinition, TypeParameterDefinition},
     visitor::{Visit, Visitor},
 };
-use visualizer::{Bound, Constraint, Substitutions, Ty};
+use visualizer::{Bound, Constraint, Instantiation, Substitutions, Ty};
 use wipple_db::NodeId;
 use wipple_syntax::{Constraints, Range, TraitDefinitionStatement};
 
@@ -17,7 +17,7 @@ impl Visit for TraitDefinitionStatement {
     }
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
-        visitor.with_definition(|visitor| {
+        visitor.with_definition(id, |visitor| {
             let attributes =
                 TraitAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
 
@@ -56,12 +56,12 @@ impl Visit for TraitDefinitionStatement {
                 .lazy_constraint(move |node| Constraint::Ty(node, Ty::Of(id)));
 
             visitor.current_definition().lazy_constraint(move |node| {
-                Constraint::Bound(Bound {
+                Constraint::Bound(Bound(Instantiation {
                     source: node,
                     node,
-                    tr: id,
+                    definition: id,
                     substitutions: Substitutions::replace_all(),
-                })
+                }))
             });
 
             if let Some(Constraints(constraints)) = &self.constraints.constraints {
@@ -72,8 +72,6 @@ impl Visit for TraitDefinitionStatement {
 
             visitor.pop_scope();
 
-            let constraints = visitor.current_definition().take_constraints();
-
             visitor.define_name(
                 &self.name.value,
                 Definition::Trait(TraitDefinition {
@@ -81,7 +79,6 @@ impl Visit for TraitDefinitionStatement {
                     comments: self.comments.clone(),
                     attributes,
                     parameters,
-                    constraints,
                 }),
             );
 

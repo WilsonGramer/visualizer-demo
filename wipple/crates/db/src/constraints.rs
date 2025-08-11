@@ -8,6 +8,14 @@ pub type LazyConstraint = Arc<dyn Fn(NodeId) -> Constraint<Db> + Send + Sync>;
 pub struct LazyConstraints(pub Vec<LazyConstraint>);
 
 impl LazyConstraints {
+    pub fn from_constraints(iter: impl IntoIterator<Item = Constraint<Db>>) -> Self {
+        LazyConstraints(
+            iter.into_iter()
+                .map(|constraint| Arc::new(move |_| constraint.clone()) as _)
+                .collect(),
+        )
+    }
+
     pub fn resolve_for(&self, node: NodeId) -> Vec<Constraint<Db>> {
         self.0.iter().map(|f| f(node)).collect()
     }

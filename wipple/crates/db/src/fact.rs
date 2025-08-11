@@ -56,15 +56,12 @@ impl FactValue for () {
     }
 }
 
-impl FactValue for String {
-    fn display(&self, _db: &Db) -> Option<String> {
-        Some(self.clone())
-    }
-}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Source(pub String);
 
-impl FactValue for u32 {
+impl FactValue for Source {
     fn display(&self, _db: &Db) -> Option<String> {
-        Some(self.to_string())
+        Some(self.0.clone())
     }
 }
 
@@ -72,10 +69,10 @@ impl FactValue for Ty<Db> {
     fn display(&self, db: &Db) -> Option<String> {
         Some(match self {
             Ty::Unknown(_) | Ty::Of(_) => String::from("_"),
-            Ty::Parameter(node) => db.get::<String>(*node, "source").unwrap().clone(),
+            Ty::Parameter(node) => db.get::<Source>(*node, "source").unwrap().clone().0,
             Ty::Named { name, parameters } => format!(
                 "{}{}",
-                db.get::<String>(*name, "source").unwrap(),
+                db.get::<Source>(*name, "source").unwrap().0,
                 parameters
                     .values()
                     .map(|parameter| format!(" {}", parameter.display(db).unwrap()))

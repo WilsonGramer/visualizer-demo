@@ -3,8 +3,8 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use wipple_db::NodeId;
 use visualizer::{Constraint, Ty};
+use wipple_db::NodeId;
 use wipple_syntax::{Range, TextExpression};
 
 impl Visit for TextExpression {

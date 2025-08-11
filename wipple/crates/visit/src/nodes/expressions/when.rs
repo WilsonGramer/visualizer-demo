@@ -15,5 +15,4 @@ impl Visit for WhenExpression {
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         todo!()
     }
-
 }

@@ -1,10 +1,11 @@
 use crate::definitions::{Definition, InstanceDefinition};
 use std::{
     collections::{BTreeMap, HashMap},
+    mem,
     sync::Arc,
 };
 use visualizer::Constraint;
-use wipple_db::{Db, Fact, FactValue, LazyConstraints, NodeId, Span};
+use wipple_db::{Db, Fact, FactValue, LazyConstraint, LazyConstraints, NodeId, Source, Span};
 use wipple_syntax::{self as syntax, Range};
 
 #[enum_delegate::register]
@@ -94,17 +95,17 @@ impl Visit for (Range, &'static str) {
 pub struct ProgramInfo {
     pub definitions: BTreeMap<NodeId, Definition>,
     pub instances: BTreeMap<NodeId, Vec<NodeId>>,
-    pub generic_constraints: Vec<Constraint<Db>>,
     pub constraints: Vec<Constraint<Db>>,
 }
 
 pub struct Visitor<'a> {
     db: &'a mut Db,
     get_span_source: Box<dyn Fn(Range) -> (Span, String) + 'a>,
+    current_node: Option<NodeId>,
     scopes: Vec<Scope>,
     instances: BTreeMap<NodeId, Vec<InstanceDefinition>>,
-    generic_constraints: Vec<Constraint<Db>>,
-    constraints: Vec<Constraint<Db>>,
+    generic_constraints: BTreeMap<NodeId, LazyConstraints>,
+    constraints: BTreeMap<NodeId, Vec<Constraint<Db>>>,
     current_definition: Option<VisitorCurrentDefinition>,
 }
 
@@ -113,6 +114,7 @@ impl<'a> Visitor<'a> {
         Visitor {
             db,
             get_span_source: Box::new(get_span_source),
+            current_node: None,
             scopes: vec![Scope::default()],
             instances: Default::default(),
             generic_constraints: Default::default(),
@@ -144,11 +146,24 @@ impl<'a> Visitor<'a> {
             self.db.fact(node, Fact::new("untyped", ()));
         }
 
+        for (node, constraints) in self.generic_constraints {
+            self.db.fact(node, Fact::new("constraints", constraints));
+        }
+
+        for (&owner, constraints) in &self.constraints {
+            self.db.fact(
+                owner,
+                Fact::new(
+                    "constraints",
+                    LazyConstraints::from_constraints(constraints.iter().cloned()),
+                ),
+            );
+        }
+
         ProgramInfo {
             definitions,
             instances: instance_ids,
-            generic_constraints: self.generic_constraints,
-            constraints: self.constraints,
+            constraints: self.constraints.into_values().flatten().collect(),
         }
     }
 }
@@ -161,7 +176,7 @@ impl<'a> Visitor<'a> {
 
         let (span, source) = (self.get_span_source)(range);
         self.fact(node, "span", span);
-        self.fact(node, "source", source);
+        self.fact(node, "source", Source(source));
 
         node
     }
@@ -176,6 +191,8 @@ impl<'a> Visitor<'a> {
 
     pub fn child(&mut self, node: &impl Visit, parent: NodeId, relation: &'static str) -> NodeId {
         let id = self.node(node.range(), node.name());
+
+        let previous_node = self.current_node.replace(id);
 
         self.relation(id, parent, relation);
 
@@ -192,6 +209,8 @@ impl<'a> Visitor<'a> {
 
         node.visit(id, self);
 
+        self.current_node = previous_node;
+
         id
     }
 
@@ -200,11 +219,11 @@ impl<'a> Visitor<'a> {
     }
 
     pub fn constraint(&mut self, constraint: Constraint<Db>) {
-        if self.try_current_definition().is_some() {
-            self.generic_constraints.push(constraint);
-        } else {
-            self.constraints.push(constraint);
-        }
+        let owner = self
+            .current_node
+            .expect("must call `constraint` within `child`");
+
+        self.constraints.entry(owner).or_default().push(constraint);
     }
 
     pub fn constraints(&mut self, constraints: impl IntoIterator<Item = Constraint<Db>>) {
@@ -279,12 +298,12 @@ impl Visitor<'_> {
             .push(definition);
     }
 
-    pub fn with_definition<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+    pub fn with_definition(&mut self, id: NodeId, f: impl FnOnce(&mut Self)) {
         let existing = self.current_definition.replace(Default::default());
-        let result = f(self);
-        self.current_definition = existing;
+        f(self);
+        let definition = mem::replace(&mut self.current_definition, existing).unwrap();
 
-        result
+        self.generic_constraints.insert(id, definition.constraints);
     }
 
     pub fn try_current_definition(&mut self) -> Option<&mut VisitorCurrentDefinition> {
@@ -314,9 +333,5 @@ impl VisitorCurrentDefinition {
         constraint: impl Fn(NodeId) -> Constraint<Db> + Send + Sync + 'static,
     ) {
         self.constraints.0.push(Arc::new(constraint));
-    }
-
-    pub fn take_constraints(&mut self) -> LazyConstraints {
-        std::mem::take(&mut self.constraints)
     }
 }

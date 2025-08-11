@@ -53,7 +53,6 @@ pub fn run(
     });
 
     let mut solver = visualizer::Solver::new(&mut db);
-    solver.insert(info.generic_constraints);
     solver.insert(info.constraints);
     let ty_groups = solver.finish();
 

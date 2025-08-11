@@ -45,7 +45,7 @@
 
             for (const node of nodes) {
                 g.setNode(node.id, {
-                    width: node.data.source.length * nodeLabelFontSize + nodePadding,
+                    width: Math.max(8, node.data.source.length) * nodeLabelFontSize + nodePadding,
                     height: nodePadding * 2,
                 });
             }

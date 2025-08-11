@@ -1,4 +1,4 @@
-use crate::{Constraint, Group, GroupKey, GroupKeys, Instantiation, Substitutions, Ty, TyGroups};
+use crate::{Bound, Constraint, Group, GroupKey, GroupKeys, Instantiation, Ty, TyGroups};
 use derive_where::derive_where;
 use ena::unify::InPlaceUnificationTable;
 use std::{cell::RefCell, collections::BTreeMap, fmt::Debug, mem, rc::Rc};
@@ -108,8 +108,8 @@ impl<Db: crate::Db> Solver<'_, Db> {
     fn run(&mut self) {
         loop {
             let progress = self
-                .run_tys()
-                .or_else(|| self.run_instantiations())
+                .run_instantiations()
+                .or_else(|| self.run_tys())
                 .or_else(|| self.run_bounds()); // TODO: run_defaults(), etc.
 
             if let Progress::NoProgress = progress
@@ -147,16 +147,8 @@ impl<Db: crate::Db> Solver<'_, Db> {
             _ => 2,
         });
 
-        for (node, mut ty) in tys {
-            // `Ty::Of(node)` will resolve to the representative for `node`, so
-            // this effectively unifies the node's type with the other types in
-            // the node's group
-            let result = self.unify_tys(&mut Ty::Of(node), &mut ty);
-
-            if result.is_err() {
-                self.error = true;
-                self.others.entry(node).or_default().push(ty);
-            }
+        for (node, ty) in tys {
+            self.unify_node_ty(node, ty);
         }
 
         self.progress.take()
@@ -175,10 +167,17 @@ impl<Db: crate::Db> Solver<'_, Db> {
             })
             .collect();
 
+        let mut ty_constraints = Vec::new();
+        let mut queued_constraints = Vec::new();
         for instantiation in instantiations {
-            let constraints = self.apply_instantiation(instantiation);
-            self.queue.extend(constraints);
+            self.instantiate(instantiation, &mut ty_constraints, &mut queued_constraints);
         }
+
+        if !ty_constraints.is_empty() {
+            self.insert(ty_constraints);
+        }
+
+        self.queue.extend(queued_constraints);
 
         self.progress.take()
     }
@@ -196,13 +195,21 @@ impl<Db: crate::Db> Solver<'_, Db> {
             })
             .collect();
 
-        for mut bound in bounds {
+        for Bound(mut bound) in bounds {
             // Use a temporary node for the bound while resolving, unless the
             // bound comes directly from a trait expression.
             let temp_node = if bound.source == bound.node {
                 bound.source
             } else {
-                self.db.borrow_mut().clone_node(bound.node, false)
+                let (node, constraints) = self.db.borrow_mut().clone_node_tree(
+                    bound.node,
+                    &mut bound.substitutions,
+                    false,
+                );
+
+                self.queue.extend(constraints);
+
+                node
             };
 
             let prev_source = if let Some(source) = self.source {
@@ -213,16 +220,12 @@ impl<Db: crate::Db> Solver<'_, Db> {
             };
 
             // Instantiate the bound with the trait's type.
-            self.insert([Constraint::Instantiation(Instantiation {
-                source: bound.source,
-                constraints: vec![Constraint::Ty(temp_node, Ty::Of(bound.tr))],
-                substitutions: bound.substitutions.clone(),
-            })]);
+            self.insert([Constraint::Instantiation(bound.clone())]);
 
             let instances =
                 self.db
                     .borrow_mut()
-                    .get_trait_instances(bound.source, temp_node, bound.tr);
+                    .get_trait_instances(bound.source, temp_node, bound.definition);
 
             let mut candidates = Vec::new();
             for (instance, instantiation) in instances {
@@ -232,21 +235,16 @@ impl<Db: crate::Db> Solver<'_, Db> {
                 copy.error = false;
                 copy.queue.clear();
 
-                // Ensure the instance's type unifies before trying bounds and
-                // other constraints.
-                let constraints = self.apply_instantiation(instantiation);
-                let (ty_constraints, other_constraints): (Vec<_>, Vec<_>) = constraints
-                    .into_iter()
-                    .partition(|constraint| matches!(constraint, Constraint::Ty(..)));
-
-                assert!(!ty_constraints.is_empty());
+                let mut ty_constraints = Vec::new();
+                let mut queued_constraints = Vec::new();
+                copy.instantiate(instantiation, &mut ty_constraints, &mut queued_constraints);
 
                 copy.insert(ty_constraints);
                 if copy.error {
                     continue;
                 }
 
-                candidates.push((instance, other_constraints, copy));
+                candidates.push((instance, queued_constraints, copy));
             }
 
             if candidates.len() != 1 {
@@ -339,35 +337,44 @@ impl<Db: crate::Db> Solver<'_, Db> {
         });
     }
 
-    fn apply_instantiation(&mut self, mut instantiation: Instantiation<Db>) -> Vec<Constraint<Db>> {
-        instantiation
-            .constraints
-            .into_iter()
-            .map(|mut constraint| {
-                constraint.traverse_mut(&mut |ty| {
-                    self.instantiate_ty(ty, &mut instantiation.substitutions);
-                });
+    fn instantiate(
+        &mut self,
+        mut instantiation: Instantiation<Db>,
+        ty_constraints: &mut Vec<Constraint<Db>>,
+        queued_constraints: &mut Vec<Constraint<Db>>,
+    ) {
+        let (copy, copy_constraints) = self.db.borrow_mut().clone_node_tree(
+            instantiation.definition,
+            &mut instantiation.substitutions,
+            true,
+        );
 
-                constraint
-            })
-            .collect()
+        // Ensure the types unify before trying bounds and other constraints.
+        for constraint in copy_constraints {
+            if let Constraint::Ty(..) = constraint {
+                ty_constraints.push(constraint);
+            } else {
+                queued_constraints.push(constraint);
+            }
+        }
+
+        // Unify the node with the untyped copy first to form better groups.
+        ty_constraints.push(Constraint::Ty(instantiation.node, Ty::Of(copy)));
+
+        // Now that we've formed groups, unify back with the original definition type.
+        ty_constraints.push(Constraint::Ty(copy, Ty::Of(instantiation.definition)));
     }
 
-    fn instantiate_ty(&mut self, ty: &mut Ty<Db>, substitutions: &mut Substitutions<Db>) {
-        self.apply_ty(ty);
-        ty.traverse_mut(&mut |ty| {
-            if let Ty::Parameter(parameter) = ty {
-                if let Some(substitution) = substitutions.0.get(parameter).cloned() {
-                    *ty = substitution;
-                } else {
-                    let copy = self.db.borrow_mut().clone_node(*parameter, true);
-                    substitutions.0.insert(*parameter, Ty::Of(copy));
-                    *ty = Ty::Of(copy);
-                }
+    fn unify_node_ty(&mut self, node: Db::Node, mut ty: Ty<Db>) {
+        // `Ty::Of(node)` will resolve to the representative for `node`, so this
+        // effectively unifies the node's type with the other types in the
+        // node's group
+        let result = self.unify_tys(&mut Ty::Of(node), &mut ty);
 
-                self.progress.set();
-            }
-        });
+        if result.is_err() {
+            self.error = true;
+            self.others.entry(node).or_default().push(ty);
+        }
     }
 
     fn unify_tys(&mut self, left: &mut Ty<Db>, right: &mut Ty<Db>) -> Result<(), ()> {
@@ -380,6 +387,8 @@ impl<Db: crate::Db> Solver<'_, Db> {
                     return Err(());
                 }
             }
+            (Ty::Parameter(_), _) => return Err(()),
+            (_, Ty::Parameter(_)) => {}
             (Ty::Of(left_node), Ty::Of(right_node)) => {
                 self.unify_nodes(left_node, right_node);
             }

@@ -20,8 +20,4 @@ impl Visit for VariablePattern {
             Definition::Variable(VariableDefinition { node: id }),
         );
     }
-
-    fn hide(&self) -> bool {
-        true
-    }
 }

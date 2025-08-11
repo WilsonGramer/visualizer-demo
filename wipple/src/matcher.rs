@@ -1,5 +1,5 @@
 use visualizer::Ty;
-use wipple_db::{Db, FactValue};
+use wipple_db::{Db, FactValue, Source};
 use wipple_syntax::Parse;
 
 pub fn matcher(db: &Db, value: &dyn FactValue, s: &str) -> bool {
@@ -35,10 +35,10 @@ impl TyMatcher {
         Some(match ty {
             Ty::Unknown(_) | Ty::Of(_) => TyMatcher::Placeholder,
             Ty::Parameter(parameter) => {
-                TyMatcher::Parameter(db.get::<String>(*parameter, "source")?.clone())
+                TyMatcher::Parameter(db.get::<Source>(*parameter, "source")?.clone().0)
             }
             Ty::Named { name, parameters } => TyMatcher::Named(
-                db.get::<String>(*name, "source")?.clone(),
+                db.get::<Source>(*name, "source")?.clone().0,
                 parameters
                     .values()
                     .filter_map(|ty| TyMatcher::from_ty(ty, db))

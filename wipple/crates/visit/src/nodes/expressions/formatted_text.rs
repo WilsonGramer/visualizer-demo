@@ -15,5 +15,4 @@ impl Visit for FormattedTextExpression {
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         todo!()
     }
-
 }

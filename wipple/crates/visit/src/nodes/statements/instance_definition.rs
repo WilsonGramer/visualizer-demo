@@ -18,7 +18,7 @@ impl Visit for InstanceDefinitionStatement {
     }
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
-        visitor.with_definition(|visitor| {
+        visitor.with_definition(id, |visitor| {
             let attributes =
                 InstanceAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
 
@@ -75,8 +75,6 @@ impl Visit for InstanceDefinitionStatement {
 
             visitor.pop_scope();
 
-            let constraints = visitor.current_definition().take_constraints();
-
             visitor.define_instance(InstanceDefinition {
                 node: id,
                 comments: self.comments.clone(),
@@ -85,14 +83,14 @@ impl Visit for InstanceDefinitionStatement {
                 value,
             });
 
-            visitor.fact(id, "constraints", constraints);
             visitor.fact(id, "substitutions", substitutions.clone());
 
             visitor.constraints(vec![
                 Constraint::Instantiation(Instantiation {
                     source: id,
+                    node: id,
+                    definition: trait_node,
                     substitutions,
-                    constraints: vec![Constraint::Ty(id, Ty::Of(trait_node))],
                 }),
                 Constraint::Ty(id, Ty::Of(value)),
             ]);

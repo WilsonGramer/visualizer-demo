@@ -29,5 +29,4 @@ impl Visit for BlockExpression {
 
         visitor.constraints(constraints_for_block(statements, id));
     }
-
 }

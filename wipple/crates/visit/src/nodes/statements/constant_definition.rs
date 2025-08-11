@@ -17,7 +17,7 @@ impl Visit for ConstantDefinitionStatement {
     }
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
-        visitor.with_definition(|visitor| {
+        visitor.with_definition(id, |visitor| {
             let attributes =
                 ConstantAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
 
@@ -39,20 +39,21 @@ impl Visit for ConstantDefinitionStatement {
 
             visitor.pop_scope();
 
-            let constraints = visitor.current_definition().take_constraints();
-
             visitor.define_name(
                 &self.name.value,
                 Definition::Constant(ConstantDefinition {
                     node: id,
                     comments: self.comments.clone(),
                     attributes,
-                    constraints,
                     value: Err(ty),
                 }),
             );
 
             visitor.constraint(Constraint::Ty(id, Ty::Of(ty)));
         });
+    }
+
+    fn hide(&self) -> bool {
+        true
     }
 }

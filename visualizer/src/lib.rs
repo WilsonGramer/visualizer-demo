@@ -15,7 +15,12 @@ pub trait Db: Sized + 'static {
 
     fn typed_nodes(&self) -> impl Iterator<Item = Self::Node>;
 
-    fn clone_node(&mut self, node: Self::Node, hide: bool) -> Self::Node;
+    fn clone_node_tree(
+        &mut self,
+        node: Self::Node,
+        substitutions: &mut Substitutions<Self>,
+        hide: bool,
+    ) -> (Self::Node, Vec<Constraint<Self>>);
 
     fn get_trait_instances(
         &mut self,

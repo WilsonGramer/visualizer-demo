@@ -15,5 +15,4 @@ impl Visit for StructureExpression {
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
         todo!()
     }
-
 }

@@ -18,7 +18,7 @@ impl Visit for TypeDefinitionStatement {
     }
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
-        visitor.with_definition(|visitor| {
+        visitor.with_definition(id, |visitor| {
             let attributes =
                 TypeAttributes::parse(visitor, &mut AttributeParser::new(id, &self.attributes));
 
@@ -62,8 +62,6 @@ impl Visit for TypeDefinitionStatement {
 
             visitor.pop_scope();
 
-            let constraints = visitor.current_definition().take_constraints();
-
             visitor.define_name(
                 &self.name.value,
                 Definition::Type(TypeDefinition {
@@ -71,7 +69,6 @@ impl Visit for TypeDefinitionStatement {
                     comments: self.comments.clone(),
                     attributes,
                     parameters,
-                    constraints,
                 }),
             );
         })

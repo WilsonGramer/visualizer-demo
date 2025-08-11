@@ -16,20 +16,19 @@ impl Visit for TraitExpression {
     }
 
     fn visit(&self, id: NodeId, visitor: &mut Visitor<'_>) {
-        let constraints =
+        let definition =
             visitor.resolve_name(&self.r#type.value, id, |definition| match definition {
                 Definition::Type(_) => todo!(),
-                Definition::Trait(definition) => {
-                    Some((definition.constraints.clone(), "resolvedTraitName"))
-                }
+                Definition::Trait(definition) => Some((definition.node, "resolvedTraitName")),
                 _ => None,
             });
 
-        if let Some(constraints) = constraints {
+        if let Some(definition) = definition {
             visitor.constraint(Constraint::Instantiation(Instantiation {
                 source: id,
+                node: id,
+                definition,
                 substitutions: Substitutions::replace_all(),
-                constraints: constraints.resolve_for(id),
             }));
         } else {
             visitor.fact(id, "unresolvedTraitName", ());

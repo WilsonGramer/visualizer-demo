@@ -25,10 +25,10 @@ impl Visit for CallExpression {
         // If `inputs` has a single element with the `[unit]` attribute,
         // flip the order
         if let Some((unit_range, unit_name)) = unit {
-            if let Some((attributes, constraints)) =
+            if let Some((definition, attributes)) =
                 visitor.peek_name(unit_name, |definition| match definition {
                     Definition::Constant(definition) => {
-                        Some((&definition.attributes, definition.constraints.clone()))
+                        Some((definition.node, &definition.attributes))
                     }
                     _ => None,
                 })
@@ -38,8 +38,9 @@ impl Visit for CallExpression {
 
                     visitor.constraint(Constraint::Instantiation(Instantiation {
                         source: id,
+                        node: id,
+                        definition,
                         substitutions: Substitutions::replace_all(),
-                        constraints: constraints.resolve_for(id),
                     }));
 
                     let input = visitor.child(self.function.as_ref(), id, "numberInUnitCall");

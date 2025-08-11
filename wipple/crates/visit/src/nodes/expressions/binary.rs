@@ -39,5 +39,4 @@ impl Visit for BinaryExpression {
             }
         }
     }
-
 }

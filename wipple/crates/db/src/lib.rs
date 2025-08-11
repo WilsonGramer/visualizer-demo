@@ -12,11 +12,12 @@ pub use query::*;
 pub use span::*;
 pub use write::*;
 
+use itertools::Itertools;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     rc::Rc,
 };
-use visualizer::{Instantiation, Substitutions, Ty};
+use visualizer::{Constraint, Instantiation, Substitutions, Ty};
 
 #[derive(Debug, Clone, Default)]
 pub struct Db {
@@ -89,24 +90,83 @@ impl Db {
             .find_map(|fact| fact.value().downcast_ref::<T>())
     }
 
-    pub fn clone_node(&mut self, node: NodeId, hide: bool) -> NodeId {
-        let new_id = self.node();
+    pub fn clone_node_tree_inner(
+        &mut self,
+        node: NodeId,
+        copy: NodeId,
+        substitutions: &mut Substitutions<Self>,
+        hide: bool,
+        copies: &mut BTreeMap<NodeId, NodeId>,
+        constraints: &mut Vec<Constraint<Self>>,
+    ) {
+        copies.insert(node, copy);
 
         if hide {
-            self.fact(new_id, Fact::hidden());
+            self.fact(copy, Fact::hidden());
         }
 
-        let node_facts = self
-            .iter(node)
-            .filter(|fact| fact.name() != "untyped")
-            .cloned()
-            .collect::<Vec<_>>();
+        let (node_constraints, node_facts): (Vec<_>, Vec<_>) =
+            self.iter(node).cloned().partition_map(|fact| {
+                if let Some(constraint) = fact.value().downcast_ref::<LazyConstraints>() {
+                    itertools::Either::Left(constraint.clone())
+                } else {
+                    itertools::Either::Right(fact)
+                }
+            });
 
         for fact in node_facts {
-            self.fact(new_id, fact);
+            self.fact(copy, fact);
         }
 
-        new_id
+        self.fact(copy, Fact::new("instantiated", ()));
+
+        for mut constraint in node_constraints
+            .into_iter()
+            .flat_map(|constraints| constraints.resolve_for(copy))
+            .collect::<Vec<_>>()
+        {
+            constraint.traverse_tys_mut(&mut |ty| {
+                if let Ty::Parameter(parameter) = *ty {
+                    if let Some(substitution) = substitutions.0.get(&parameter).cloned() {
+                        *ty = substitution;
+                    } else {
+                        let copy = self.node();
+                        substitutions.0.insert(parameter, Ty::Of(copy));
+                        *ty = Ty::Of(copy);
+
+                        self.clone_node_tree_inner(
+                            parameter,
+                            copy,
+                            substitutions,
+                            false,
+                            copies,
+                            constraints,
+                        );
+                    }
+                }
+            });
+
+            constraint.traverse_nodes_mut(&mut |node| {
+                if let Some(copy) = copies.get(node) {
+                    *node = *copy;
+                } else {
+                    let copy = self.node();
+
+                    self.clone_node_tree_inner(
+                        *node,
+                        copy,
+                        substitutions,
+                        false,
+                        copies,
+                        constraints,
+                    );
+
+                    *node = copy;
+                }
+            });
+
+            constraints.push(constraint.clone());
+        }
     }
 
     pub fn is_hidden(&self, node: NodeId) -> bool {
@@ -122,8 +182,25 @@ impl visualizer::Db for Db {
             .filter(|&node| !self.is_hidden(node) && self.get::<()>(node, "untyped").is_none())
     }
 
-    fn clone_node(&mut self, node: Self::Node, hide: bool) -> Self::Node {
-        self.clone_node(node, hide)
+    fn clone_node_tree(
+        &mut self,
+        node: Self::Node,
+        substitutions: &mut Substitutions<Self>,
+        hide: bool,
+    ) -> (Self::Node, Vec<Constraint<Self>>) {
+        let copy = self.node();
+
+        let mut constraints = Vec::new();
+        self.clone_node_tree_inner(
+            node,
+            copy,
+            substitutions,
+            hide,
+            &mut BTreeMap::new(),
+            &mut constraints,
+        );
+
+        (copy, constraints)
     }
 
     fn get_trait_instances(
@@ -134,11 +211,6 @@ impl visualizer::Db for Db {
     ) -> Vec<(Self::Node, Instantiation<Self>)> {
         self.iter_of(trait_id, "instance")
             .map(|&instance| {
-                let constraints = self
-                    .get::<LazyConstraints>(instance, "constraints")
-                    .unwrap()
-                    .clone();
-
                 let substitutions = self
                     .get::<Substitutions<Self>>(instance, "substitutions")
                     .unwrap()
@@ -146,7 +218,8 @@ impl visualizer::Db for Db {
 
                 let instantiation = Instantiation {
                     source,
-                    constraints: constraints.resolve_for(node),
+                    node,
+                    definition: trait_id,
                     substitutions,
                 };
 

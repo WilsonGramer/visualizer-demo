@@ -1,5 +1,5 @@
 use derive_where::derive_where;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, mem};
 
 #[derive_where(Debug, Clone, PartialEq, Eq)]
 pub enum Constraint<Db: crate::Db> {
@@ -9,20 +9,58 @@ pub enum Constraint<Db: crate::Db> {
 }
 
 impl<Db: crate::Db> Constraint<Db> {
-    pub fn traverse_mut(&mut self, f: &mut impl FnMut(&mut Ty<Db>)) {
+    pub fn traverse_nodes_mut(&mut self, f: &mut impl FnMut(&mut Db::Node)) {
+        fn traverse_node_ty<Db: crate::Db>(
+            node: &mut Db::Node,
+            ty: &mut Ty<Db>,
+            f: &mut impl FnMut(&mut Db::Node),
+        ) {
+            f(node);
+
+            ty.traverse_mut(&mut |ty| {
+                if let Ty::Of(node) = ty {
+                    f(node);
+                }
+            });
+        }
+
+        fn traverse_substitutions<Db: crate::Db>(
+            substitutions: &mut Substitutions<Db>,
+            f: &mut impl FnMut(&mut Db::Node),
+        ) {
+            substitutions.0 = mem::take(&mut substitutions.0)
+                .into_iter()
+                .map(|(mut node, mut ty)| {
+                    traverse_node_ty(&mut node, &mut ty, f);
+                    (node, ty)
+                })
+                .collect();
+        }
+
+        match self {
+            Constraint::Ty(node, ty) => {
+                traverse_node_ty(node, ty, f);
+            }
+            Constraint::Instantiation(instantiation) => {
+                traverse_substitutions(&mut instantiation.substitutions, f);
+            }
+            Constraint::Bound(bound) => {
+                f(&mut bound.0.node);
+                traverse_substitutions(&mut bound.0.substitutions, f);
+            }
+        }
+    }
+
+    pub fn traverse_tys_mut(&mut self, f: &mut impl FnMut(&mut Ty<Db>)) {
         match self {
             Constraint::Ty(_, ty) => f(ty),
             Constraint::Instantiation(instantiation) => {
-                for constraint in &mut instantiation.constraints {
-                    constraint.traverse_mut(f);
-                }
-
                 for ty in instantiation.substitutions.0.values_mut() {
                     f(ty);
                 }
             }
             Constraint::Bound(bound) => {
-                for ty in bound.substitutions.0.values_mut() {
+                for ty in bound.0.substitutions.0.values_mut() {
                     f(ty);
                 }
             }
@@ -164,14 +202,10 @@ impl<Db: crate::Db> From<BTreeMap<Db::Node, Db::Node>> for Substitutions<Db> {
 #[derive_where(Debug, Clone, PartialEq, Eq)]
 pub struct Instantiation<Db: crate::Db> {
     pub source: Db::Node,
+    pub node: Db::Node,
+    pub definition: Db::Node,
     pub substitutions: Substitutions<Db>,
-    pub constraints: Vec<Constraint<Db>>,
 }
 
 #[derive_where(Debug, Clone, PartialEq, Eq)]
-pub struct Bound<Db: crate::Db> {
-    pub source: Db::Node,
-    pub node: Db::Node,
-    pub tr: Db::Node,
-    pub substitutions: Substitutions<Db>,
-}
+pub struct Bound<Db: crate::Db>(pub Instantiation<Db>);

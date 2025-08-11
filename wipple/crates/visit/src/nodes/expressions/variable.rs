@@ -25,8 +25,9 @@ impl Visit for VariableExpression {
                 Definition::Constant(definition) => Some((
                     Constraint::Instantiation(Instantiation {
                         source: id,
+                        node: id,
+                        definition: definition.node,
                         substitutions: Substitutions::replace_all(),
-                        constraints: definition.constraints.resolve_for(id),
                     }),
                     "resolvedConstantName",
                 )),

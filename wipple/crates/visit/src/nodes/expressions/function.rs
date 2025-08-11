@@ -30,5 +30,4 @@ impl Visit for FunctionExpression {
 
         visitor.constraints(constraints_for_function(id, inputs, output));
     }
-
 }

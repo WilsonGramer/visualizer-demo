@@ -1,5 +1,5 @@
 use crate::{
-    Db, Span,
+    Db, Source, Span,
     fact::{Fact, FactValue},
     node::NodeId,
 };
@@ -50,7 +50,7 @@ impl Db {
                 continue;
             }
 
-            let Some(source) = self.get::<String>(node, "source") else {
+            let Some(Source(source)) = self.get::<Source>(node, "source") else {
                 continue;
             };
 
@@ -117,9 +117,12 @@ impl<'a> visualizer::WriteGraphContext<'a> for Ctx<'a> {
     }
 
     fn node_data(&self, node: Self::Node) -> serde_json::Value {
-        let span = self.0.get::<Span>(node, "span");
+        let span = self
+            .0
+            .get::<Span>(node, "span")
+            .map(|span| span.display(self.0));
 
-        let source = self.0.get::<String>(node, "source").map(|source| {
+        let source = self.0.get::<Source>(node, "source").map(|Source(source)| {
             // Remove comments
             source
                 .lines()
@@ -128,7 +131,10 @@ impl<'a> visualizer::WriteGraphContext<'a> for Ctx<'a> {
                 .join("\n")
         });
 
-        let comments = self.0.get::<String>(node, "comments");
+        let comments = self
+            .0
+            .get::<Source>(node, "comments")
+            .map(|Source(source)| source);
 
         serde_json::json!({
             "span": span,

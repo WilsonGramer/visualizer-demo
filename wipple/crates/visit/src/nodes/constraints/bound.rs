@@ -3,7 +3,7 @@ use crate::{
     visitor::{Visit, Visitor},
 };
 use std::collections::BTreeMap;
-use visualizer::{Bound, Constraint, Substitutions};
+use visualizer::{Bound, Constraint, Instantiation, Substitutions};
 use wipple_db::NodeId;
 use wipple_syntax::{BoundConstraint, Range};
 
@@ -42,12 +42,12 @@ impl Visit for BoundConstraint {
             .collect::<BTreeMap<_, _>>();
 
         visitor.current_definition().lazy_constraint(move |node| {
-            Constraint::Bound(Bound {
+            Constraint::Bound(Bound(Instantiation {
                 source: node,
                 node: id,
-                tr: trait_node,
+                definition: trait_node,
                 substitutions: Substitutions::from(substitutions.clone()),
-            })
+            }))
         });
     }
 }
