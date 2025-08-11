@@ -67,6 +67,7 @@ fn query_inner(
                     .collect(),
                 None => db
                     .all(&next.fact)
+                    .filter(|&(node, _)| !db.is_hidden(node))
                     .map(|(node, fact)| {
                         let mut values = values.clone();
                         values.insert(next.node.clone(), Rc::new(node));

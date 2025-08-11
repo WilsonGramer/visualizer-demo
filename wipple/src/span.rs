@@ -1,6 +1,11 @@
 use line_index::LineIndex;
 use regex::Regex;
-use std::{fmt::Display, ops::Range, str::FromStr, sync::LazyLock};
+use std::{
+    fmt::Display,
+    ops::Range,
+    str::FromStr,
+    sync::{Arc, LazyLock},
+};
 use wipple_db::Span;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -115,7 +120,7 @@ impl ParsedSpan {
                 start: (start_line, start_col),
                 end: (end_line, end_col),
             } => Span {
-                path: path.clone(),
+                path: Arc::from(path.as_str()),
                 range: line_index
                     .offset(line_index::LineCol {
                         line: start_line as u32 - 1,
@@ -139,7 +144,7 @@ impl ParsedSpan {
                 let end_line_col = line_index.try_line_col((range.end as u32).into())?;
 
                 Span {
-                    path: path.clone(),
+                    path: Arc::from(path.as_str()),
                     range: range.clone(),
                     start_line_col: (
                         start_line_col.line as usize + 1,

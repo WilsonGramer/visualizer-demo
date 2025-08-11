@@ -46,6 +46,9 @@ impl<'a> MarkdownQueryExt<'a> for Query<'a, Vec<(Span, String)>> {
                 }
             }
 
+            result.sort_by_key(|(span, _)| (span.path.clone(), span.range.start, span.range.end));
+            result.dedup();
+
             result
         }))
     }

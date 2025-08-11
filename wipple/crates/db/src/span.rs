@@ -1,13 +1,13 @@
 use crate::{Db, FactValue};
-use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Debug, Display},
     ops::Range,
+    sync::Arc,
 };
 
-#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Span {
-    pub path: String,
+    pub path: Arc<str>,
     pub range: Range<usize>,
     pub start_line_col: (usize, usize),
     pub end_line_col: (usize, usize),
@@ -16,7 +16,7 @@ pub struct Span {
 impl Span {
     pub fn root(path: impl AsRef<str>) -> Self {
         Span {
-            path: path.as_ref().to_string(),
+            path: Arc::from(path.as_ref()),
             range: 0..0,
             start_line_col: (0, 0),
             end_line_col: (0, 0),
