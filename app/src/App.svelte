@@ -68,15 +68,21 @@
     </div>
 
     <div class="relative flex-1 flex flex-row gap-[10px] min-h-0">
-        <textarea
-            bind:this={code}
-            class="flex-1 border-[1.5px] border-black/5 rounded-lg p-[14px] font-mono resize-none focus:outline-blue-500 max-w-[500px]"
-            spellcheck="false"
-            placeholder="Write your code here..."
-        ></textarea>
+        <div class="flex flex-col flex-1 gap-[10px] max-w-[500px]">
+            <textarea
+                bind:this={code}
+                class="flex-2 border-[1.5px] border-black/5 rounded-lg p-[14px] font-mono resize-none focus:outline-blue-500"
+                spellcheck="false"
+                placeholder="Write your code here..."
+            ></textarea>
+
+            <pre
+                bind:this={output}
+                class="flex-1 border-[1.5px] border-black/5 rounded-lg overflow-scroll p-[10px]"></pre>
+        </div>
 
         <div
-            class="flex-2 border-[1.5px] border-black/5 rounded-lg overflow-scroll flex flex-col gap-[20px] p-[10px]"
+            class="flex-2 border-[1.5px] border-black/5 rounded-lg flex flex-col gap-[20px] p-[10px]"
         >
             <p bind:this={status} class="text-sm text-black/50"></p>
 
@@ -85,8 +91,6 @@
                     <Graph {...graphData} />
                 </SvelteFlowProvider>
             {/if}
-
-            <pre bind:this={output}></pre>
         </div>
     </div>
 

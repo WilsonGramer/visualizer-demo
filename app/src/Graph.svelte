@@ -132,7 +132,7 @@
     });
 </script>
 
-<div class="h-[600px] shrink-0">
+<div class="flex-1 shrink-0">
     <SvelteFlow {nodeTypes} {edgeTypes} nodes={layouted.nodes} edges={layouted.edges} fitView>
         <Controls />
         <Background />
