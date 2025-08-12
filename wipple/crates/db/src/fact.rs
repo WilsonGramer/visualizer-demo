@@ -80,7 +80,7 @@ fn display_ty(ty: &Ty<Db>, db: &Db, root: bool) -> String {
         Ty::Unknown(_) | Ty::Of(_) => String::from("_"),
         Ty::Parameter(node) => db.get::<Source>(*node, "source").unwrap().clone().0,
         Ty::Named { name, parameters } => {
-            let ty = format_args!(
+            let ty = format!(
                 "{}{}",
                 db.get::<Source>(*name, "source").unwrap().0,
                 parameters
@@ -90,13 +90,13 @@ fn display_ty(ty: &Ty<Db>, db: &Db, root: bool) -> String {
             );
 
             if root || parameters.is_empty() {
-                format!("{}", ty)
+                ty
             } else {
                 format!("({})", ty)
             }
         }
         Ty::Function { inputs, output } => {
-            let ty = format_args!(
+            let ty = format!(
                 "{}-> {}",
                 inputs
                     .iter()
@@ -105,11 +105,7 @@ fn display_ty(ty: &Ty<Db>, db: &Db, root: bool) -> String {
                 display_ty(output, db, true)
             );
 
-            if root {
-                format!("{}", ty)
-            } else {
-                format!("({})", ty)
-            }
+            if root { ty } else { format!("({})", ty) }
         }
         Ty::Tuple { elements } => format!(
             "({})",
