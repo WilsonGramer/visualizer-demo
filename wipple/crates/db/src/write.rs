@@ -14,12 +14,7 @@ pub enum Filter<'a> {
 }
 
 impl Db {
-    pub fn write(
-        &self,
-        filter: Option<Filter<'_>>,
-        indent: &str,
-        mut w: impl Write,
-    ) -> io::Result<()> {
+    pub fn write(&self, filter: &[Filter<'_>], indent: &str, mut w: impl Write) -> io::Result<()> {
         let nodes = self.filtered_nodes(filter).collect::<Vec<_>>();
 
         for &node in &nodes {
@@ -62,28 +57,28 @@ impl Db {
         Ok(())
     }
 
-    pub fn graph(&self, ty_groups: &TyGroups<Db>, filter: Option<Filter<'_>>) -> Graph {
+    pub fn graph(&self, ty_groups: &TyGroups<Db>, filter: &[Filter<'_>]) -> Graph {
         Graph::generate(Ctx(self), ty_groups, self.filtered_nodes(filter))
     }
 
-    fn filtered_nodes(&self, filter: Option<Filter<'_>>) -> impl Iterator<Item = NodeId> {
+    fn filtered_nodes(&self, filter: &[Filter<'_>]) -> impl Iterator<Item = NodeId> {
         self.nodes()
             .filter(|&node| !self.is_hidden(node))
             .filter(move |&node| {
-                let Some(filter) = filter else {
+                if filter.is_empty() {
                     return true;
-                };
+                }
 
                 let Some(span) = self.get::<Span>(node, "span") else {
                     return false;
                 };
 
-                match filter {
+                filter.iter().any(|&filter| match filter {
                     Filter::Range(start, end) => {
-                        span.range.start <= (end as usize) && span.range.end >= (start as usize)
+                        span.range.start >= (start as usize) && span.range.end <= (end as usize)
                     }
                     Filter::Lines(lines) => lines.contains(&(span.start_line_col.0 as u32)),
-                }
+                })
             })
     }
 }

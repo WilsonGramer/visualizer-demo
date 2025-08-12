@@ -19,7 +19,7 @@ use visualizer::Graph;
 pub struct Options<'a> {
     pub path: &'a str,
     pub source: &'a str,
-    pub filter: Option<Filter<'a>>,
+    pub filter: Vec<Filter<'a>>,
     pub queries: Vec<(String, ParsedSpan)>,
 }
 
@@ -100,10 +100,10 @@ pub fn run(
 
     writeln!(output, "{}\n", "Facts:".bold().underline())?;
 
-    db.write(options.filter, "  ", &mut output)?;
+    db.write(&options.filter, "  ", &mut output)?;
 
     if let Some(graph) = graph {
-        graph(db.graph(&ty_groups, options.filter));
+        graph(db.graph(&ty_groups, &options.filter));
     }
 
     Ok(())

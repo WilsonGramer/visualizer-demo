@@ -3,6 +3,8 @@
     import { AnsiUp } from "ansi_up";
     import { SvelteFlowProvider } from "@xyflow/svelte";
     import Graph from "./Graph.svelte";
+    import Editor from "./Editor.svelte";
+    import { onMount } from "svelte";
 
     const ansi = new AnsiUp();
 
@@ -14,30 +16,31 @@
         };
     };
 
-    let code;
+    const metaKey = navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl";
+
     let status;
     let graph;
     let output;
 
+    let code = $state("");
+    let selections = $state([]);
     let graphData = $state();
 
     const update = debounce(300, async () => {
         const url = new URL(window.location.href);
-        url.searchParams.set("code", code.value);
+        url.searchParams.set("code", code);
         window.history.replaceState({}, "", url.toString());
 
         await initWasm();
 
-        const filter =
-            code.selectionStart !== code.selectionEnd
-                ? Uint32Array.from([code.selectionStart, code.selectionEnd])
-                : undefined;
+        const filter = Uint32Array.from(selections.filter(([from, to]) => from !== to).flat());
 
-        status.innerText = filter
-            ? "Filtering by selection"
-            : "Showing all code (select code to filter)";
+        status.innerText =
+            filter.length > 0
+                ? `Filtering by selection (hold ${metaKey} to select multiple)`
+                : "Showing all code (select code to filter)";
 
-        const [outputString, outputGraphData] = run(code.value, filter);
+        const [outputString, outputGraphData] = run(code, filter);
         output.innerHTML = ansi.ansi_to_html(outputString);
         graphData = outputGraphData;
     });
@@ -45,14 +48,15 @@
     $effect(() => {
         const query = new URLSearchParams(window.location.search);
         if (query.has("code")) {
-            code.value = query.get("code");
+            code = query.get("code");
         }
-
-        code.addEventListener("input", update);
-        code.addEventListener("selectionchange", update);
     });
 
-    update();
+    $effect(() => {
+        code;
+        selections;
+        update();
+    });
 </script>
 
 <div class="flex flex-col w-screen h-screen p-[10px] gap-[10px]">
@@ -69,12 +73,11 @@
 
     <div class="relative flex-1 flex flex-row gap-[10px] min-h-0">
         <div class="flex flex-col flex-1 gap-[10px] max-w-[500px]">
-            <textarea
-                bind:this={code}
+            <div
                 class="flex-2 border-[1.5px] border-black/5 rounded-lg p-[14px] font-mono resize-none focus:outline-blue-500"
-                spellcheck="false"
-                placeholder="Write your code here..."
-            ></textarea>
+            >
+                <Editor bind:code bind:selections />
+            </div>
 
             <pre
                 bind:this={output}

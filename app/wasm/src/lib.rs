@@ -3,13 +3,17 @@ use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub fn run(source: String, filter: Option<Vec<u32>>) -> Vec<JsValue> {
+pub fn run(source: String, selections: Vec<u32>) -> Vec<JsValue> {
     console_error_panic_hook::set_once();
     colored::control::set_override(true);
 
-    let filter = filter
-        .and_then(|filter| filter.into_iter().collect_tuple())
-        .map(|(start, end)| wipple::db::Filter::Range(start, end));
+    let filter = selections
+        .into_iter()
+        .chunks(2)
+        .into_iter()
+        .map(|filter| filter.into_iter().collect_tuple().unwrap())
+        .map(|(start, end)| wipple::db::Filter::Range(start, end))
+        .collect::<Vec<_>>();
 
     let options = wipple::Options {
         path: "input",
